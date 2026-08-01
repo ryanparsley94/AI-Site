@@ -2830,6 +2830,113 @@ export function useGetDashboardSummary<TData = Awaited<ReturnType<typeof getDash
 }
 
 
+// ─── Assistant Training ────────────────────────────────────────────────────────
+
+import type {
+  AssistantTrainingEntry,
+  AssistantTrainingInput,
+  AssistantTrainingUpdate,
+  TestAssistantInput,
+  TestAssistantResult,
+} from './api.schemas';
+
+export const getListAssistantTrainingUrl = (id: number) => `/api/assistants/${id}/training`;
+export const getCreateAssistantTrainingUrl = (id: number) => `/api/assistants/${id}/training`;
+export const getUpdateAssistantTrainingUrl = (id: number, trainingId: number) => `/api/assistants/${id}/training/${trainingId}`;
+export const getDeleteAssistantTrainingUrl = (id: number, trainingId: number) => `/api/assistants/${id}/training/${trainingId}`;
+export const getTestAssistantUrl = (id: number) => `/api/assistants/${id}/test`;
+
+export const listAssistantTraining = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<AssistantTrainingEntry[]> =>
+  customFetch<AssistantTrainingEntry[]>(getListAssistantTrainingUrl(id), { ...options, method: 'GET' });
+
+export const getListAssistantTrainingQueryKey = (id: number) => [`/api/assistants/${id}/training`] as const;
+
+export const getListAssistantTrainingQueryOptions = <TData = Awaited<ReturnType<typeof listAssistantTraining>>, TError = ErrorType<unknown>>(
+  id: number, options?: { query?: UseQueryOptions<Awaited<ReturnType<typeof listAssistantTraining>>, TError, TData>, request?: SecondParameter<typeof customFetch> }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+  const queryKey = queryOptions?.queryKey ?? getListAssistantTrainingQueryKey(id);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listAssistantTraining>>> = ({ signal }) => listAssistantTraining(id, { signal, ...requestOptions });
+  return { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof listAssistantTraining>>, TError, TData> & { queryKey: QueryKey };
+};
+
+export function useListAssistantTraining<TData = Awaited<ReturnType<typeof listAssistantTraining>>, TError = ErrorType<unknown>>(
+  id: number, options?: { query?: UseQueryOptions<Awaited<ReturnType<typeof listAssistantTraining>>, TError, TData>, request?: SecondParameter<typeof customFetch> }
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListAssistantTrainingQueryOptions(id, options);
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const createAssistantTraining = async (id: number, body: AssistantTrainingInput, options?: Parameters<typeof customFetch>[1]): Promise<AssistantTrainingEntry> =>
+  customFetch<AssistantTrainingEntry>(getCreateAssistantTrainingUrl(id), { ...options, method: 'POST', headers: { 'Content-Type': 'application/json', ...options?.headers }, body: JSON.stringify(body) });
+
+export const getCreateAssistantTrainingMutationOptions = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof createAssistantTraining>>, TError, { id: number; data: BodyType<AssistantTrainingInput> }, TContext>, request?: SecondParameter<typeof customFetch> }
+): UseMutationOptions<Awaited<ReturnType<typeof createAssistantTraining>>, TError, { id: number; data: BodyType<AssistantTrainingInput> }, TContext> => {
+  const mutationKey = ['createAssistantTraining'];
+  const { mutation: mutationOptions, request: requestOptions } = options ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ? options : { ...options, mutation: { ...options.mutation, mutationKey } } : { mutation: { mutationKey }, request: undefined };
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAssistantTraining>>, { id: number; data: BodyType<AssistantTrainingInput> }> = ({ id, data }) => createAssistantTraining(id, data, requestOptions);
+  return { mutationFn, ...mutationOptions };
+};
+
+export const useCreateAssistantTraining = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof createAssistantTraining>>, TError, { id: number; data: BodyType<AssistantTrainingInput> }, TContext>, request?: SecondParameter<typeof customFetch> }
+): UseMutationResult<Awaited<ReturnType<typeof createAssistantTraining>>, TError, { id: number; data: BodyType<AssistantTrainingInput> }, TContext> =>
+  useMutation(getCreateAssistantTrainingMutationOptions(options));
+
+export const updateAssistantTraining = async (id: number, trainingId: number, body: AssistantTrainingUpdate, options?: Parameters<typeof customFetch>[1]): Promise<AssistantTrainingEntry> =>
+  customFetch<AssistantTrainingEntry>(getUpdateAssistantTrainingUrl(id, trainingId), { ...options, method: 'PATCH', headers: { 'Content-Type': 'application/json', ...options?.headers }, body: JSON.stringify(body) });
+
+export const getUpdateAssistantTrainingMutationOptions = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof updateAssistantTraining>>, TError, { id: number; trainingId: number; data: BodyType<AssistantTrainingUpdate> }, TContext>, request?: SecondParameter<typeof customFetch> }
+): UseMutationOptions<Awaited<ReturnType<typeof updateAssistantTraining>>, TError, { id: number; trainingId: number; data: BodyType<AssistantTrainingUpdate> }, TContext> => {
+  const mutationKey = ['updateAssistantTraining'];
+  const { mutation: mutationOptions, request: requestOptions } = options ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ? options : { ...options, mutation: { ...options.mutation, mutationKey } } : { mutation: { mutationKey }, request: undefined };
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAssistantTraining>>, { id: number; trainingId: number; data: BodyType<AssistantTrainingUpdate> }> = ({ id, trainingId, data }) => updateAssistantTraining(id, trainingId, data, requestOptions);
+  return { mutationFn, ...mutationOptions };
+};
+
+export const useUpdateAssistantTraining = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof updateAssistantTraining>>, TError, { id: number; trainingId: number; data: BodyType<AssistantTrainingUpdate> }, TContext>, request?: SecondParameter<typeof customFetch> }
+): UseMutationResult<Awaited<ReturnType<typeof updateAssistantTraining>>, TError, { id: number; trainingId: number; data: BodyType<AssistantTrainingUpdate> }, TContext> =>
+  useMutation(getUpdateAssistantTrainingMutationOptions(options));
+
+export const deleteAssistantTraining = async (id: number, trainingId: number, options?: Parameters<typeof customFetch>[1]): Promise<void> =>
+  customFetch<void>(getDeleteAssistantTrainingUrl(id, trainingId), { ...options, method: 'DELETE' });
+
+export const getDeleteAssistantTrainingMutationOptions = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof deleteAssistantTraining>>, TError, { id: number; trainingId: number }, TContext>, request?: SecondParameter<typeof customFetch> }
+): UseMutationOptions<Awaited<ReturnType<typeof deleteAssistantTraining>>, TError, { id: number; trainingId: number }, TContext> => {
+  const mutationKey = ['deleteAssistantTraining'];
+  const { mutation: mutationOptions, request: requestOptions } = options ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ? options : { ...options, mutation: { ...options.mutation, mutationKey } } : { mutation: { mutationKey }, request: undefined };
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteAssistantTraining>>, { id: number; trainingId: number }> = ({ id, trainingId }) => deleteAssistantTraining(id, trainingId, requestOptions);
+  return { mutationFn, ...mutationOptions };
+};
+
+export const useDeleteAssistantTraining = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof deleteAssistantTraining>>, TError, { id: number; trainingId: number }, TContext>, request?: SecondParameter<typeof customFetch> }
+): UseMutationResult<Awaited<ReturnType<typeof deleteAssistantTraining>>, TError, { id: number; trainingId: number }, TContext> =>
+  useMutation(getDeleteAssistantTrainingMutationOptions(options));
+
+export const testAssistant = async (id: number, body: TestAssistantInput, options?: Parameters<typeof customFetch>[1]): Promise<TestAssistantResult> =>
+  customFetch<TestAssistantResult>(getTestAssistantUrl(id), { ...options, method: 'POST', headers: { 'Content-Type': 'application/json', ...options?.headers }, body: JSON.stringify(body) });
+
+export const getTestAssistantMutationOptions = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof testAssistant>>, TError, { id: number; data: BodyType<TestAssistantInput> }, TContext>, request?: SecondParameter<typeof customFetch> }
+): UseMutationOptions<Awaited<ReturnType<typeof testAssistant>>, TError, { id: number; data: BodyType<TestAssistantInput> }, TContext> => {
+  const mutationKey = ['testAssistant'];
+  const { mutation: mutationOptions, request: requestOptions } = options ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ? options : { ...options, mutation: { ...options.mutation, mutationKey } } : { mutation: { mutationKey }, request: undefined };
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof testAssistant>>, { id: number; data: BodyType<TestAssistantInput> }> = ({ id, data }) => testAssistant(id, data, requestOptions);
+  return { mutationFn, ...mutationOptions };
+};
+
+export const useTestAssistant = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof testAssistant>>, TError, { id: number; data: BodyType<TestAssistantInput> }, TContext>, request?: SecondParameter<typeof customFetch> }
+): UseMutationResult<Awaited<ReturnType<typeof testAssistant>>, TError, { id: number; data: BodyType<TestAssistantInput> }, TContext> =>
+  useMutation(getTestAssistantMutationOptions(options));
+
+
 
 
 

@@ -19,3 +19,17 @@ export const assistantsTable = pgTable("assistants", {
 export const insertAssistantSchema = createInsertSchema(assistantsTable).omit({ id: true, createdAt: true, updatedAt: true, callsHandled: true, jobsBooked: true });
 export type InsertAssistant = z.infer<typeof insertAssistantSchema>;
 export type Assistant = typeof assistantsTable.$inferSelect;
+
+// Training entries — structured knowledge injected into the assistant's system prompt
+export const assistantTrainingTable = pgTable("assistant_training", {
+  id: serial("id").primaryKey(),
+  assistantId: integer("assistant_id").notNull().references(() => assistantsTable.id, { onDelete: "cascade" }),
+  category: text("category").notNull(), // service | faq | area | hours | upsell
+  question: text("question").notNull(),
+  answer: text("answer").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertAssistantTrainingSchema = createInsertSchema(assistantTrainingTable).omit({ id: true, createdAt: true });
+export type InsertAssistantTraining = z.infer<typeof insertAssistantTrainingSchema>;
+export type AssistantTraining = typeof assistantTrainingTable.$inferSelect;

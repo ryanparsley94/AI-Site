@@ -1,6 +1,7 @@
 import { Router } from "express";
-import { eq } from "drizzle-orm";
-import { db, assistantsTable } from "@workspace/db";
+import { eq, and } from "drizzle-orm";
+import { db, assistantsTable, assistantTrainingTable } from "@workspace/db";
+import { openai } from "@workspace/integrations-openai-ai-server";
 import { textToSpeech } from "@workspace/integrations-openai-ai-server/audio";
 import {
   ListAssistantsResponse,
@@ -12,6 +13,18 @@ import {
   UpdateAssistantBody,
   UpdateAssistantResponse,
   DeleteAssistantParams,
+  ListAssistantTrainingParams,
+  CreateAssistantTrainingParams,
+  CreateAssistantTrainingBody,
+  CreateAssistantTrainingResponse,
+  UpdateAssistantTrainingParams,
+  UpdateAssistantTrainingBody,
+  UpdateAssistantTrainingResponse,
+  DeleteAssistantTrainingParams,
+  ListAssistantTrainingResponse,
+  TestAssistantParams,
+  TestAssistantBody,
+  TestAssistantResponse,
 } from "@workspace/api-zod";
 
 const router = Router();
@@ -20,6 +33,13 @@ function mapAssistant(a: typeof assistantsTable.$inferSelect) {
   return {
     ...a,
     createdAt: a.createdAt.toISOString(),
+  };
+}
+
+function mapTraining(t: typeof assistantTrainingTable.$inferSelect) {
+  return {
+    ...t,
+    createdAt: t.createdAt.toISOString(),
   };
 }
 
@@ -84,6 +104,151 @@ router.post("/assistants/voice-preview", async (req, res): Promise<void> => {
   res.setHeader("Content-Type", "audio/mpeg");
   res.setHeader("Content-Length", buf.length);
   res.send(buf);
+});
+
+// ─── Training CRUD ────────────────────────────────────────────────────────────
+
+router.get("/assistants/:id/training", async (req, res): Promise<void> => {
+  const params = ListAssistantTrainingParams.safeParse({ id: Number(req.params.id) });
+  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+  const rows = await db
+    .select()
+    .from(assistantTrainingTable)
+    .where(eq(assistantTrainingTable.assistantId, params.data.id))
+    .orderBy(assistantTrainingTable.createdAt);
+  res.json(ListAssistantTrainingResponse.parse(rows.map(mapTraining)));
+});
+
+router.post("/assistants/:id/training", async (req, res): Promise<void> => {
+  const params = CreateAssistantTrainingParams.safeParse({ id: Number(req.params.id) });
+  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  // Verify assistant exists
+  const [assistant] = await db.select().from(assistantsTable).where(eq(assistantsTable.id, params.data.id));
+  if (!assistant) { res.status(404).json({ error: "Assistant not found" }); return; }
+
+  const parsed = CreateAssistantTrainingBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const [row] = await db
+    .insert(assistantTrainingTable)
+    .values({ assistantId: params.data.id, ...parsed.data })
+    .returning();
+  res.status(201).json(CreateAssistantTrainingResponse.parse(mapTraining(row)));
+});
+
+router.patch("/assistants/:id/training/:trainingId", async (req, res): Promise<void> => {
+  const params = UpdateAssistantTrainingParams.safeParse({
+    id: Number(req.params.id),
+    trainingId: Number(req.params.trainingId),
+  });
+  if (!params.success) { res.status(400).json({ error: "Invalid params" }); return; }
+  const parsed = UpdateAssistantTrainingBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const [row] = await db
+    .update(assistantTrainingTable)
+    .set(parsed.data)
+    .where(
+      and(
+        eq(assistantTrainingTable.id, params.data.trainingId),
+        eq(assistantTrainingTable.assistantId, params.data.id)
+      )
+    )
+    .returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(UpdateAssistantTrainingResponse.parse(mapTraining(row)));
+});
+
+router.delete("/assistants/:id/training/:trainingId", async (req, res): Promise<void> => {
+  const params = DeleteAssistantTrainingParams.safeParse({
+    id: Number(req.params.id),
+    trainingId: Number(req.params.trainingId),
+  });
+  if (!params.success) { res.status(400).json({ error: "Invalid params" }); return; }
+  await db
+    .delete(assistantTrainingTable)
+    .where(
+      and(
+        eq(assistantTrainingTable.id, params.data.trainingId),
+        eq(assistantTrainingTable.assistantId, params.data.id)
+      )
+    );
+  res.status(204).end();
+});
+
+// ─── Build system prompt with training context ────────────────────────────────
+
+function buildSystemPrompt(
+  assistant: typeof assistantsTable.$inferSelect,
+  trainingEntries: typeof assistantTrainingTable.$inferSelect[]
+): string {
+  const parts: string[] = [];
+
+  parts.push(
+    `You are ${assistant.name}, an AI phone assistant for a construction company. ` +
+    `Your personality is ${assistant.personality}. ` +
+    (assistant.instructions ? assistant.instructions : "")
+  );
+
+  if (trainingEntries.length > 0) {
+    const grouped: Record<string, typeof trainingEntries> = {};
+    for (const entry of trainingEntries) {
+      if (!grouped[entry.category]) grouped[entry.category] = [];
+      grouped[entry.category].push(entry);
+    }
+
+    const categoryLabels: Record<string, string> = {
+      service: "Services Offered",
+      faq: "Frequently Asked Questions",
+      area: "Service Area",
+      hours: "Business Hours",
+      upsell: "Upsells & Add-ons",
+    };
+
+    parts.push("\n\n## Business Knowledge\n");
+    for (const [cat, entries] of Object.entries(grouped)) {
+      parts.push(`### ${categoryLabels[cat] ?? cat}`);
+      for (const e of entries) {
+        parts.push(`Q: ${e.question}\nA: ${e.answer}`);
+      }
+    }
+  }
+
+  return parts.join("\n");
+}
+
+// ─── Test the assistant ───────────────────────────────────────────────────────
+
+router.post("/assistants/:id/test", async (req, res): Promise<void> => {
+  const params = TestAssistantParams.safeParse({ id: Number(req.params.id) });
+  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const parsed = TestAssistantBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const [assistant] = await db.select().from(assistantsTable).where(eq(assistantsTable.id, params.data.id));
+  if (!assistant) { res.status(404).json({ error: "Assistant not found" }); return; }
+
+  const trainingEntries = await db
+    .select()
+    .from(assistantTrainingTable)
+    .where(eq(assistantTrainingTable.assistantId, params.data.id))
+    .orderBy(assistantTrainingTable.createdAt);
+
+  const systemPrompt = buildSystemPrompt(assistant, trainingEntries);
+
+  const completion = await openai.chat.completions.create({
+    model: "gpt-5.6-luna",
+    max_completion_tokens: 400,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: parsed.data.question },
+    ],
+  });
+
+  const answer = completion.choices[0]?.message?.content ?? "I'm unable to answer that right now.";
+  res.json(TestAssistantResponse.parse({ answer }));
 });
 
 export default router;
