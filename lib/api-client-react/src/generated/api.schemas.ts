@@ -376,6 +376,80 @@ export interface ContactUpdate {
   notes?: string;
 }
 
+export interface MaterialLineItem {
+  name: string;
+  quantity: number;
+  unit: string;
+  /** @nullable */
+  unitPrice?: number | null;
+  /** @nullable */
+  source?: string | null;
+  /** @nullable */
+  sourceUrl?: string | null;
+  /** @nullable */
+  total?: number | null;
+}
+
+export interface Quote {
+  id: number;
+  title: string;
+  materials: MaterialLineItem[];
+  grandTotal: number;
+  /** @nullable */
+  jobId?: string | null;
+  createdAt: string;
+}
+
+export interface QuoteInput {
+  title: string;
+  materials: MaterialLineItem[];
+  grandTotal?: number;
+  jobId?: string;
+}
+
+export interface QuoteUpdate {
+  title?: string;
+  materials?: MaterialLineItem[];
+  grandTotal?: number;
+  jobId?: string;
+}
+
+export type PriceSearchInputMaterialsItem = {
+  name: string;
+  quantity: number;
+  unit: string;
+};
+
+export interface PriceSearchInput {
+  materials: PriceSearchInputMaterialsItem[];
+}
+
+export type PricedMaterialConfidence = typeof PricedMaterialConfidence[keyof typeof PricedMaterialConfidence];
+
+
+export const PricedMaterialConfidence = {
+  high: 'high',
+  medium: 'medium',
+  low: 'low',
+} as const;
+
+export interface PricedMaterial {
+  name: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  source: string;
+  sourceUrl: string;
+  total: number;
+  confidence: PricedMaterialConfidence;
+}
+
+export interface PriceSearchResult {
+  materials: PricedMaterial[];
+  grandTotal: number;
+  disclaimer: string;
+}
+
 export interface DashboardSummary {
   callsToday: number;
   jobsThisWeek: number;

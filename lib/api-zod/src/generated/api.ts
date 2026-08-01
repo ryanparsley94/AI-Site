@@ -540,6 +540,166 @@ export const DeleteContactResponse = zod.void()
 
 
 /**
+ * @summary List saved quotes
+ */
+export const ListQuotesResponseItem = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "materials": zod.array(zod.object({
+  "name": zod.string(),
+  "quantity": zod.number(),
+  "unit": zod.string(),
+  "unitPrice": zod.number().nullish(),
+  "source": zod.string().nullish(),
+  "sourceUrl": zod.string().nullish(),
+  "total": zod.number().nullish()
+})),
+  "grandTotal": zod.number(),
+  "jobId": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListQuotesResponse = zod.array(ListQuotesResponseItem)
+
+
+/**
+ * @summary Save a new quote
+ */
+export const CreateQuoteBody = zod.object({
+  "title": zod.string(),
+  "materials": zod.array(zod.object({
+  "name": zod.string(),
+  "quantity": zod.number(),
+  "unit": zod.string(),
+  "unitPrice": zod.number().nullish(),
+  "source": zod.string().nullish(),
+  "sourceUrl": zod.string().nullish(),
+  "total": zod.number().nullish()
+})),
+  "grandTotal": zod.number().optional(),
+  "jobId": zod.string().optional()
+})
+
+export const CreateQuoteResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "materials": zod.array(zod.object({
+  "name": zod.string(),
+  "quantity": zod.number(),
+  "unit": zod.string(),
+  "unitPrice": zod.number().nullish(),
+  "source": zod.string().nullish(),
+  "sourceUrl": zod.string().nullish(),
+  "total": zod.number().nullish()
+})),
+  "grandTotal": zod.number(),
+  "jobId": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Get a quote by ID
+ */
+export const GetQuoteParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetQuoteResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "materials": zod.array(zod.object({
+  "name": zod.string(),
+  "quantity": zod.number(),
+  "unit": zod.string(),
+  "unitPrice": zod.number().nullish(),
+  "source": zod.string().nullish(),
+  "sourceUrl": zod.string().nullish(),
+  "total": zod.number().nullish()
+})),
+  "grandTotal": zod.number(),
+  "jobId": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update a quote
+ */
+export const UpdateQuoteParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateQuoteBody = zod.object({
+  "title": zod.string().optional(),
+  "materials": zod.array(zod.object({
+  "name": zod.string(),
+  "quantity": zod.number(),
+  "unit": zod.string(),
+  "unitPrice": zod.number().nullish(),
+  "source": zod.string().nullish(),
+  "sourceUrl": zod.string().nullish(),
+  "total": zod.number().nullish()
+})).optional(),
+  "grandTotal": zod.number().optional(),
+  "jobId": zod.string().optional()
+})
+
+export const UpdateQuoteResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "materials": zod.array(zod.object({
+  "name": zod.string(),
+  "quantity": zod.number(),
+  "unit": zod.string(),
+  "unitPrice": zod.number().nullish(),
+  "source": zod.string().nullish(),
+  "sourceUrl": zod.string().nullish(),
+  "total": zod.number().nullish()
+})),
+  "grandTotal": zod.number(),
+  "jobId": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete a quote
+ */
+export const DeleteQuoteParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteQuoteResponse = zod.void()
+
+
+/**
+ * @summary AI-powered material price search
+ */
+export const SearchMaterialPricesBody = zod.object({
+  "materials": zod.array(zod.object({
+  "name": zod.string(),
+  "quantity": zod.number(),
+  "unit": zod.string()
+}))
+})
+
+export const SearchMaterialPricesResponse = zod.object({
+  "materials": zod.array(zod.object({
+  "name": zod.string(),
+  "quantity": zod.number(),
+  "unit": zod.string(),
+  "unitPrice": zod.number(),
+  "source": zod.string(),
+  "sourceUrl": zod.string(),
+  "total": zod.number(),
+  "confidence": zod.enum(['high', 'medium', 'low'])
+})),
+  "grandTotal": zod.number(),
+  "disclaimer": zod.string()
+})
+
+
+/**
  * @summary Get high-level metrics for the dashboard
  */
 export const GetDashboardSummaryResponse = zod.object({

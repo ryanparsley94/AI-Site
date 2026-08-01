@@ -20,6 +20,8 @@ tags:
     description: Job scheduling
   - name: contacts
     description: Customer and lead contacts
+  - name: quotes
+    description: Materials quotation and AI price search
   - name: dashboard
     description: Dashboard analytics and summaries
 paths:
@@ -461,6 +463,115 @@ paths:
         "204":
           description: Deleted
 
+  # ── Quotes ───────────────────────────────────────────────────────────────
+  /quotes:
+    get:
+      operationId: listQuotes
+      tags: [quotes]
+      summary: List saved quotes
+      responses:
+        "200":
+          description: List of quotes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Quote"
+    post:
+      operationId: createQuote
+      tags: [quotes]
+      summary: Save a new quote
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuoteInput"
+      responses:
+        "201":
+          description: Created quote
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quote"
+
+  /quotes/{id}:
+    get:
+      operationId: getQuote
+      tags: [quotes]
+      summary: Get a quote by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Quote
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quote"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateQuote
+      tags: [quotes]
+      summary: Update a quote
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuoteUpdate"
+      responses:
+        "200":
+          description: Updated quote
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quote"
+    delete:
+      operationId: deleteQuote
+      tags: [quotes]
+      summary: Delete a quote
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "204":
+          description: Deleted
+
+  /quotes/price-search:
+    post:
+      operationId: searchMaterialPrices
+      tags: [quotes]
+      summary: AI-powered material price search
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PriceSearchInput"
+      responses:
+        "200":
+          description: Price results for each material
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PriceSearchResult"
+
   # ── Dashboard ─────────────────────────────────────────────────────────────
   /dashboard/summary:
     get:
@@ -865,6 +976,127 @@ components:
           type: string
           enum: [lead, customer]
         notes:
+          type: string
+
+    # ── Quotes ───────────────────────────────────────────────────────────────
+    MaterialLineItem:
+      type: object
+      required: [name, quantity, unit]
+      properties:
+        name:
+          type: string
+        quantity:
+          type: number
+        unit:
+          type: string
+        unitPrice:
+          type: ["number", "null"]
+        source:
+          type: ["string", "null"]
+        sourceUrl:
+          type: ["string", "null"]
+        total:
+          type: ["number", "null"]
+
+    Quote:
+      type: object
+      required: [id, title, materials, grandTotal, createdAt]
+      properties:
+        id:
+          type: number
+        title:
+          type: string
+        materials:
+          type: array
+          items:
+            $ref: "#/components/schemas/MaterialLineItem"
+        grandTotal:
+          type: number
+        jobId:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    QuoteInput:
+      type: object
+      required: [title, materials]
+      properties:
+        title:
+          type: string
+        materials:
+          type: array
+          items:
+            $ref: "#/components/schemas/MaterialLineItem"
+        grandTotal:
+          type: number
+        jobId:
+          type: string
+
+    QuoteUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        materials:
+          type: array
+          items:
+            $ref: "#/components/schemas/MaterialLineItem"
+        grandTotal:
+          type: number
+        jobId:
+          type: string
+
+    PriceSearchInput:
+      type: object
+      required: [materials]
+      properties:
+        materials:
+          type: array
+          items:
+            type: object
+            required: [name, quantity, unit]
+            properties:
+              name:
+                type: string
+              quantity:
+                type: number
+              unit:
+                type: string
+
+    PricedMaterial:
+      type: object
+      required: [name, quantity, unit, unitPrice, source, sourceUrl, total, confidence]
+      properties:
+        name:
+          type: string
+        quantity:
+          type: number
+        unit:
+          type: string
+        unitPrice:
+          type: number
+        source:
+          type: string
+        sourceUrl:
+          type: string
+        total:
+          type: number
+        confidence:
+          type: string
+          enum: [high, medium, low]
+
+    PriceSearchResult:
+      type: object
+      required: [materials, grandTotal, disclaimer]
+      properties:
+        materials:
+          type: array
+          items:
+            $ref: "#/components/schemas/PricedMaterial"
+        grandTotal:
+          type: number
+        disclaimer:
           type: string
 
     # ── Dashboard ─────────────────────────────────────────────────────────────
