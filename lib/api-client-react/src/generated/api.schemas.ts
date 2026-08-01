@@ -581,3 +581,42 @@ export const ListContactsType = {
   customer: 'customer',
 } as const;
 
+export type AssistantTrainingCategory = typeof AssistantTrainingCategory[keyof typeof AssistantTrainingCategory];
+
+export const AssistantTrainingCategory = {
+  service: 'service',
+  faq: 'faq',
+  area: 'area',
+  hours: 'hours',
+  upsell: 'upsell',
+} as const;
+
+export interface AssistantTrainingEntry {
+  id: number;
+  assistantId: number;
+  category: AssistantTrainingCategory;
+  question: string;
+  answer: string;
+  createdAt: string;
+}
+
+export interface AssistantTrainingInput {
+  category: AssistantTrainingCategory;
+  question: string;
+  answer: string;
+}
+
+export interface AssistantTrainingUpdate {
+  category?: AssistantTrainingCategory;
+  question?: string;
+  answer?: string;
+}
+
+export interface TestAssistantInput {
+  question: string;
+}
+
+export interface TestAssistantResult {
+  answer: string;
+}
+

@@ -164,6 +164,81 @@ export const DeleteAssistantResponse = zod.void()
 
 
 /**
+ * @summary List training entries for an assistant
+ */
+export const ListAssistantTrainingParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const TrainingCategory = zod.enum(['service', 'faq', 'area', 'hours', 'upsell'])
+export type TrainingCategoryType = zod.infer<typeof TrainingCategory>
+
+export const AssistantTrainingItem = zod.object({
+  "id": zod.number(),
+  "assistantId": zod.number(),
+  "category": TrainingCategory,
+  "question": zod.string(),
+  "answer": zod.string(),
+  "createdAt": zod.string(),
+})
+export const ListAssistantTrainingResponse = zod.array(AssistantTrainingItem)
+
+/**
+ * @summary Create a training entry for an assistant
+ */
+export const CreateAssistantTrainingParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const CreateAssistantTrainingBody = zod.object({
+  "category": TrainingCategory,
+  "question": zod.string(),
+  "answer": zod.string(),
+})
+
+export const CreateAssistantTrainingResponse = AssistantTrainingItem
+
+/**
+ * @summary Update a training entry
+ */
+export const UpdateAssistantTrainingParams = zod.object({
+  "id": zod.coerce.number(),
+  "trainingId": zod.coerce.number()
+})
+
+export const UpdateAssistantTrainingBody = zod.object({
+  "category": TrainingCategory.optional(),
+  "question": zod.string().optional(),
+  "answer": zod.string().optional(),
+})
+
+export const UpdateAssistantTrainingResponse = AssistantTrainingItem
+
+/**
+ * @summary Delete a training entry
+ */
+export const DeleteAssistantTrainingParams = zod.object({
+  "id": zod.coerce.number(),
+  "trainingId": zod.coerce.number()
+})
+
+/**
+ * @summary Test the assistant with a sample question
+ */
+export const TestAssistantParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const TestAssistantBody = zod.object({
+  "question": zod.string()
+})
+
+export const TestAssistantResponse = zod.object({
+  "answer": zod.string()
+})
+
+
+/**
  * @summary List call logs
  */
 export const listCallsQueryLimitDefault = 50;
