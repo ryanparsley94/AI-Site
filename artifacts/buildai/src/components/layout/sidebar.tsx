@@ -7,7 +7,6 @@ import {
   Bot, 
   Users, 
   Settings,
-  HardHat,
   Calculator,
   Award,
   X
@@ -40,10 +39,8 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           onClick={onClose}
           className="flex items-center gap-3 text-sidebar-primary font-bold text-xl hover:opacity-90 transition-opacity"
         >
-          <div className="bg-sidebar-primary text-sidebar-primary-foreground p-2 rounded-md">
-            <HardHat size={24} />
-          </div>
-          BuildAI
+          <img src="/logo-mark.png" alt="" className="w-8 h-8 object-contain" />
+          Build<span className="text-sidebar-primary">AI</span>
         </Link>
         {/* Close button — mobile only */}
         {onClose && (
