@@ -41,13 +41,35 @@ router.post("/quotes/price-search", async (req, res): Promise<void> => {
 
   const { materials } = parsed.data;
 
-  const prompt = `You are a UK construction materials pricing expert. For each material below, provide realistic current UK trade prices in GBP (£) from major UK suppliers and wholesalers such as:
-- General building: Travis Perkins, Jewson, Buildbase, Wickes Trade, Build Merchant
-- Plumbing & heating: City Plumbing, Wolseley, Plumbfix, Screwfix, Toolstation
-- Electrical: CEF (City Electrical Factors), Rexel, Screwfix, Toolstation
-- Roofing: Roofbase, Travis Perkins Roofing, Jewson Roofing, Eurocell
-- Tiles & flooring: Topps Tiles, Tile Giant, CTD Tiles, Screwfix
-- Timber & sheet: Travis Perkins, Jewson, James Latham, International Timber
+  const prompt = `You are a UK construction materials pricing expert. For each material, identify its trade category and quote from the most relevant UK online retailer or wholesaler for that category:
+
+ELECTRICAL items (cables, consumer units, sockets, switches, fittings, conduit, MCBs, RCDs, LED drivers, lighting, trunking):
+→ Primary: Screwfix (screwfix.com), TLC Direct (tlc-direct.co.uk)
+→ Also use: CEF (cef.co.uk), Toolstation (toolstation.com), RS Components (rs-online.com)
+
+PLUMBING & HEATING items (pipes, fittings, valves, radiators, boiler parts, cylinders, taps, waste fittings):
+→ Primary: Screwfix (screwfix.com), City Plumbing (cityplumbing.co.uk)
+→ Also use: Toolstation (toolstation.com), Wolseley (wolseley.co.uk), Plumbfix (plumbfix.com)
+
+ROOFING items (tiles, slates, battens, felt, flashing, guttering, fascia, soffits, ridge, hip):
+→ Primary: Roofbase (roofbase.com), Travis Perkins (travisperkins.co.uk)
+→ Also use: Jewson (jewson.co.uk), Eurocell (eurocell.co.uk), National Roofing Supplies
+
+TILES & FLOORING items (ceramic, porcelain, natural stone, adhesive, grout, backer board):
+→ Primary: Topps Tiles (toppstiles.co.uk), Tile Giant (tilegiant.co.uk)
+→ Also use: CTD Tiles (ctdtiles.co.uk), Screwfix (screwfix.com), Tile Mountain (tilemountain.co.uk)
+
+TIMBER & SHEET MATERIALS (timber, OSB, plywood, MDF, plasterboard, insulation, lintels):
+→ Primary: Travis Perkins (travisperkins.co.uk), Jewson (jewson.co.uk)
+→ Also use: Buildbase (buildbase.co.uk), B&Q Trade (diy.com), Wickes (wickes.co.uk)
+
+DECORATING items (paint, filler, primer, masking tape, brushes, rollers, wallpaper):
+→ Primary: Brewers Decorator Centres (brewers.co.uk), Screwfix (screwfix.com)
+→ Also use: Toolstation (toolstation.com), Dulux Decorator Centre (duluxdecoratorcentre.co.uk)
+
+GENERAL BUILDING items (bricks, blocks, sand, cement, aggregates, concrete, DPC, cavity wall ties):
+→ Primary: Jewson (jewson.co.uk), Travis Perkins (travisperkins.co.uk)
+→ Also use: Buildbase (buildbase.co.uk), Aggregate Industries, Hanson Building Materials
 
 Return ONLY valid JSON matching this exact structure:
 {
@@ -56,9 +78,9 @@ Return ONLY valid JSON matching this exact structure:
       "name": "material name",
       "quantity": number,
       "unit": "unit",
-      "unitPrice": number (GBP per unit, ex-VAT trade price),
-      "source": "UK Supplier Name",
-      "sourceUrl": "https://example.com",
+      "unitPrice": number (GBP per unit, ex-VAT),
+      "source": "Retailer Name",
+      "sourceUrl": "https://actual-store-url.co.uk/product-search-or-category-page",
       "total": number (unitPrice * quantity),
       "confidence": "high" | "medium" | "low"
     }
@@ -70,7 +92,7 @@ Return ONLY valid JSON matching this exact structure:
 Materials to price:
 ${materials.map((m: { name: string; quantity: number; unit: string }) => `- ${m.quantity} ${m.unit} of ${m.name}`).join("\n")}
 
-Use realistic current UK trade prices in GBP (ex-VAT). Set confidence to "high" for common materials, "medium" for specialty items, "low" for unusual items. The disclaimer should note these are estimates based on typical UK trade prices, exclude VAT, and prices vary by region and supplier account terms.`;
+Use realistic current UK retail/trade prices in GBP (ex-VAT). For sourceUrl use a real search or category URL from the chosen store (e.g. https://www.screwfix.com/c/cables for cables, https://www.tlc-direct.co.uk/Categories/Cable.html for electrical cable). Set confidence to "high" for common items, "medium" for specialty items, "low" for unusual items. The disclaimer should state prices are estimates based on current UK online prices, exclude VAT at 20%, and users should confirm live pricing before purchasing.`;
 
   const completion = await openai.chat.completions.create({
     model: "gpt-5.6-luna",
