@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "BuildAI — Construction AI Platform"
+description = "A SaaS web app for construction companies that provides AI-powered phone call assistants (answer calls, qualify leads, book jobs), job scheduling, and a dashboard with call logs and analytics. Targeted at small-to-mid-size construction firms wanting to automate their front-office operations."
+version = "1.0.0"
+id = "artifacts/buildai"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21488
+
+[services.development]
+run = "pnpm --filter @workspace/buildai run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/buildai", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/buildai/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21488"
+BASE_PATH = "/"

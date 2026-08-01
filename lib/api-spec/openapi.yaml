@@ -3,20 +3,31 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: BuildAI – Construction Company AI Assistant Platform API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: company
+    description: Company profile
+  - name: assistants
+    description: AI assistant configurations
+  - name: calls
+    description: Call logs and transcripts
+  - name: jobs
+    description: Job scheduling
+  - name: contacts
+    description: Customer and lead contacts
+  - name: dashboard
+    description: Dashboard analytics and summaries
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +35,446 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ── Company ──────────────────────────────────────────────────────────────
+  /company:
+    get:
+      operationId: getCompany
+      tags: [company]
+      summary: Get company profile
+      responses:
+        "200":
+          description: Company profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Company"
+    patch:
+      operationId: updateCompany
+      tags: [company]
+      summary: Update company profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompanyInput"
+      responses:
+        "200":
+          description: Updated company
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Company"
+
+  # ── AI Assistants ─────────────────────────────────────────────────────────
+  /assistants:
+    get:
+      operationId: listAssistants
+      tags: [assistants]
+      summary: List all AI assistants
+      responses:
+        "200":
+          description: List of assistants
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Assistant"
+    post:
+      operationId: createAssistant
+      tags: [assistants]
+      summary: Create a new AI assistant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssistantInput"
+      responses:
+        "201":
+          description: Created assistant
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Assistant"
+
+  /assistants/{id}:
+    get:
+      operationId: getAssistant
+      tags: [assistants]
+      summary: Get an assistant by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Assistant
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Assistant"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateAssistant
+      tags: [assistants]
+      summary: Update an assistant
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssistantUpdate"
+      responses:
+        "200":
+          description: Updated assistant
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Assistant"
+    delete:
+      operationId: deleteAssistant
+      tags: [assistants]
+      summary: Delete an assistant
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Calls ─────────────────────────────────────────────────────────────────
+  /calls:
+    get:
+      operationId: listCalls
+      tags: [calls]
+      summary: List call logs
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [all, booked, missed, transferred, spam]
+        - name: limit
+          in: query
+          schema:
+            type: number
+            default: 50
+      responses:
+        "200":
+          description: List of calls
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Call"
+
+  /calls/{id}:
+    get:
+      operationId: getCall
+      tags: [calls]
+      summary: Get a call with full transcript
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Call detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CallDetail"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateCall
+      tags: [calls]
+      summary: Update call notes or status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CallUpdate"
+      responses:
+        "200":
+          description: Updated call
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Call"
+    delete:
+      operationId: deleteCall
+      tags: [calls]
+      summary: Delete a call record
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "204":
+          description: Deleted
+
+  /calls/stats:
+    get:
+      operationId: getCallStats
+      tags: [calls]
+      summary: Get call analytics (bookings, durations, outcomes)
+      responses:
+        "200":
+          description: Call statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CallStats"
+
+  # ── Jobs ──────────────────────────────────────────────────────────────────
+  /jobs:
+    get:
+      operationId: listJobs
+      tags: [jobs]
+      summary: List scheduled jobs
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [all, scheduled, in_progress, completed, cancelled]
+      responses:
+        "200":
+          description: List of jobs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Job"
+    post:
+      operationId: createJob
+      tags: [jobs]
+      summary: Create a new job
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JobInput"
+      responses:
+        "201":
+          description: Created job
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+
+  /jobs/upcoming:
+    get:
+      operationId: getUpcomingJobs
+      tags: [jobs]
+      summary: Get jobs scheduled in the next 7 days
+      responses:
+        "200":
+          description: Upcoming jobs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Job"
+
+  /jobs/{id}:
+    get:
+      operationId: getJob
+      tags: [jobs]
+      summary: Get a job by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Job
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateJob
+      tags: [jobs]
+      summary: Update a job
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JobUpdate"
+      responses:
+        "200":
+          description: Updated job
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+    delete:
+      operationId: deleteJob
+      tags: [jobs]
+      summary: Delete a job
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Contacts ──────────────────────────────────────────────────────────────
+  /contacts:
+    get:
+      operationId: listContacts
+      tags: [contacts]
+      summary: List contacts
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [all, lead, customer]
+      responses:
+        "200":
+          description: List of contacts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Contact"
+    post:
+      operationId: createContact
+      tags: [contacts]
+      summary: Create a contact
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactInput"
+      responses:
+        "201":
+          description: Created contact
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Contact"
+
+  /contacts/{id}:
+    get:
+      operationId: getContact
+      tags: [contacts]
+      summary: Get a contact by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Contact
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Contact"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateContact
+      tags: [contacts]
+      summary: Update a contact
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactUpdate"
+      responses:
+        "200":
+          description: Updated contact
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Contact"
+    delete:
+      operationId: deleteContact
+      tags: [contacts]
+      summary: Delete a contact
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Dashboard ─────────────────────────────────────────────────────────────
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Get high-level metrics for the dashboard
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +485,406 @@ components:
       required:
         - status
 
+    # ── Company ──────────────────────────────────────────────────────────────
+    Company:
+      type: object
+      required: [id, name, phone, timezone, createdAt]
+      properties:
+        id:
+          type: number
+        name:
+          type: string
+        phone:
+          type: string
+        email:
+          type: ["string", "null"]
+        website:
+          type: ["string", "null"]
+        address:
+          type: ["string", "null"]
+        timezone:
+          type: string
+        logoUrl:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    CompanyInput:
+      type: object
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        website:
+          type: string
+        address:
+          type: string
+        timezone:
+          type: string
+        logoUrl:
+          type: string
+
+    # ── Assistants ──────────────────────────────────────────────────────────
+    Assistant:
+      type: object
+      required: [id, name, voice, personality, active, createdAt]
+      properties:
+        id:
+          type: number
+        name:
+          type: string
+        voice:
+          type: string
+          enum: [alloy, echo, fable, onyx, nova, shimmer]
+        personality:
+          type: string
+          enum: [professional, friendly, direct]
+        greeting:
+          type: string
+        instructions:
+          type: ["string", "null"]
+        active:
+          type: boolean
+        callsHandled:
+          type: number
+        jobsBooked:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+
+    AssistantInput:
+      type: object
+      required: [name, voice, personality]
+      properties:
+        name:
+          type: string
+        voice:
+          type: string
+          enum: [alloy, echo, fable, onyx, nova, shimmer]
+        personality:
+          type: string
+          enum: [professional, friendly, direct]
+        greeting:
+          type: string
+        instructions:
+          type: string
+        active:
+          type: boolean
+
+    AssistantUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        voice:
+          type: string
+          enum: [alloy, echo, fable, onyx, nova, shimmer]
+        personality:
+          type: string
+          enum: [professional, friendly, direct]
+        greeting:
+          type: string
+        instructions:
+          type: string
+        active:
+          type: boolean
+
+    # ── Calls ────────────────────────────────────────────────────────────────
+    Call:
+      type: object
+      required: [id, callerName, callerPhone, status, duration, outcome, assistantName, createdAt]
+      properties:
+        id:
+          type: number
+        callerName:
+          type: string
+        callerPhone:
+          type: string
+        status:
+          type: string
+          enum: [booked, missed, transferred, spam, unresolved]
+        outcome:
+          type: string
+        duration:
+          type: number
+          description: Duration in seconds
+        assistantName:
+          type: string
+        notes:
+          type: ["string", "null"]
+        jobId:
+          type: ["integer", "null"]
+        contactId:
+          type: ["integer", "null"]
+        reviewed:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    CallDetail:
+      type: object
+      required: [id, callerName, callerPhone, status, duration, outcome, assistantName, transcript, createdAt]
+      properties:
+        id:
+          type: number
+        callerName:
+          type: string
+        callerPhone:
+          type: string
+        status:
+          type: string
+          enum: [booked, missed, transferred, spam, unresolved]
+        outcome:
+          type: string
+        duration:
+          type: number
+        assistantName:
+          type: string
+        notes:
+          type: ["string", "null"]
+        jobId:
+          type: ["integer", "null"]
+        contactId:
+          type: ["integer", "null"]
+        reviewed:
+          type: boolean
+        transcript:
+          type: array
+          items:
+            $ref: "#/components/schemas/TranscriptLine"
+        createdAt:
+          type: string
+          format: date-time
+
+    TranscriptLine:
+      type: object
+      required: [speaker, text, timestamp]
+      properties:
+        speaker:
+          type: string
+          enum: [assistant, caller]
+        text:
+          type: string
+        timestamp:
+          type: number
+          description: Seconds from call start
+
+    CallUpdate:
+      type: object
+      properties:
+        notes:
+          type: string
+        reviewed:
+          type: boolean
+        status:
+          type: string
+          enum: [booked, missed, transferred, spam, unresolved]
+
+    CallStats:
+      type: object
+      required: [totalCalls, bookedCalls, missedCalls, transferredCalls, averageDuration, bookingRate, callsToday, callsThisWeek]
+      properties:
+        totalCalls:
+          type: number
+        bookedCalls:
+          type: number
+        missedCalls:
+          type: number
+        transferredCalls:
+          type: number
+        averageDuration:
+          type: number
+        bookingRate:
+          type: number
+        callsToday:
+          type: number
+        callsThisWeek:
+          type: number
+
+    # ── Jobs ─────────────────────────────────────────────────────────────────
+    Job:
+      type: object
+      required: [id, title, status, scheduledAt, contactName, contactPhone, serviceType, createdAt]
+      properties:
+        id:
+          type: number
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [scheduled, in_progress, completed, cancelled]
+        scheduledAt:
+          type: string
+          format: date-time
+        estimatedDuration:
+          type: ["integer", "null"]
+          description: Duration in minutes
+        contactName:
+          type: string
+        contactPhone:
+          type: string
+        contactId:
+          type: ["integer", "null"]
+        serviceType:
+          type: string
+        address:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        estimatedValue:
+          type: ["number", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    JobInput:
+      type: object
+      required: [title, scheduledAt, contactName, contactPhone, serviceType]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        scheduledAt:
+          type: string
+          format: date-time
+        estimatedDuration:
+          type: number
+        contactName:
+          type: string
+        contactPhone:
+          type: string
+        contactId:
+          type: number
+        serviceType:
+          type: string
+        address:
+          type: string
+        notes:
+          type: string
+        estimatedValue:
+          type: number
+        status:
+          type: string
+          enum: [scheduled, in_progress, completed, cancelled]
+
+    JobUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        scheduledAt:
+          type: string
+          format: date-time
+        estimatedDuration:
+          type: number
+        contactName:
+          type: string
+        contactPhone:
+          type: string
+        serviceType:
+          type: string
+        address:
+          type: string
+        notes:
+          type: string
+        estimatedValue:
+          type: number
+        status:
+          type: string
+          enum: [scheduled, in_progress, completed, cancelled]
+
+    # ── Contacts ─────────────────────────────────────────────────────────────
+    Contact:
+      type: object
+      required: [id, name, phone, type, createdAt]
+      properties:
+        id:
+          type: number
+        name:
+          type: string
+        phone:
+          type: string
+        email:
+          type: ["string", "null"]
+        address:
+          type: ["string", "null"]
+        type:
+          type: string
+          enum: [lead, customer]
+        notes:
+          type: ["string", "null"]
+        totalJobs:
+          type: number
+        totalSpent:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+
+    ContactInput:
+      type: object
+      required: [name, phone, type]
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        address:
+          type: string
+        type:
+          type: string
+          enum: [lead, customer]
+        notes:
+          type: string
+
+    ContactUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        address:
+          type: string
+        type:
+          type: string
+          enum: [lead, customer]
+        notes:
+          type: string
+
+    # ── Dashboard ─────────────────────────────────────────────────────────────
+    DashboardSummary:
+      type: object
+      required: [callsToday, jobsThisWeek, activeAssistants, newLeadsThisWeek, bookingRate, revenueThisMonth, upcomingJobsCount, missedCallsToday]
+      properties:
+        callsToday:
+          type: number
+        jobsThisWeek:
+          type: number
+        activeAssistants:
+          type: number
+        newLeadsThisWeek:
+          type: number
+        bookingRate:
+          type: number
+        revenueThisMonth:
+          type: number
+        upcomingJobsCount:
+          type: number
+        missedCallsToday:
+          type: number
