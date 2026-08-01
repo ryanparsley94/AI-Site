@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { eq } from "drizzle-orm";
 import { db, assistantsTable } from "@workspace/db";
+import { textToSpeech } from "@workspace/integrations-openai-ai-server/audio";
 import {
   ListAssistantsResponse,
   CreateAssistantBody,
@@ -64,6 +65,25 @@ router.delete("/assistants/:id", async (req, res): Promise<void> => {
   if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
   await db.delete(assistantsTable).where(eq(assistantsTable.id, params.data.id));
   res.status(204).end();
+});
+
+// Voice preview — returns audio/wav for the given voice
+router.post("/assistants/voice-preview", async (req, res): Promise<void> => {
+  const { voice, text } = req.body as { voice?: string; text?: string };
+  const allowed = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"];
+  if (!voice || !allowed.includes(voice)) {
+    res.status(400).json({ error: "Invalid voice" });
+    return;
+  }
+  const sample = (text || "Hi, thanks for calling. How can I help you today?").slice(0, 200);
+  const buf = await textToSpeech(
+    sample,
+    voice as "alloy" | "echo" | "fable" | "onyx" | "nova" | "shimmer",
+    "wav"
+  );
+  res.setHeader("Content-Type", "audio/wav");
+  res.setHeader("Content-Length", buf.length);
+  res.send(buf);
 });
 
 export default router;
