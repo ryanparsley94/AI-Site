@@ -1,0 +1,24 @@
+kind = "mobile"
+previewPath = "/buildai-mobile/"
+title = "BuildAI Mobile"
+description = "A mobile companion app for BuildAI that lets construction crews and contractors check today's jobs, view client contacts, pull up saved certificates, and see a dashboard summary while on the job site. Connects to the shared BuildAI API server."
+version = "1.0.0"
+id = "artifacts/buildai-mobile"
+router = "expo-domain"
+
+[[services]]
+name = "expo"
+ensurePreviewReachable = "/status"
+paths = [ "/buildai-mobile/" ]
+localPort = 25400
+
+[services.development]
+run = "pnpm --filter @workspace/buildai-mobile run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/buildai-mobile", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/buildai-mobile", "run", "serve" ]
+
+[services.env]
+PORT = "25400"
+BASE_PATH = "/buildai-mobile/"
