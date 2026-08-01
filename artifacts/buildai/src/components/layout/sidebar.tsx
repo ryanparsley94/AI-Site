@@ -7,7 +7,8 @@ import {
   Bot, 
   Users, 
   Settings,
-  HardHat
+  HardHat,
+  Calculator
 } from "lucide-react";
 
 export default function Sidebar() {
@@ -17,6 +18,7 @@ export default function Sidebar() {
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/calls", label: "Call Log", icon: Phone },
     { href: "/jobs", label: "Job Schedule", icon: CalendarDays },
+    { href: "/quotes", label: "AI Quotes", icon: Calculator },
     { href: "/assistants", label: "AI Assistants", icon: Bot },
     { href: "/contacts", label: "Contacts", icon: Users },
     { href: "/settings", label: "Settings", icon: Settings },

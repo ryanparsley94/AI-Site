@@ -5,6 +5,7 @@ import assistantsRouter from "./assistants";
 import contactsRouter from "./contacts";
 import jobsRouter from "./jobs";
 import callsRouter from "./calls";
+import quotesRouter from "./quotes";
 import dashboardRouter from "./dashboard";
 
 const router: IRouter = Router();
@@ -15,6 +16,7 @@ router.use(assistantsRouter);
 router.use(contactsRouter);
 router.use(jobsRouter);
 router.use(callsRouter);
+router.use(quotesRouter);
 router.use(dashboardRouter);
 
 export default router;
