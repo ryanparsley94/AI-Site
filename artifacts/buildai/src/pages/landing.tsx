@@ -236,30 +236,55 @@ export default function Landing() {
           <div className="max-w-7xl mx-auto px-6">
             <div className="text-center max-w-2xl mx-auto mb-16">
               <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Simple, transparent pricing.</h2>
-              <p className="text-white/50 text-lg">Less than what you'd pay a receptionist for one day a month.</p>
+              <p className="text-white/50 text-lg">Less than a part-time receptionist for one week — and it works 24/7.</p>
             </div>
 
             <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
               {[
                 {
-                  name: "Independent",
+                  name: "Starter",
                   desc: "Solo operators & small trades.",
-                  price: "£79",
-                  features: ["100 answered calls/mo", "1 Active AI Assistant", "Calendar integration", "Trade-specific templates"],
+                  price: "£49",
+                  features: [
+                    { text: "1 AI assistant", soon: false },
+                    { text: "24/7 inbound call handling", soon: false },
+                    { text: "Job scheduling", soon: false },
+                    { text: "CRM & call transcripts", soon: false },
+                    { text: "UK trade templates", soon: false },
+                    { text: "Mobile app access", soon: false },
+                  ],
                   highlight: false,
                 },
                 {
-                  name: "Crew",
+                  name: "Pro",
                   desc: "Growing construction businesses.",
-                  price: "£199",
-                  features: ["500 answered calls/mo", "3 Active AI Assistants", "Advanced CRM routing", "Premium voices", "SMS follow-ups"],
+                  price: "£149",
+                  features: [
+                    { text: "3 AI assistants", soon: false },
+                    { text: "Everything in Starter", soon: false },
+                    { text: "AI material quote builder", soon: false },
+                    { text: "Compliance certificate generator", soon: false },
+                    { text: "Premium voice selection", soon: false },
+                    { text: "Customise assistant instructions", soon: false },
+                    { text: "PDF quote download", soon: true },
+                    { text: "SMS follow-ups", soon: true },
+                  ],
                   highlight: true,
                 },
                 {
-                  name: "Enterprise",
+                  name: "Scale",
                   desc: "High-volume contractors.",
-                  price: "£499",
-                  features: ["Unlimited calls", "Unlimited assistants", "API access", "Custom voice cloning", "Dedicated account manager"],
+                  price: "£349",
+                  features: [
+                    { text: "Unlimited assistants", soon: false },
+                    { text: "Everything in Pro", soon: false },
+                    { text: "AI email responder", soon: true },
+                    { text: "Website chat widget", soon: true },
+                    { text: "API access", soon: true },
+                    { text: "Custom voice cloning", soon: true },
+                    { text: "White-label logo", soon: true },
+                    { text: "Dedicated account manager", soon: false },
+                  ],
                   highlight: false,
                 },
               ].map((plan) => (
@@ -282,9 +307,16 @@ export default function Landing() {
                   </div>
                   <ul className="space-y-3 mb-8 flex-1">
                     {plan.features.map((f) => (
-                      <li key={f} className="flex gap-2.5 text-sm">
-                        <CheckCircle2 size={17} className={plan.highlight ? "text-white shrink-0 mt-0.5" : "text-[#F97316] shrink-0 mt-0.5"} />
-                        {f}
+                      <li key={f.text} className="flex items-start gap-2.5 text-sm">
+                        <CheckCircle2 size={17} className={`${plan.highlight ? "text-white" : "text-[#F97316]"} shrink-0 mt-0.5`} />
+                        <span className="flex-1">{f.text}</span>
+                        {f.soon && (
+                          <span className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full shrink-0 ${
+                            plan.highlight ? "bg-white/20 text-white/70" : "bg-white/8 text-white/40"
+                          }`}>
+                            Soon
+                          </span>
+                        )}
                       </li>
                     ))}
                   </ul>
