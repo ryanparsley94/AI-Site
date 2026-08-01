@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { eq, desc, sql } from "drizzle-orm";
 import { db, callsTable } from "@workspace/db";
+import { openai } from "@workspace/integrations-openai-ai-server";
 import {
   ListCallsResponse,
   GetCallParams,
@@ -82,6 +83,60 @@ router.delete("/calls/:id", async (req, res): Promise<void> => {
   if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
   await db.delete(callsTable).where(eq(callsTable.id, params.data.id));
   res.status(204).end();
+});
+
+// AI extract quote — derives materials + scope from a call transcript
+router.post("/calls/:id/extract-quote", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const [call] = await db.select().from(callsTable).where(eq(callsTable.id, id));
+  if (!call) { res.status(404).json({ error: "Not found" }); return; }
+
+  const transcriptText = Array.isArray(call.transcript)
+    ? (call.transcript as { speaker: string; text: string }[])
+        .map((t) => `${t.speaker === "caller" ? "Customer" : "AI"}: ${t.text}`)
+        .join("\n")
+    : "";
+
+  const contextParts = [
+    call.callerName && `Customer: ${call.callerName}`,
+    call.callerPhone && `Phone: ${call.callerPhone}`,
+    call.outcome && `AI Outcome Summary: ${call.outcome}`,
+    call.notes && `Internal Notes: ${call.notes}`,
+    transcriptText && `Call Transcript:\n${transcriptText}`,
+  ].filter(Boolean).join("\n\n");
+
+  const prompt = `You are a construction estimating assistant. Based on the call below, extract the materials and supplies the customer is likely to need for their project.
+
+${contextParts || "No transcript or notes available — make reasonable guesses for a general construction inquiry."}
+
+Return ONLY valid JSON in this exact structure:
+{
+  "suggestedTitle": "short quote title based on the job type (e.g. 'Deck Build — Smith Residence')",
+  "materials": [
+    { "name": "material name", "quantity": number, "unit": "unit of measure" }
+  ]
+}
+
+Rules:
+- Include 3–8 realistic materials based on the job type discussed
+- Use standard construction units (board ft, sq ft, bags, linear ft, each, rolls, sheets)
+- If the call mentions a specific project, tailor materials to it
+- If the call is vague, suggest common materials for residential construction
+- suggestedTitle should include the customer name if available`;
+
+  const completion = await openai.chat.completions.create({
+    model: "gpt-5.6-luna",
+    max_completion_tokens: 800,
+    messages: [{ role: "user", content: prompt }],
+  });
+
+  const content = completion.choices[0]?.message?.content ?? "{}";
+  const jsonMatch = content.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) { res.status(500).json({ error: "AI returned invalid response" }); return; }
+
+  const result = JSON.parse(jsonMatch[0]);
+  res.json(result);
 });
 
 export default router;

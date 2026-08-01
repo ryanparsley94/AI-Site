@@ -1,0 +1,1 @@
+- [Codegen Zod v3 patch](codegen-zod-patch.md) — every Orval codegen run needs `sed -i 's/zod\.int()/zod.number().int()/g'` on the generated zod file before typecheck.
