@@ -79,9 +79,9 @@ router.post("/assistants/voice-preview", async (req, res): Promise<void> => {
   const buf = await textToSpeech(
     sample,
     voice as "alloy" | "echo" | "fable" | "onyx" | "nova" | "shimmer",
-    "wav"
+    "mp3"
   );
-  res.setHeader("Content-Type", "audio/wav");
+  res.setHeader("Content-Type", "audio/mpeg");
   res.setHeader("Content-Length", buf.length);
   res.send(buf);
 });

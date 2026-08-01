@@ -72,7 +72,7 @@ function VoicePicker({
   };
 
   return (
-    <div className="grid grid-cols-3 gap-2">
+    <div className="grid grid-cols-2 gap-2">
       {VOICES.map((v) => (
         <button
           key={v.value}
