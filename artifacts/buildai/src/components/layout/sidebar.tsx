@@ -9,10 +9,16 @@ import {
   Settings,
   HardHat,
   Calculator,
-  Award
+  Award,
+  X
 } from "lucide-react";
 
-export default function Sidebar() {
+interface SidebarProps {
+  open?: boolean;
+  onClose?: () => void;
+}
+
+export default function Sidebar({ open, onClose }: SidebarProps) {
   const [location] = useLocation();
 
   const navItems = [
@@ -26,17 +32,31 @@ export default function Sidebar() {
     { href: "/settings", label: "Settings", icon: Settings },
   ];
 
-  return (
-    <div className="w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border flex flex-col h-screen overflow-y-auto shrink-0">
-      <div className="p-6">
-        <Link href="/dashboard" className="flex items-center gap-3 text-sidebar-primary font-bold text-xl hover:opacity-90 transition-opacity">
+  const sidebarContent = (
+    <div className="w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border flex flex-col h-full overflow-y-auto shrink-0">
+      <div className="p-6 flex items-center justify-between">
+        <Link
+          href="/dashboard"
+          onClick={onClose}
+          className="flex items-center gap-3 text-sidebar-primary font-bold text-xl hover:opacity-90 transition-opacity"
+        >
           <div className="bg-sidebar-primary text-sidebar-primary-foreground p-2 rounded-md">
             <HardHat size={24} />
           </div>
           BuildAI
         </Link>
+        {/* Close button — mobile only */}
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="md:hidden p-1 rounded-md text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
+            aria-label="Close menu"
+          >
+            <X size={20} />
+          </button>
+        )}
       </div>
-      
+
       <div className="flex-1 px-4 space-y-1">
         <div className="text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider mb-4 px-2">
           Command Center
@@ -47,10 +67,11 @@ export default function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={onClose}
               className={cn(
                 "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors",
-                isActive 
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground" 
+                isActive
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
                   : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
               )}
             >
@@ -60,7 +81,7 @@ export default function Sidebar() {
           );
         })}
       </div>
-      
+
       <div className="p-4 border-t border-sidebar-border mt-auto">
         <div className="bg-sidebar-accent/50 p-4 rounded-lg">
           <div className="flex items-center gap-2 mb-2">
@@ -73,5 +94,29 @@ export default function Sidebar() {
         </div>
       </div>
     </div>
+  );
+
+  return (
+    <>
+      {/* Desktop: always visible */}
+      <div className="hidden md:flex h-screen">
+        {sidebarContent}
+      </div>
+
+      {/* Mobile: slide-in overlay */}
+      {open && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 z-40 bg-black/60 md:hidden"
+            onClick={onClose}
+          />
+          {/* Drawer */}
+          <div className="fixed inset-y-0 left-0 z-50 h-full md:hidden">
+            {sidebarContent}
+          </div>
+        </>
+      )}
+    </>
   );
 }
