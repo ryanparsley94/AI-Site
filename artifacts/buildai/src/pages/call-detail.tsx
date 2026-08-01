@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useRoute, Link } from "wouter";
+import { useRoute, Link, useLocation } from "wouter";
 import { useGetCall, useUpdateCall, CallUpdateStatus } from "@workspace/api-client-react";
 import { format } from "date-fns";
 import { 
@@ -13,7 +13,9 @@ import {
   Bot,
   User,
   Save,
-  CheckCircle2
+  CheckCircle2,
+  Calculator,
+  Loader2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -37,6 +39,7 @@ export default function CallDetail() {
   const callId = Number(params?.id);
   const { toast } = useToast();
 
+  const [, navigate] = useLocation();
   const { data: call, isLoading } = useGetCall(callId, {
     query: { enabled: !!callId, queryKey: ['/api/calls', callId] }
   });
@@ -45,6 +48,7 @@ export default function CallDetail() {
 
   const [notes, setNotes] = useState("");
   const [status, setStatus] = useState<CallUpdateStatus | "">("");
+  const [isExtractingQuote, setIsExtractingQuote] = useState(false);
   const initialized = useRef(false);
 
   useEffect(() => {
@@ -78,6 +82,26 @@ export default function CallDetail() {
         toast({ title: "Call marked as reviewed" });
       }
     });
+  };
+
+  const handleCreateQuote = async () => {
+    setIsExtractingQuote(true);
+    try {
+      const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+      const resp = await fetch(`${base}/api/calls/${callId}/extract-quote`, { method: "POST" });
+      if (!resp.ok) throw new Error("Extraction failed");
+      const data = await resp.json();
+      sessionStorage.setItem("buildai_prefill_quote", JSON.stringify({
+        title: data.suggestedTitle ?? "",
+        materials: data.materials ?? [],
+        callerName: call?.callerName ?? "",
+      }));
+      navigate("/quotes");
+    } catch {
+      toast({ title: "Could not extract quote from call", variant: "destructive" });
+    } finally {
+      setIsExtractingQuote(false);
+    }
   };
 
   if (isLoading || !call) {
@@ -215,6 +239,26 @@ export default function CallDetail() {
                   <Save size={16} /> Save Notes
                 </Button>
               </div>
+            </div>
+
+            {/* Create Quote from Call */}
+            <div>
+              <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-3">Quick Actions</h3>
+              <Button
+                className="w-full gap-2"
+                variant="outline"
+                onClick={handleCreateQuote}
+                disabled={isExtractingQuote}
+              >
+                {isExtractingQuote ? (
+                  <><Loader2 size={16} className="animate-spin" /> Extracting materials…</>
+                ) : (
+                  <><Calculator size={16} /> Create Quote from Call</>
+                )}
+              </Button>
+              <p className="text-xs text-muted-foreground mt-2">
+                AI reads this call's transcript and pre-fills the quote builder with suggested materials.
+              </p>
             </div>
 
             {call.jobId && (

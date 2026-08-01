@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   useListQuotes, 
   useCreateQuote, 
@@ -41,10 +41,30 @@ export default function Quotes() {
 
   const [inputs, setInputs] = useState<{name: string, quantity: number, unit: string}[]>(initialInput);
   const [results, setResults] = useState<PriceSearchResult | null>(null);
-  
+  const [prefillBanner, setPrefillBanner] = useState<string | null>(null);
+
   const [isSaveOpen, setIsSaveOpen] = useState(false);
   const [quoteTitle, setQuoteTitle] = useState("");
   const [jobId, setJobId] = useState("");
+
+  // Pre-fill from a "Create Quote from Call" action
+  useEffect(() => {
+    const raw = sessionStorage.getItem("buildai_prefill_quote");
+    if (!raw) return;
+    sessionStorage.removeItem("buildai_prefill_quote");
+    try {
+      const prefill = JSON.parse(raw);
+      if (prefill.materials?.length) {
+        setInputs(prefill.materials.map((m: { name: string; quantity: number; unit: string }) => ({
+          name: m.name ?? "",
+          quantity: Number(m.quantity) || 1,
+          unit: m.unit ?? "each",
+        })));
+      }
+      if (prefill.title) setQuoteTitle(prefill.title);
+      if (prefill.callerName) setPrefillBanner(`Pre-filled from call with ${prefill.callerName}`);
+    } catch {}
+  }, []);
 
   const updateInput = (index: number, field: keyof typeof inputs[0], value: string | number) => {
     const newInputs = [...inputs];
@@ -143,6 +163,15 @@ export default function Quotes() {
 
       <div className="flex-1 overflow-auto p-6">
         <div className="max-w-6xl mx-auto space-y-6">
+
+          {/* Pre-fill banner from call */}
+          {prefillBanner && (
+            <div className="flex items-center gap-3 p-3 bg-primary/10 border border-primary/20 rounded-lg text-sm text-primary font-medium">
+              <Calculator size={16} />
+              {prefillBanner} — materials pre-filled below. Review and click "Get AI Prices".
+              <button onClick={() => setPrefillBanner(null)} className="ml-auto text-primary/60 hover:text-primary">✕</button>
+            </div>
+          )}
           
           <div className="grid lg:grid-cols-12 gap-6">
             {/* Input Section */}
