@@ -1,8 +1,44 @@
+import { useState, useRef } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { PhoneCall, CalendarDays, Bot, ArrowRight, CheckCircle2, Star, MapPin, Zap } from "lucide-react";
+import { PhoneCall, CalendarDays, Bot, ArrowRight, CheckCircle2, Star, MapPin, Zap, Loader2, Volume2 } from "lucide-react";
+
+const DEMO_SCRIPT =
+  "Hi there, thanks for calling! I'm the BuildAI assistant. I can help book estimates, answer questions about our services, and schedule a visit. Are you looking to get a quote, or do you have an existing job you'd like to follow up on?";
 
 export default function Landing() {
+  const [demoState, setDemoState] = useState<"idle" | "loading" | "playing">("idle");
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  async function handleDemoCall() {
+    if (demoState === "loading") return;
+    if (demoState === "playing") {
+      audioRef.current?.pause();
+      setDemoState("idle");
+      return;
+    }
+    setDemoState("loading");
+    try {
+      const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+      const resp = await fetch(`${base}/api/assistants/voice-preview`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ voice: "nova", text: DEMO_SCRIPT }),
+      });
+      if (!resp.ok) throw new Error("Audio generation failed");
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onended = () => { setDemoState("idle"); URL.revokeObjectURL(url); };
+      audio.onerror = () => { setDemoState("idle"); URL.revokeObjectURL(url); };
+      await audio.play();
+      setDemoState("playing");
+    } catch {
+      setDemoState("idle");
+    }
+  }
+
   return (
     <div className="min-h-screen bg-[#0d1117] text-white flex flex-col font-sans">
       {/* Navbar */}
@@ -28,7 +64,7 @@ export default function Landing() {
 
       <main className="flex-1">
         {/* Hero Section */}
-        <section className="relative min-h-[90vh] flex items-center overflow-hidden">
+        <section className="relative min-h-[90vh] flex items-start md:items-center overflow-hidden">
           {/* Background photo — tradesperson on site */}
           <div className="absolute inset-0">
             <img
@@ -41,7 +77,7 @@ export default function Landing() {
             <div className="absolute inset-0 bg-gradient-to-t from-[#0d1117] via-transparent to-transparent" />
           </div>
 
-          <div className="relative z-10 w-full max-w-7xl mx-auto px-6 py-24 grid md:grid-cols-2 gap-12 items-center">
+          <div className="relative z-10 w-full max-w-7xl mx-auto px-6 py-14 md:py-24 grid md:grid-cols-2 gap-12 items-center">
             {/* Left — copy */}
             <div className="space-y-8">
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#F97316]/15 text-[#F97316] text-sm font-semibold border border-[#F97316]/30">
@@ -52,7 +88,7 @@ export default function Landing() {
                 Built for UK trades &amp; construction
               </div>
 
-              <h1 className="text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.08] text-white">
+              <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.08] text-white">
                 Your <span className="text-[#F97316]">AI Foreman</span><br />
                 Never Misses<br />
                 A Call.
@@ -68,15 +104,22 @@ export default function Landing() {
                     Start Your Free Trial <ArrowRight size={20} />
                   </Button>
                 </Link>
-                <Button size="lg" variant="outline" className="w-full sm:w-auto text-lg h-14 px-8 bg-white/5 border-white/20 text-white hover:bg-white/10 hover:text-white">
-                  Hear a Demo Call
+                <Button
+                  size="lg"
+                  variant="outline"
+                  onClick={handleDemoCall}
+                  className="w-full sm:w-auto text-lg h-14 px-8 bg-white/5 border-white/20 text-white hover:bg-white/10 hover:text-white gap-2"
+                >
+                  {demoState === "loading" && <Loader2 size={18} className="animate-spin shrink-0" />}
+                  {demoState === "playing" && <Volume2 size={18} className="shrink-0 text-[#F97316]" />}
+                  {demoState === "playing" ? "Stop Demo" : "Hear a Demo Call"}
                 </Button>
               </div>
 
-              <div className="flex flex-wrap items-center gap-5 text-sm font-medium text-white/50 pt-2">
-                <span className="flex items-center gap-1.5"><CheckCircle2 size={15} className="text-green-400" /> No credit card required</span>
-                <span className="flex items-center gap-1.5"><CheckCircle2 size={15} className="text-green-400" /> Setup in 5 minutes</span>
-                <span className="flex items-center gap-1.5"><MapPin size={15} className="text-[#F97316]" /> UK-based &amp; GDPR compliant</span>
+              <div className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center gap-3 sm:gap-5 text-sm font-medium text-white/50 pt-2">
+                <span className="flex items-center gap-1.5"><CheckCircle2 size={15} className="text-green-400 shrink-0" /> No credit card required</span>
+                <span className="flex items-center gap-1.5"><CheckCircle2 size={15} className="text-green-400 shrink-0" /> Setup in 5 minutes</span>
+                <span className="flex items-center gap-1.5"><MapPin size={15} className="text-[#F97316] shrink-0" /> UK-based &amp; GDPR compliant</span>
               </div>
             </div>
 
