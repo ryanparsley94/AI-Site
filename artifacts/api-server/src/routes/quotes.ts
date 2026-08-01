@@ -41,7 +41,13 @@ router.post("/quotes/price-search", async (req, res): Promise<void> => {
 
   const { materials } = parsed.data;
 
-  const prompt = `You are a construction materials pricing expert. For each material below, provide realistic current US market price estimates from major suppliers (Home Depot, Lowe's, 84 Lumber, Menards, etc.).
+  const prompt = `You are a UK construction materials pricing expert. For each material below, provide realistic current UK trade prices in GBP (£) from major UK suppliers and wholesalers such as:
+- General building: Travis Perkins, Jewson, Buildbase, Wickes Trade, Build Merchant
+- Plumbing & heating: City Plumbing, Wolseley, Plumbfix, Screwfix, Toolstation
+- Electrical: CEF (City Electrical Factors), Rexel, Screwfix, Toolstation
+- Roofing: Roofbase, Travis Perkins Roofing, Jewson Roofing, Eurocell
+- Tiles & flooring: Topps Tiles, Tile Giant, CTD Tiles, Screwfix
+- Timber & sheet: Travis Perkins, Jewson, James Latham, International Timber
 
 Return ONLY valid JSON matching this exact structure:
 {
@@ -50,8 +56,8 @@ Return ONLY valid JSON matching this exact structure:
       "name": "material name",
       "quantity": number,
       "unit": "unit",
-      "unitPrice": number (USD per unit),
-      "source": "Supplier Name",
+      "unitPrice": number (GBP per unit, ex-VAT trade price),
+      "source": "UK Supplier Name",
       "sourceUrl": "https://example.com",
       "total": number (unitPrice * quantity),
       "confidence": "high" | "medium" | "low"
@@ -64,7 +70,7 @@ Return ONLY valid JSON matching this exact structure:
 Materials to price:
 ${materials.map((m: { name: string; quantity: number; unit: string }) => `- ${m.quantity} ${m.unit} of ${m.name}`).join("\n")}
 
-Use realistic current market prices. Set confidence to "high" for common materials, "medium" for specialty items, "low" for unusual items. The disclaimer should note these are estimates and prices vary by location and supplier.`;
+Use realistic current UK trade prices in GBP (ex-VAT). Set confidence to "high" for common materials, "medium" for specialty items, "low" for unusual items. The disclaimer should note these are estimates based on typical UK trade prices, exclude VAT, and prices vary by region and supplier account terms.`;
 
   const completion = await openai.chat.completions.create({
     model: "gpt-5.6-luna",

@@ -6,15 +6,15 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatDate(date: string | Date) {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
+  return new Intl.DateTimeFormat("en-GB", {
     day: "numeric",
+    month: "short",
     year: "numeric",
   }).format(new Date(date));
 }
 
 export function formatTime(date: string | Date) {
-  return new Intl.DateTimeFormat("en-US", {
+  return new Intl.DateTimeFormat("en-GB", {
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(date));
@@ -27,9 +27,9 @@ export function formatDuration(seconds: number) {
 }
 
 export function formatCurrency(amount: number) {
-  return new Intl.NumberFormat("en-US", {
+  return new Intl.NumberFormat("en-GB", {
     style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
+    currency: "GBP",
+    maximumFractionDigits: 2,
   }).format(amount);
 }
