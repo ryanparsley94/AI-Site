@@ -21,7 +21,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           >
             <Menu size={22} className="text-white" />
           </button>
-          <span className="text-sidebar-primary font-bold text-lg">BuildAI</span>
+          <div className="flex items-center gap-2 font-bold text-lg text-sidebar-foreground">
+            <img src="/logo-mark.png" alt="" className="w-6 h-6 object-contain" />
+            Build<span className="text-sidebar-primary">AI</span>
+          </div>
         </header>
 
         <main className="flex-1 overflow-auto">
