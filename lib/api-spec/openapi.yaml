@@ -22,6 +22,8 @@ tags:
     description: Customer and lead contacts
   - name: quotes
     description: Materials quotation and AI price search
+  - name: certificates
+    description: AI-generated construction certificates and documents
   - name: dashboard
     description: Dashboard analytics and summaries
 paths:
@@ -572,6 +574,115 @@ paths:
               schema:
                 $ref: "#/components/schemas/PriceSearchResult"
 
+  # ── Certificates ─────────────────────────────────────────────────────────
+  /certificates:
+    get:
+      operationId: listCertificates
+      tags: [certificates]
+      summary: List saved certificates
+      responses:
+        "200":
+          description: List of certificates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Certificate"
+    post:
+      operationId: createCertificate
+      tags: [certificates]
+      summary: Save a certificate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CertificateInput"
+      responses:
+        "201":
+          description: Created certificate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Certificate"
+
+  /certificates/{id}:
+    get:
+      operationId: getCertificate
+      tags: [certificates]
+      summary: Get a certificate by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Certificate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Certificate"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateCertificate
+      tags: [certificates]
+      summary: Update a certificate
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CertificateUpdate"
+      responses:
+        "200":
+          description: Updated certificate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Certificate"
+    delete:
+      operationId: deleteCertificate
+      tags: [certificates]
+      summary: Delete a certificate
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "204":
+          description: Deleted
+
+  /certificates/generate:
+    post:
+      operationId: generateCertificate
+      tags: [certificates]
+      summary: AI-generate a certificate document
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CertificateGenerateInput"
+      responses:
+        "200":
+          description: Generated certificate content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CertificateGenerateResult"
+
   # ── Dashboard ─────────────────────────────────────────────────────────────
   /dashboard/summary:
     get:
@@ -1097,6 +1208,87 @@ components:
         grandTotal:
           type: number
         disclaimer:
+          type: string
+
+    # ── Certificates ─────────────────────────────────────────────────────────
+    Certificate:
+      type: object
+      required: [id, type, title, content, createdAt]
+      properties:
+        id:
+          type: number
+        type:
+          type: string
+          enum: [completion, safety, warranty, lien_waiver, subcontractor_agreement]
+        title:
+          type: string
+        content:
+          type: string
+        jobId:
+          type: ["string", "null"]
+        jobTitle:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    CertificateInput:
+      type: object
+      required: [type, title, content]
+      properties:
+        type:
+          type: string
+          enum: [completion, safety, warranty, lien_waiver, subcontractor_agreement]
+        title:
+          type: string
+        content:
+          type: string
+        jobId:
+          type: string
+        jobTitle:
+          type: string
+
+    CertificateUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+        jobId:
+          type: string
+        jobTitle:
+          type: string
+
+    CertificateGenerateInput:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [completion, safety, warranty, lien_waiver, subcontractor_agreement]
+        jobId:
+          type: string
+        jobTitle:
+          type: string
+        jobDescription:
+          type: string
+        jobAddress:
+          type: string
+        contactName:
+          type: string
+        completionDate:
+          type: string
+        customInstructions:
+          type: string
+
+    CertificateGenerateResult:
+      type: object
+      required: [title, content]
+      properties:
+        title:
+          type: string
+        content:
           type: string
 
     # ── Dashboard ─────────────────────────────────────────────────────────────

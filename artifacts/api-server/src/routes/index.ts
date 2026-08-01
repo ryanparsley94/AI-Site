@@ -6,6 +6,7 @@ import contactsRouter from "./contacts";
 import jobsRouter from "./jobs";
 import callsRouter from "./calls";
 import quotesRouter from "./quotes";
+import certificatesRouter from "./certificates";
 import dashboardRouter from "./dashboard";
 
 const router: IRouter = Router();
@@ -17,6 +18,7 @@ router.use(contactsRouter);
 router.use(jobsRouter);
 router.use(callsRouter);
 router.use(quotesRouter);
+router.use(certificatesRouter);
 router.use(dashboardRouter);
 
 export default router;

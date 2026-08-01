@@ -700,6 +700,116 @@ export const SearchMaterialPricesResponse = zod.object({
 
 
 /**
+ * @summary List saved certificates
+ */
+export const ListCertificatesResponseItem = zod.object({
+  "id": zod.number(),
+  "type": zod.enum(['completion', 'safety', 'warranty', 'lien_waiver', 'subcontractor_agreement']),
+  "title": zod.string(),
+  "content": zod.string(),
+  "jobId": zod.string().nullish(),
+  "jobTitle": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListCertificatesResponse = zod.array(ListCertificatesResponseItem)
+
+
+/**
+ * @summary Save a certificate
+ */
+export const CreateCertificateBody = zod.object({
+  "type": zod.enum(['completion', 'safety', 'warranty', 'lien_waiver', 'subcontractor_agreement']),
+  "title": zod.string(),
+  "content": zod.string(),
+  "jobId": zod.string().optional(),
+  "jobTitle": zod.string().optional()
+})
+
+export const CreateCertificateResponse = zod.object({
+  "id": zod.number(),
+  "type": zod.enum(['completion', 'safety', 'warranty', 'lien_waiver', 'subcontractor_agreement']),
+  "title": zod.string(),
+  "content": zod.string(),
+  "jobId": zod.string().nullish(),
+  "jobTitle": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Get a certificate by ID
+ */
+export const GetCertificateParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetCertificateResponse = zod.object({
+  "id": zod.number(),
+  "type": zod.enum(['completion', 'safety', 'warranty', 'lien_waiver', 'subcontractor_agreement']),
+  "title": zod.string(),
+  "content": zod.string(),
+  "jobId": zod.string().nullish(),
+  "jobTitle": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update a certificate
+ */
+export const UpdateCertificateParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateCertificateBody = zod.object({
+  "title": zod.string().optional(),
+  "content": zod.string().optional(),
+  "jobId": zod.string().optional(),
+  "jobTitle": zod.string().optional()
+})
+
+export const UpdateCertificateResponse = zod.object({
+  "id": zod.number(),
+  "type": zod.enum(['completion', 'safety', 'warranty', 'lien_waiver', 'subcontractor_agreement']),
+  "title": zod.string(),
+  "content": zod.string(),
+  "jobId": zod.string().nullish(),
+  "jobTitle": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete a certificate
+ */
+export const DeleteCertificateParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteCertificateResponse = zod.void()
+
+
+/**
+ * @summary AI-generate a certificate document
+ */
+export const GenerateCertificateBody = zod.object({
+  "type": zod.enum(['completion', 'safety', 'warranty', 'lien_waiver', 'subcontractor_agreement']),
+  "jobId": zod.string().optional(),
+  "jobTitle": zod.string().optional(),
+  "jobDescription": zod.string().optional(),
+  "jobAddress": zod.string().optional(),
+  "contactName": zod.string().optional(),
+  "completionDate": zod.string().optional(),
+  "customInstructions": zod.string().optional()
+})
+
+export const GenerateCertificateResponse = zod.object({
+  "title": zod.string(),
+  "content": zod.string()
+})
+
+
+/**
  * @summary Get high-level metrics for the dashboard
  */
 export const GetDashboardSummaryResponse = zod.object({

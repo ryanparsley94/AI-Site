@@ -8,7 +8,8 @@ import {
   Users, 
   Settings,
   HardHat,
-  Calculator
+  Calculator,
+  Award
 } from "lucide-react";
 
 export default function Sidebar() {
@@ -19,6 +20,7 @@ export default function Sidebar() {
     { href: "/calls", label: "Call Log", icon: Phone },
     { href: "/jobs", label: "Job Schedule", icon: CalendarDays },
     { href: "/quotes", label: "AI Quotes", icon: Calculator },
+    { href: "/certificates", label: "Certificates", icon: Award },
     { href: "/assistants", label: "AI Assistants", icon: Bot },
     { href: "/contacts", label: "Contacts", icon: Users },
     { href: "/settings", label: "Settings", icon: Settings },
