@@ -12,6 +12,7 @@ import Assistants from '@/pages/assistants';
 import Contacts from '@/pages/contacts';
 import Settings from '@/pages/settings';
 import Quotes from '@/pages/quotes';
+import Certificates from '@/pages/certificates';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -61,6 +62,9 @@ function Router() {
       </Route>
       <Route path="/quotes">
         <AppLayout><Quotes /></AppLayout>
+      </Route>
+      <Route path="/certificates">
+        <AppLayout><Certificates /></AppLayout>
       </Route>
       <Route path="/settings">
         <AppLayout><Settings /></AppLayout>

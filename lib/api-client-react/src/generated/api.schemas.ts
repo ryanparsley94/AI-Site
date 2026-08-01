@@ -450,6 +450,82 @@ export interface PriceSearchResult {
   disclaimer: string;
 }
 
+export type CertificateType = typeof CertificateType[keyof typeof CertificateType];
+
+
+export const CertificateType = {
+  completion: 'completion',
+  safety: 'safety',
+  warranty: 'warranty',
+  lien_waiver: 'lien_waiver',
+  subcontractor_agreement: 'subcontractor_agreement',
+} as const;
+
+export interface Certificate {
+  id: number;
+  type: CertificateType;
+  title: string;
+  content: string;
+  /** @nullable */
+  jobId?: string | null;
+  /** @nullable */
+  jobTitle?: string | null;
+  createdAt: string;
+}
+
+export type CertificateInputType = typeof CertificateInputType[keyof typeof CertificateInputType];
+
+
+export const CertificateInputType = {
+  completion: 'completion',
+  safety: 'safety',
+  warranty: 'warranty',
+  lien_waiver: 'lien_waiver',
+  subcontractor_agreement: 'subcontractor_agreement',
+} as const;
+
+export interface CertificateInput {
+  type: CertificateInputType;
+  title: string;
+  content: string;
+  jobId?: string;
+  jobTitle?: string;
+}
+
+export interface CertificateUpdate {
+  title?: string;
+  content?: string;
+  jobId?: string;
+  jobTitle?: string;
+}
+
+export type CertificateGenerateInputType = typeof CertificateGenerateInputType[keyof typeof CertificateGenerateInputType];
+
+
+export const CertificateGenerateInputType = {
+  completion: 'completion',
+  safety: 'safety',
+  warranty: 'warranty',
+  lien_waiver: 'lien_waiver',
+  subcontractor_agreement: 'subcontractor_agreement',
+} as const;
+
+export interface CertificateGenerateInput {
+  type: CertificateGenerateInputType;
+  jobId?: string;
+  jobTitle?: string;
+  jobDescription?: string;
+  jobAddress?: string;
+  contactName?: string;
+  completionDate?: string;
+  customInstructions?: string;
+}
+
+export interface CertificateGenerateResult {
+  title: string;
+  content: string;
+}
+
 export interface DashboardSummary {
   callsToday: number;
   jobsThisWeek: number;

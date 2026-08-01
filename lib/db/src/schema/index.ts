@@ -4,3 +4,4 @@ export * from "./contacts";
 export * from "./jobs";
 export * from "./calls";
 export * from "./quotes";
+export * from "./certificates";
