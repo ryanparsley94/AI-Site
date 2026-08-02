@@ -41,12 +41,12 @@ import { cn } from "@/lib/utils";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const VOICES: { value: AssistantInputVoice; label: string; description: string }[] = [
-  { value: "alloy",   label: "Alloy",   description: "Neutral, clear" },
-  { value: "echo",    label: "Echo",    description: "Warm, steady" },
-  { value: "fable",   label: "Fable",   description: "Friendly" },
-  { value: "onyx",    label: "Onyx",    description: "Deep, confident" },
-  { value: "nova",    label: "Nova",    description: "Energetic" },
-  { value: "shimmer", label: "Shimmer", description: "Bright, clear" },
+  { value: "alloy",   label: "Alice",   description: "Neutral, professional" },
+  { value: "echo",    label: "Edward",  description: "Warm, authoritative" },
+  { value: "fable",   label: "Florence", description: "Friendly, approachable" },
+  { value: "onyx",    label: "Oliver",  description: "Deep, confident" },
+  { value: "nova",    label: "Nora",    description: "Energetic, clear" },
+  { value: "shimmer", label: "Sophie",  description: "Bright, reassuring" },
 ];
 
 interface TradeTemplate {
