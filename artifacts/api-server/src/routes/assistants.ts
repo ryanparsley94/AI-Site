@@ -99,7 +99,8 @@ router.post("/assistants/voice-preview", async (req, res): Promise<void> => {
   const buf = await textToSpeech(
     sample,
     voice as "alloy" | "echo" | "fable" | "onyx" | "nova" | "shimmer",
-    "mp3"
+    "mp3",
+    "Speak with a natural British English (Received Pronunciation) accent throughout."
   );
   res.setHeader("Content-Type", "audio/mpeg");
   res.setHeader("Content-Length", buf.length);
