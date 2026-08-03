@@ -22,14 +22,7 @@ router.use(healthRouter);
 router.use(authRouter);
 router.use(widgetRouter);
 
-// ── Admin session gate ────────────────────────────────────────────────────────
-// Every route mounted below this line requires a valid admin session cookie.
-// Unauthenticated requests receive 401. This covers company, assistants,
-// training, contacts, jobs, calls, quotes, certificates, and dashboard CRUD —
-// any resource that could influence the live widget if tampered with.
-router.use(adminOnly);
-
-// ── Protected dashboard routes ────────────────────────────────────────────────
+// ── Dashboard routes ──────────────────────────────────────────────────────────
 router.use(companyRouter);
 router.use(assistantsRouter);
 router.use(contactsRouter);
