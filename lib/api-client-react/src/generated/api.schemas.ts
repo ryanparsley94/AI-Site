@@ -5,6 +5,37 @@
  * BuildAI – Construction Company AI Assistant Platform API
  * OpenAPI spec version: 0.1.0
  */
+export interface WidgetConfig {
+  companyName: string;
+  color: string;
+  greeting: string;
+}
+
+export interface WidgetChatInput {
+  key: string;
+  sessionId: string;
+  message: string;
+  visitorName?: string;
+  visitorPhone?: string;
+}
+
+export interface WidgetReply {
+  reply: string;
+  sessionId: string;
+}
+
+export interface WidgetKeyInfo {
+  /** @nullable */
+  widgetKey: string | null;
+  color: string;
+  greeting: string;
+}
+
+export interface WidgetSettingsInput {
+  color?: string;
+  greeting?: string;
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -98,6 +129,68 @@ export interface AssistantInput {
   greeting?: string;
   instructions?: string;
   active?: boolean;
+}
+
+export type AssistantTrainingCategory = typeof AssistantTrainingCategory[keyof typeof AssistantTrainingCategory];
+
+
+export const AssistantTrainingCategory = {
+  service: 'service',
+  faq: 'faq',
+  area: 'area',
+  hours: 'hours',
+  upsell: 'upsell',
+} as const;
+
+export interface AssistantTraining {
+  id: number;
+  assistantId: number;
+  category: AssistantTrainingCategory;
+  question: string;
+  answer: string;
+  createdAt: string;
+}
+
+export type AssistantTrainingInputCategory = typeof AssistantTrainingInputCategory[keyof typeof AssistantTrainingInputCategory];
+
+
+export const AssistantTrainingInputCategory = {
+  service: 'service',
+  faq: 'faq',
+  area: 'area',
+  hours: 'hours',
+  upsell: 'upsell',
+} as const;
+
+export interface AssistantTrainingInput {
+  category: AssistantTrainingInputCategory;
+  question: string;
+  answer: string;
+}
+
+export type AssistantTrainingUpdateCategory = typeof AssistantTrainingUpdateCategory[keyof typeof AssistantTrainingUpdateCategory];
+
+
+export const AssistantTrainingUpdateCategory = {
+  service: 'service',
+  faq: 'faq',
+  area: 'area',
+  hours: 'hours',
+  upsell: 'upsell',
+} as const;
+
+export interface AssistantTrainingUpdate {
+  category?: AssistantTrainingUpdateCategory;
+  question?: string;
+  answer?: string;
+}
+
+export interface TestAssistantInput {
+  question: string;
+}
+
+export interface TestAssistantResult {
+  answer: string;
 }
 
 export type AssistantUpdateVoice = typeof AssistantUpdateVoice[keyof typeof AssistantUpdateVoice];
@@ -537,6 +630,14 @@ export interface DashboardSummary {
   missedCallsToday: number;
 }
 
+export type GetWidgetScriptParams = {
+key: string;
+};
+
+export type GetWidgetConfigParams = {
+key: string;
+};
+
 export type ListCallsParams = {
 status?: ListCallsStatus;
 limit?: number;
@@ -551,6 +652,7 @@ export const ListCallsStatus = {
   missed: 'missed',
   transferred: 'transferred',
   spam: 'spam',
+  unresolved: 'unresolved',
 } as const;
 
 export type ListJobsParams = {
@@ -580,43 +682,4 @@ export const ListContactsType = {
   lead: 'lead',
   customer: 'customer',
 } as const;
-
-export type AssistantTrainingCategory = typeof AssistantTrainingCategory[keyof typeof AssistantTrainingCategory];
-
-export const AssistantTrainingCategory = {
-  service: 'service',
-  faq: 'faq',
-  area: 'area',
-  hours: 'hours',
-  upsell: 'upsell',
-} as const;
-
-export interface AssistantTrainingEntry {
-  id: number;
-  assistantId: number;
-  category: AssistantTrainingCategory;
-  question: string;
-  answer: string;
-  createdAt: string;
-}
-
-export interface AssistantTrainingInput {
-  category: AssistantTrainingCategory;
-  question: string;
-  answer: string;
-}
-
-export interface AssistantTrainingUpdate {
-  category?: AssistantTrainingCategory;
-  question?: string;
-  answer?: string;
-}
-
-export interface TestAssistantInput {
-  question: string;
-}
-
-export interface TestAssistantResult {
-  answer: string;
-}
 
