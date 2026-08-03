@@ -15,4 +15,5 @@ export const ListCallsStatus = {
   missed: 'missed',
   transferred: 'transferred',
   spam: 'spam',
+  unresolved: 'unresolved',
 } as const;

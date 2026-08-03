@@ -17,6 +17,82 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
+ * @summary Serve the embeddable chat widget JavaScript
+ */
+export const GetWidgetScriptQueryParams = zod.object({
+  "key": zod.coerce.string()
+})
+
+export const GetWidgetScriptResponse = zod.unknown()
+
+
+/**
+ * @summary Fetch widget display configuration by key
+ */
+export const GetWidgetConfigQueryParams = zod.object({
+  "key": zod.coerce.string()
+})
+
+export const GetWidgetConfigResponse = zod.object({
+  "companyName": zod.string(),
+  "color": zod.string(),
+  "greeting": zod.string()
+})
+
+
+/**
+ * @summary Send a chat message via the widget
+ */
+export const WidgetChatBody = zod.object({
+  "key": zod.string(),
+  "sessionId": zod.string(),
+  "message": zod.string(),
+  "visitorName": zod.string().optional(),
+  "visitorPhone": zod.string().optional()
+})
+
+export const WidgetChatResponse = zod.object({
+  "reply": zod.string(),
+  "sessionId": zod.string()
+})
+
+
+/**
+ * @summary Get current widget key and customisation
+ */
+export const GetWidgetKeyResponse = zod.object({
+  "widgetKey": zod.string().nullable(),
+  "color": zod.string(),
+  "greeting": zod.string()
+})
+
+
+/**
+ * @summary Generate (or re-generate) the widget API key
+ */
+export const RegenerateWidgetKeyResponse = zod.object({
+  "widgetKey": zod.string().nullable(),
+  "color": zod.string(),
+  "greeting": zod.string()
+})
+
+
+/**
+ * @summary Update widget colour, greeting, etc.
+ */
+export const UpdateWidgetSettingsBody = zod.object({
+  "color": zod.string().optional(),
+  "greeting": zod.string().optional()
+})
+
+export const UpdateWidgetSettingsResponse = zod.object({
+  "widgetKey": zod.string().nullable(),
+  "color": zod.string(),
+  "greeting": zod.string()
+})
+
+
+/**
  * @summary Get company profile
  */
 export const GetCompanyResponse = zod.object({
@@ -170,33 +246,39 @@ export const ListAssistantTrainingParams = zod.object({
   "id": zod.coerce.number()
 })
 
-export const TrainingCategory = zod.enum(['service', 'faq', 'area', 'hours', 'upsell'])
-export type TrainingCategoryType = zod.infer<typeof TrainingCategory>
-
-export const AssistantTrainingItem = zod.object({
+export const ListAssistantTrainingResponseItem = zod.object({
   "id": zod.number(),
   "assistantId": zod.number(),
-  "category": TrainingCategory,
+  "category": zod.enum(['service', 'faq', 'area', 'hours', 'upsell']),
   "question": zod.string(),
   "answer": zod.string(),
-  "createdAt": zod.string(),
+  "createdAt": zod.coerce.date()
 })
-export const ListAssistantTrainingResponse = zod.array(AssistantTrainingItem)
+export const ListAssistantTrainingResponse = zod.array(ListAssistantTrainingResponseItem)
+
 
 /**
- * @summary Create a training entry for an assistant
+ * @summary Add a training entry
  */
 export const CreateAssistantTrainingParams = zod.object({
   "id": zod.coerce.number()
 })
 
 export const CreateAssistantTrainingBody = zod.object({
-  "category": TrainingCategory,
+  "category": zod.enum(['service', 'faq', 'area', 'hours', 'upsell']),
   "question": zod.string(),
-  "answer": zod.string(),
+  "answer": zod.string()
 })
 
-export const CreateAssistantTrainingResponse = AssistantTrainingItem
+export const CreateAssistantTrainingResponse = zod.object({
+  "id": zod.number(),
+  "assistantId": zod.number(),
+  "category": zod.enum(['service', 'faq', 'area', 'hours', 'upsell']),
+  "question": zod.string(),
+  "answer": zod.string(),
+  "createdAt": zod.coerce.date()
+})
+
 
 /**
  * @summary Update a training entry
@@ -207,12 +289,20 @@ export const UpdateAssistantTrainingParams = zod.object({
 })
 
 export const UpdateAssistantTrainingBody = zod.object({
-  "category": TrainingCategory.optional(),
+  "category": zod.enum(['service', 'faq', 'area', 'hours', 'upsell']).optional(),
   "question": zod.string().optional(),
-  "answer": zod.string().optional(),
+  "answer": zod.string().optional()
 })
 
-export const UpdateAssistantTrainingResponse = AssistantTrainingItem
+export const UpdateAssistantTrainingResponse = zod.object({
+  "id": zod.number(),
+  "assistantId": zod.number(),
+  "category": zod.enum(['service', 'faq', 'area', 'hours', 'upsell']),
+  "question": zod.string(),
+  "answer": zod.string(),
+  "createdAt": zod.coerce.date()
+})
+
 
 /**
  * @summary Delete a training entry
@@ -222,8 +312,11 @@ export const DeleteAssistantTrainingParams = zod.object({
   "trainingId": zod.coerce.number()
 })
 
+export const DeleteAssistantTrainingResponse = zod.void()
+
+
 /**
- * @summary Test the assistant with a sample question
+ * @summary Test the assistant with a question
  */
 export const TestAssistantParams = zod.object({
   "id": zod.coerce.number()
@@ -244,7 +337,7 @@ export const TestAssistantResponse = zod.object({
 export const listCallsQueryLimitDefault = 50;
 
 export const ListCallsQueryParams = zod.object({
-  "status": zod.enum(['all', 'booked', 'missed', 'transferred', 'spam']).optional(),
+  "status": zod.enum(['all', 'booked', 'missed', 'transferred', 'spam', 'unresolved']).optional(),
   "limit": zod.coerce.number().default(listCallsQueryLimitDefault)
 })
 

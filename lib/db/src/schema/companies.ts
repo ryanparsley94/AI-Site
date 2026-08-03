@@ -11,6 +11,9 @@ export const companiesTable = pgTable("companies", {
   address: text("address"),
   timezone: text("timezone").notNull().default("America/New_York"),
   logoUrl: text("logo_url"),
+  widgetKey: text("widget_key"),
+  widgetColor: text("widget_color").default("#f97316"),
+  widgetGreeting: text("widget_greeting").default("Hi! How can I help you today?"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

@@ -1,6 +1,17 @@
 import { Router } from "express";
+import { eq } from "drizzle-orm";
+import { randomBytes } from "crypto";
 import { db, companiesTable } from "@workspace/db";
-import { GetCompanyResponse, UpdateCompanyBody, UpdateCompanyResponse } from "@workspace/api-zod";
+import {
+  GetCompanyResponse,
+  UpdateCompanyBody,
+  UpdateCompanyResponse,
+  GetWidgetKeyResponse,
+  RegenerateWidgetKeyResponse,
+  UpdateWidgetSettingsBody,
+  UpdateWidgetSettingsResponse,
+} from "@workspace/api-zod";
+// adminOnly is applied at the router level in routes/index.ts
 
 const router = Router();
 
@@ -22,6 +33,14 @@ async function getOrCreateCompany() {
   return created;
 }
 
+function mapWidgetKey(company: typeof companiesTable.$inferSelect) {
+  return {
+    widgetKey: company.widgetKey ?? null,
+    color: company.widgetColor ?? "#f97316",
+    greeting: company.widgetGreeting ?? "Hi! How can I help you today?",
+  };
+}
+
 router.get("/company", async (req, res): Promise<void> => {
   const company = await getOrCreateCompany();
   res.json(GetCompanyResponse.parse({
@@ -37,7 +56,6 @@ router.patch("/company", async (req, res): Promise<void> => {
     return;
   }
   const company = await getOrCreateCompany();
-  const { eq } = await import("drizzle-orm");
   const [updated] = await db
     .update(companiesTable)
     .set(parsed.data)
@@ -47,6 +65,42 @@ router.patch("/company", async (req, res): Promise<void> => {
     ...updated,
     createdAt: updated.createdAt.toISOString(),
   }));
+});
+
+// ─── Widget key management ────────────────────────────────────────────────────
+
+router.get("/company/widget-key", async (req, res): Promise<void> => {
+  const company = await getOrCreateCompany();
+  res.json(GetWidgetKeyResponse.parse(mapWidgetKey(company)));
+});
+
+router.post("/company/widget-key", async (req, res): Promise<void> => {
+  const company = await getOrCreateCompany();
+  const newKey = randomBytes(24).toString("hex");
+  const [updated] = await db
+    .update(companiesTable)
+    .set({ widgetKey: newKey })
+    .where(eq(companiesTable.id, company.id))
+    .returning();
+  res.json(RegenerateWidgetKeyResponse.parse(mapWidgetKey(updated)));
+});
+
+router.patch("/company/widget-settings", async (req, res): Promise<void> => {
+  const parsed = UpdateWidgetSettingsBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const company = await getOrCreateCompany();
+  const updateData: Partial<typeof companiesTable.$inferInsert> = {};
+  if (parsed.data.color !== undefined) updateData.widgetColor = parsed.data.color;
+  if (parsed.data.greeting !== undefined) updateData.widgetGreeting = parsed.data.greeting;
+  const [updated] = await db
+    .update(companiesTable)
+    .set(updateData)
+    .where(eq(companiesTable.id, company.id))
+    .returning();
+  res.json(UpdateWidgetSettingsResponse.parse(mapWidgetKey(updated)));
 });
 
 export default router;

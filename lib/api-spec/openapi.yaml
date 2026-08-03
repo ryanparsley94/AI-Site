@@ -40,6 +40,113 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
 
+  # ── Widget ───────────────────────────────────────────────────────────────
+  /widget.js:
+    get:
+      operationId: getWidgetScript
+      tags: [widget]
+      summary: Serve the embeddable chat widget JavaScript
+      parameters:
+        - name: key
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Self-contained widget script
+          content:
+            application/javascript:
+              schema:
+                type: string
+        "404":
+          description: Invalid key
+
+  /widget/config:
+    get:
+      operationId: getWidgetConfig
+      tags: [widget]
+      summary: Fetch widget display configuration by key
+      parameters:
+        - name: key
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Widget configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WidgetConfig"
+        "404":
+          description: Invalid key
+
+  /widget/chat:
+    post:
+      operationId: widgetChat
+      tags: [widget]
+      summary: Send a chat message via the widget
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WidgetChatInput"
+      responses:
+        "200":
+          description: AI reply
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WidgetReply"
+        "404":
+          description: Invalid widget key
+
+  /company/widget-key:
+    get:
+      operationId: getWidgetKey
+      tags: [company]
+      summary: Get current widget key and customisation
+      responses:
+        "200":
+          description: Widget key info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WidgetKeyInfo"
+    post:
+      operationId: regenerateWidgetKey
+      tags: [company]
+      summary: Generate (or re-generate) the widget API key
+      responses:
+        "200":
+          description: Updated widget key info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WidgetKeyInfo"
+
+  /company/widget-settings:
+    patch:
+      operationId: updateWidgetSettings
+      tags: [company]
+      summary: Update widget colour, greeting, etc.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WidgetSettingsInput"
+      responses:
+        "200":
+          description: Updated widget key info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WidgetKeyInfo"
+
   # ── Company ──────────────────────────────────────────────────────────────
   /company:
     get:
@@ -161,6 +268,131 @@ paths:
         "204":
           description: Deleted
 
+  /assistants/{id}/training:
+    get:
+      operationId: listAssistantTraining
+      tags: [assistants]
+      summary: List training entries for an assistant
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Training entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AssistantTraining"
+        "404":
+          description: Not found
+    post:
+      operationId: createAssistantTraining
+      tags: [assistants]
+      summary: Add a training entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssistantTrainingInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssistantTraining"
+        "404":
+          description: Assistant not found
+
+  /assistants/{id}/training/{trainingId}:
+    patch:
+      operationId: updateAssistantTraining
+      tags: [assistants]
+      summary: Update a training entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+        - name: trainingId
+          in: path
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssistantTrainingUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssistantTraining"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteAssistantTraining
+      tags: [assistants]
+      summary: Delete a training entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+        - name: trainingId
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "204":
+          description: Deleted
+
+  /assistants/{id}/test:
+    post:
+      operationId: testAssistant
+      tags: [assistants]
+      summary: Test the assistant with a question
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TestAssistantInput"
+      responses:
+        "200":
+          description: AI answer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TestAssistantResult"
+        "404":
+          description: Not found
+
   # ── Calls ─────────────────────────────────────────────────────────────────
   /calls:
     get:
@@ -172,7 +404,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [all, booked, missed, transferred, spam]
+            enum: [all, booked, missed, transferred, spam, unresolved]
         - name: limit
           in: query
           schema:
@@ -699,6 +931,61 @@ paths:
 
 components:
   schemas:
+    # ── Widget ───────────────────────────────────────────────────────────────
+    WidgetConfig:
+      type: object
+      required: [companyName, color, greeting]
+      properties:
+        companyName:
+          type: string
+        color:
+          type: string
+        greeting:
+          type: string
+
+    WidgetChatInput:
+      type: object
+      required: [key, sessionId, message]
+      properties:
+        key:
+          type: string
+        sessionId:
+          type: string
+        message:
+          type: string
+        visitorName:
+          type: string
+        visitorPhone:
+          type: string
+
+    WidgetReply:
+      type: object
+      required: [reply, sessionId]
+      properties:
+        reply:
+          type: string
+        sessionId:
+          type: string
+
+    WidgetKeyInfo:
+      type: object
+      required: [widgetKey, color, greeting]
+      properties:
+        widgetKey:
+          type: ["string", "null"]
+        color:
+          type: string
+        greeting:
+          type: string
+
+    WidgetSettingsInput:
+      type: object
+      properties:
+        color:
+          type: string
+        greeting:
+          type: string
+
     HealthStatus:
       type: object
       properties:
@@ -797,6 +1084,62 @@ components:
           type: string
         active:
           type: boolean
+
+    AssistantTraining:
+      type: object
+      required: [id, assistantId, category, question, answer, createdAt]
+      properties:
+        id:
+          type: number
+        assistantId:
+          type: number
+        category:
+          type: string
+          enum: [service, faq, area, hours, upsell]
+        question:
+          type: string
+        answer:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    AssistantTrainingInput:
+      type: object
+      required: [category, question, answer]
+      properties:
+        category:
+          type: string
+          enum: [service, faq, area, hours, upsell]
+        question:
+          type: string
+        answer:
+          type: string
+
+    AssistantTrainingUpdate:
+      type: object
+      properties:
+        category:
+          type: string
+          enum: [service, faq, area, hours, upsell]
+        question:
+          type: string
+        answer:
+          type: string
+
+    TestAssistantInput:
+      type: object
+      required: [question]
+      properties:
+        question:
+          type: string
+
+    TestAssistantResult:
+      type: object
+      required: [answer]
+      properties:
+        answer:
+          type: string
 
     AssistantUpdate:
       type: object

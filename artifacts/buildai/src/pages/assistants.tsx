@@ -15,7 +15,7 @@ import {
   AssistantUpdateVoice,
   AssistantUpdatePersonality,
 } from "@workspace/api-client-react";
-import type { AssistantTrainingCategory, AssistantTrainingEntry } from "@workspace/api-client-react";
+import type { AssistantTrainingCategory, AssistantTraining } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Bot, Plus, Trash2, Power, Play, Loader2, Volume2,
@@ -365,8 +365,8 @@ function TrainingEntryRow({
   onEdit,
   onDelete,
 }: {
-  entry: AssistantTrainingEntry;
-  onEdit: (e: AssistantTrainingEntry) => void;
+  entry: AssistantTraining;
+  onEdit: (e: AssistantTraining) => void;
   onDelete: (id: number) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -419,7 +419,7 @@ function TrainingEntryForm({
   onCancel,
 }: {
   assistantId: number;
-  initial?: AssistantTrainingEntry;
+  initial?: AssistantTraining;
   onDone: () => void;
   onCancel: () => void;
 }) {
@@ -548,7 +548,7 @@ function TrainingTab({ assistantId }: { assistantId: number }) {
   const { toast } = useToast();
 
   const [showAddForm, setShowAddForm] = useState(false);
-  const [editingEntry, setEditingEntry] = useState<AssistantTrainingEntry | null>(null);
+  const [editingEntry, setEditingEntry] = useState<AssistantTraining | null>(null);
   const [testQuestion, setTestQuestion] = useState("");
   const [testAnswer, setTestAnswer] = useState<string | null>(null);
   const testAssistant = useTestAssistant();
@@ -579,7 +579,7 @@ function TrainingTab({ assistantId }: { assistantId: number }) {
     );
   };
 
-  const grouped = entries.reduce<Record<string, AssistantTrainingEntry[]>>((acc, e) => {
+  const grouped = entries.reduce<Record<string, AssistantTraining[]>>((acc, e) => {
     if (!acc[e.category]) acc[e.category] = [];
     acc[e.category].push(e);
     return acc;
