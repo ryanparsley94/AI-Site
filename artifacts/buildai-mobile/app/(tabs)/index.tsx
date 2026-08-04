@@ -14,6 +14,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGetDashboardSummary, useGetUpcomingJobs } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
+import { OfflineBanner } from '@/components/OfflineBanner';
 
 const JOB_STATUS_COLORS: Record<string, string> = {
   scheduled: '#fb8c04',
@@ -69,19 +71,25 @@ export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const topPadding = Platform.OS === 'web' ? 67 : insets.top;
   const bottomPadding = Platform.OS === 'web' ? 34 : insets.bottom;
+  const isOnline = useNetworkStatus();
 
   const {
     data: summary,
     isLoading: summaryLoading,
+    isError: summaryError,
     refetch: refetchSummary,
   } = useGetDashboardSummary();
   const {
     data: upcomingJobs,
     isLoading: jobsLoading,
+    isError: jobsError,
     refetch: refetchJobs,
   } = useGetUpcomingJobs();
 
   const isLoading = summaryLoading || jobsLoading;
+  // Only show error UI when offline AND there's no cached data to display
+  const hasError = (summaryError || jobsError) && !summary && !upcomingJobs;
+  const showOfflineBanner = !isOnline && (!!summary || !!upcomingJobs);
   const previewJobs = upcomingJobs?.slice(0, 3) ?? [];
 
   function refetchAll() {
@@ -91,6 +99,7 @@ export default function DashboardScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {showOfflineBanner && <OfflineBanner stale />}
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: bottomPadding + 90 }}
@@ -120,6 +129,16 @@ export default function DashboardScreen() {
               size="large"
               style={{ marginTop: 40 }}
             />
+          ) : hasError ? (
+            <View style={styles.center}>
+              <Feather name="wifi-off" size={32} color={colors.mutedForeground} />
+              <Text style={[styles.errorText, { color: colors.mutedForeground }]}>
+                No connection
+              </Text>
+              <TouchableOpacity onPress={refetchAll} activeOpacity={0.7}>
+                <Text style={[styles.retryText, { color: colors.primary }]}>Retry</Text>
+              </TouchableOpacity>
+            </View>
           ) : (
             <>
               {/* Stat grid */}
@@ -398,4 +417,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: 'Inter_400Regular',
   },
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    paddingTop: 80,
+  },
+  errorText: { fontSize: 14, fontFamily: 'Inter_400Regular' },
+  retryText: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
 });

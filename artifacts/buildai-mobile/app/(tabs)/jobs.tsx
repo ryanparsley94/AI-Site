@@ -14,6 +14,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGetUpcomingJobs } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
+import { OfflineBanner } from '@/components/OfflineBanner';
 
 const JOB_STATUS_COLORS: Record<string, string> = {
   scheduled: '#fb8c04',
@@ -126,8 +128,13 @@ export default function JobsScreen() {
   const insets = useSafeAreaInsets();
   const topPadding = Platform.OS === 'web' ? 67 : insets.top;
   const bottomPadding = Platform.OS === 'web' ? 34 : insets.bottom;
+  const isOnline = useNetworkStatus();
 
   const { data: jobs, isLoading, isError, refetch } = useGetUpcomingJobs();
+
+  // Show error UI only when offline with no cached data
+  const showError = isError && !jobs;
+  const showOfflineBanner = !isOnline && !!jobs;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -146,13 +153,15 @@ export default function JobsScreen() {
         <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>Next 7 days</Text>
       </View>
 
+      {showOfflineBanner && <OfflineBanner stale />}
+
       {isLoading ? (
         <ActivityIndicator color={colors.primary} size="large" style={{ marginTop: 60 }} />
-      ) : isError ? (
+      ) : showError ? (
         <View style={styles.center}>
-          <Feather name="alert-circle" size={32} color={colors.mutedForeground} />
+          <Feather name="wifi-off" size={32} color={colors.mutedForeground} />
           <Text style={[styles.errorText, { color: colors.mutedForeground }]}>
-            Couldn't load jobs
+            No connection
           </Text>
           <TouchableOpacity onPress={() => refetch()} activeOpacity={0.7}>
             <Text style={[styles.retryText, { color: colors.primary }]}>Retry</Text>
