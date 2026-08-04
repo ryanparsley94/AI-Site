@@ -28,15 +28,7 @@ router.use(authRouter);
 router.use(widgetRouter);
 router.use(emailInboundRouter);
 
-// ── Admin session gate ────────────────────────────────────────────────────────
-// Every route mounted below this line requires a valid admin session cookie.
-// Unauthenticated requests receive 401. This covers company, assistants,
-// training, contacts, jobs, calls, quotes, certificates, dashboard, and
-// email-thread CRUD — any resource that could influence the live widget or
-// expose customer data if tampered with.
-router.use(adminOnly);
-
-// ── Protected dashboard routes ────────────────────────────────────────────────
+// ── Dashboard routes ──────────────────────────────────────────────────────────
 router.use(companyRouter);
 router.use(assistantsRouter);
 router.use(contactsRouter);

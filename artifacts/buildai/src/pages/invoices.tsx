@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   useListInvoices,
+  useCreateInvoice,
   useGetInvoice,
   useUpdateInvoice,
   useDeleteInvoice,
@@ -11,7 +12,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
   Receipt, Trash2, CheckCircle, Send, Clock,
-  Printer, ChevronRight, Plus, Minus, RefreshCw
+  Printer, ChevronRight, Plus, Minus, RefreshCw, FilePlus
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -23,7 +24,192 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { formatCurrency } from "@/lib/utils";
+
+// ── New Invoice dialog ────────────────────────────────────────────────────────
+
+type LineItem = { description: string; quantity: number; unitPrice: number };
+
+function NewInvoiceDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const createInvoice = useCreateInvoice();
+
+  const today = format(new Date(), "yyyy-MM-dd");
+  const due30 = format(new Date(Date.now() + 30 * 86400000), "yyyy-MM-dd");
+
+  const [clientName, setClientName] = useState("");
+  const [issueDate, setIssueDate] = useState(today);
+  const [dueDate, setDueDate] = useState(due30);
+  const [vatPercent, setVatPercent] = useState(20);
+  const [notes, setNotes] = useState("");
+  const [lines, setLines] = useState<LineItem[]>([
+    { description: "", quantity: 1, unitPrice: 0 },
+  ]);
+
+  const updateLine = (idx: number, field: keyof LineItem, value: string | number) => {
+    setLines(lines.map((l, i) => i === idx ? { ...l, [field]: value } : l));
+  };
+
+  const subtotal = lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0);
+  const vatAmt = subtotal * (vatPercent / 100);
+  const total = subtotal + vatAmt;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!clientName.trim()) {
+      toast({ title: "Client name is required", variant: "destructive" }); return;
+    }
+    if (subtotal === 0) {
+      toast({ title: "Add at least one line item with a value", variant: "destructive" }); return;
+    }
+    createInvoice.mutate({
+      data: {
+        clientName,
+        issueDate,
+        dueDate,
+        vatPercent,
+        notes: notes || undefined,
+        lineItems: lines.filter(l => l.description.trim()).map(l => ({
+          name: l.description, quantity: l.quantity, unit: "each",
+          unitPrice: l.unitPrice, total: l.quantity * l.unitPrice,
+        })),
+        subtotal,
+        vatAmount: vatAmt,
+        total,
+      }
+    }, {
+      onSuccess: () => {
+        toast({ title: "Invoice created" });
+        queryClient.invalidateQueries({ queryKey: getListInvoicesQueryKey() });
+        onOpenChange(false);
+        // reset form
+        setClientName(""); setNotes(""); setVatPercent(20);
+        setIssueDate(today); setDueDate(due30);
+        setLines([{ description: "", quantity: 1, unitPrice: 0 }]);
+      },
+      onError: () => toast({ title: "Failed to create invoice", variant: "destructive" }),
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FilePlus className="h-5 w-5 text-primary" /> New Invoice
+          </DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-5 pt-2">
+          {/* Client + dates */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="sm:col-span-1 space-y-1">
+              <Label>Client Name *</Label>
+              <Input placeholder="e.g. John Smith" value={clientName} onChange={e => setClientName(e.target.value)} required />
+            </div>
+            <div className="space-y-1">
+              <Label>Issue Date</Label>
+              <Input type="date" value={issueDate} onChange={e => setIssueDate(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>Due Date</Label>
+              <Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
+            </div>
+          </div>
+
+          {/* Line items */}
+          <div className="space-y-2">
+            <Label>Line Items</Label>
+            <div className="space-y-2">
+              {lines.map((l, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <Input
+                    placeholder="Description"
+                    value={l.description}
+                    onChange={e => updateLine(idx, "description", e.target.value)}
+                    className="flex-1"
+                  />
+                  <Input
+                    type="number" min="0.5" step="0.5"
+                    value={l.quantity}
+                    onChange={e => updateLine(idx, "quantity", Number(e.target.value))}
+                    className="w-20"
+                    placeholder="Qty"
+                  />
+                  <Input
+                    type="number" min="0" step="0.01"
+                    value={l.unitPrice}
+                    onChange={e => updateLine(idx, "unitPrice", Number(e.target.value))}
+                    className="w-28"
+                    placeholder="£ Unit price"
+                  />
+                  <span className="text-sm font-medium w-20 text-right shrink-0">
+                    {formatCurrency(l.quantity * l.unitPrice)}
+                  </span>
+                  <Button type="button" variant="ghost" size="icon" className="shrink-0 text-muted-foreground hover:text-destructive"
+                    onClick={() => setLines(lines.filter((_, i) => i !== idx))} disabled={lines.length <= 1}>
+                    <Minus className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <Button type="button" variant="outline" size="sm" className="gap-2 border-dashed w-full"
+              onClick={() => setLines([...lines, { description: "", quantity: 1, unitPrice: 0 }])}>
+              <Plus className="h-3.5 w-3.5" /> Add Line
+            </Button>
+          </div>
+
+          {/* VAT + totals */}
+          <div className="flex justify-end">
+            <div className="w-64 space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Subtotal</span>
+                <span>{formatCurrency(subtotal)}</span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-muted-foreground">VAT</span>
+                <div className="flex items-center gap-1">
+                  <Input type="number" min="0" max="100" value={vatPercent}
+                    onChange={e => setVatPercent(Number(e.target.value))}
+                    className="w-16 h-7 text-sm text-right" />
+                  <span className="text-muted-foreground text-xs">%</span>
+                  <span className="w-20 text-right">{formatCurrency(vatAmt)}</span>
+                </div>
+              </div>
+              <Separator />
+              <div className="flex justify-between font-bold text-secondary">
+                <span>Total inc. VAT</span>
+                <span>{formatCurrency(total)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div className="space-y-1">
+            <Label>Notes (optional)</Label>
+            <Textarea placeholder="Payment terms, bank details, etc." value={notes}
+              onChange={e => setNotes(e.target.value)} rows={2} />
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button type="submit" disabled={createInvoice.isPending} className="gap-2">
+              <FilePlus className="h-4 w-4" />
+              {createInvoice.isPending ? "Creating..." : "Create Invoice"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 // ── Status badge ─────────────────────────────────────────────────────────────
 
@@ -303,18 +489,26 @@ function InvoiceDetail({
 export default function Invoices() {
   const { data: invoices = [], isLoading } = useListInvoices();
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [isNewOpen, setIsNewOpen] = useState(false);
 
   const sorted = [...invoices].sort((a, b) =>
     new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
 
   return (
+    <>
+    <NewInvoiceDialog open={isNewOpen} onOpenChange={setIsNewOpen} />
     <div className="flex-1 flex h-full bg-muted/30 overflow-hidden">
       {/* List panel */}
       <div className={`flex flex-col border-r bg-background ${selectedId ? "hidden md:flex md:w-96 shrink-0" : "flex-1"}`}>
-        <div className="p-6 border-b flex-shrink-0">
-          <h1 className="text-2xl font-bold tracking-tight text-secondary">Invoices</h1>
-          <p className="text-muted-foreground text-sm">Track your outstanding and paid invoices.</p>
+        <div className="p-6 border-b flex-shrink-0 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-secondary">Invoices</h1>
+            <p className="text-muted-foreground text-sm">Track your outstanding and paid invoices.</p>
+          </div>
+          <Button className="shrink-0 gap-2" onClick={() => setIsNewOpen(true)}>
+            <FilePlus className="h-4 w-4" /> New Invoice
+          </Button>
         </div>
 
         <div className="flex-1 overflow-auto">
@@ -324,7 +518,10 @@ export default function Invoices() {
             <div className="text-center py-16 px-6">
               <Receipt className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
               <p className="font-medium text-foreground/80">No invoices yet</p>
-              <p className="text-sm text-muted-foreground mt-1">Create an invoice from a saved quote on the Quotes page.</p>
+              <p className="text-sm text-muted-foreground mt-1">Create a new invoice or generate one from a saved quote.</p>
+              <Button className="mt-4 gap-2" onClick={() => setIsNewOpen(true)}>
+                <FilePlus className="h-4 w-4" /> New Invoice
+              </Button>
             </div>
           ) : (
             <div className="divide-y">
@@ -379,5 +576,6 @@ export default function Invoices() {
         </div>
       )}
     </div>
+    </>
   );
 }

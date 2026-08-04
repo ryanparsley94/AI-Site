@@ -40,6 +40,80 @@ const initialInput = [
   { name: "", quantity: 1, unit: "each" },
 ];
 
+type LabourItem = { description: string; hours: number; rate: number };
+const initialLabour: LabourItem[] = [{ description: "", hours: 1, rate: 30 }];
+
+function labourTotal(items: LabourItem[]) {
+  return items.reduce((s, i) => s + i.hours * i.rate, 0);
+}
+
+// ── Labour Section ───────────────────────────────────────────────────────────
+
+function LabourSection({
+  items,
+  onChange,
+}: {
+  items: LabourItem[];
+  onChange: (items: LabourItem[]) => void;
+}) {
+  const total = labourTotal(items);
+  const update = (idx: number, field: keyof LabourItem, value: string | number) => {
+    const next = items.map((item, i) => i === idx ? { ...item, [field]: value } : item);
+    onChange(next);
+  };
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Calculator className="h-4 w-4 text-primary" /> Labour Costs
+        </CardTitle>
+        <CardDescription>Add time and rate for each trade or role.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {items.map((item, idx) => (
+          <div key={idx} className="flex items-center gap-2">
+            <Input
+              placeholder="e.g. Plumber, day rate"
+              value={item.description}
+              onChange={e => update(idx, "description", e.target.value)}
+              className="flex-1"
+            />
+            <Input
+              type="number" min="0" step="0.5"
+              value={item.hours}
+              onChange={e => update(idx, "hours", Number(e.target.value))}
+              className="w-20"
+            />
+            <span className="text-xs text-muted-foreground shrink-0">hrs @</span>
+            <Input
+              type="number" min="0" step="1"
+              value={item.rate}
+              onChange={e => update(idx, "rate", Number(e.target.value))}
+              className="w-24"
+            />
+            <span className="text-xs text-muted-foreground shrink-0">/hr</span>
+            <span className="text-sm font-semibold w-20 text-right shrink-0">{formatCurrency(item.hours * item.rate)}</span>
+            <Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground hover:text-destructive"
+              onClick={() => onChange(items.filter((_, i) => i !== idx))} disabled={items.length <= 1}>
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        ))}
+        <Button variant="outline" size="sm" className="w-full gap-2 border-dashed"
+          onClick={() => onChange([...items, { description: "", hours: 1, rate: 30 }])}>
+          <Plus className="h-3.5 w-3.5" /> Add Labour Row
+        </Button>
+        {total > 0 && (
+          <div className="flex justify-between items-center pt-2 border-t text-sm font-semibold">
+            <span className="text-muted-foreground">Labour subtotal</span>
+            <span>{formatCurrency(total)}</span>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── Pricing helpers ──────────────────────────────────────────────────────────
 
 function computePricing(grandTotal: number, marginPercent: number, vatPercent: number) {
@@ -250,12 +324,15 @@ export default function Quotes() {
   const [, navigate] = useLocation();
 
   const [inputs, setInputs] = useState<{name: string, quantity: number, unit: string}[]>(initialInput);
+  const [labourItems, setLabourItems] = useState<LabourItem[]>(initialLabour);
   const [results, setResults] = useState<PriceSearchResult | null>(null);
   const [prefillBanner, setPrefillBanner] = useState<string | null>(null);
 
   // Pricing state
   const [marginPercent, setMarginPercent] = useState(20);
   const [vatPercent, setVatPercent] = useState(20);
+
+  const labourSubtotal = labourTotal(labourItems);
 
   const [isSaveOpen, setIsSaveOpen] = useState(false);
   const [quoteTitle, setQuoteTitle] = useState("");
@@ -314,36 +391,41 @@ export default function Quotes() {
     });
   };
 
+  const combinedTotal = (results?.grandTotal ?? 0) + labourSubtotal;
+
   const getPricingValues = useCallback(() => {
-    if (!results) return {};
-    const { marginAmount, subtotalAfterMargin, vatAmount, totalIncVat } = computePricing(results.grandTotal, marginPercent, vatPercent);
+    const total = (results?.grandTotal ?? 0) + labourSubtotal;
+    if (total === 0) return {};
+    const { marginAmount, subtotalAfterMargin, vatAmount, totalIncVat } = computePricing(total, marginPercent, vatPercent);
     return { marginPercent, vatPercent, marginAmount, subtotalAfterMargin, vatAmount, totalIncVat };
-  }, [results, marginPercent, vatPercent]);
+  }, [results, marginPercent, vatPercent, labourSubtotal]);
 
   const handleSaveQuote = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!results) return;
+    if (combinedTotal === 0) {
+      toast({ title: "Please add materials or labour costs first", variant: "destructive" });
+      return;
+    }
     if (!quoteTitle.trim()) {
       toast({ title: "Please enter a quote title", variant: "destructive" });
       return;
     }
 
     const pricing = getPricingValues();
+    const labourLines = labourItems
+      .filter(l => l.description.trim() && l.hours > 0)
+      .map(l => ({ type: "labour" as const, name: l.description, quantity: l.hours, unit: "hrs", unitPrice: l.rate, source: null, sourceUrl: null, total: l.hours * l.rate }));
+    const materialLines = (results?.materials ?? []).map(m => ({
+      name: m.name, quantity: m.quantity, unit: m.unit,
+      unitPrice: m.unitPrice, source: m.source, sourceUrl: m.sourceUrl, total: m.total,
+    }));
 
     createQuote.mutate({
       data: {
         title: quoteTitle,
         jobId: jobId ? Number(jobId) : undefined,
-        grandTotal: results.grandTotal,
-        materials: results.materials.map(m => ({
-          name: m.name,
-          quantity: m.quantity,
-          unit: m.unit,
-          unitPrice: m.unitPrice,
-          source: m.source,
-          sourceUrl: m.sourceUrl,
-          total: m.total
-        })),
+        grandTotal: combinedTotal,
+        materials: [...labourLines, ...materialLines],
         marginPercent: pricing.marginPercent,
         vatPercent: pricing.vatPercent,
         marginAmount: pricing.marginAmount,
@@ -456,8 +538,8 @@ export default function Quotes() {
       <div className="p-6 border-b bg-background flex-shrink-0">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-secondary">AI Materials Quotation Tool</h1>
-            <p className="text-muted-foreground text-sm">Instantly estimate costs using AI-powered price search across suppliers.</p>
+            <h1 className="text-2xl font-bold tracking-tight text-secondary">Quote Builder</h1>
+            <p className="text-muted-foreground text-sm">Build full job estimates — labour, materials with AI pricing, margin &amp; VAT included.</p>
           </div>
         </div>
       </div>
@@ -473,6 +555,9 @@ export default function Quotes() {
               <button onClick={() => setPrefillBanner(null)} className="ml-auto text-primary/60 hover:text-primary">✕</button>
             </div>
           )}
+
+          {/* Labour section - always visible */}
+          <LabourSection items={labourItems} onChange={setLabourItems} />
 
           <div className="grid lg:grid-cols-12 gap-6">
             {/* Input Section */}
@@ -554,7 +639,7 @@ export default function Quotes() {
                     </CardTitle>
                     <CardDescription>Live market estimates sourced by BuildAI.</CardDescription>
                   </div>
-                  {results && (
+                  {combinedTotal > 0 && (
                     <Button size="sm" onClick={() => setIsSaveOpen(true)} className="gap-2">
                       <Save className="h-4 w-4" /> Save Quote
                     </Button>
@@ -615,21 +700,36 @@ export default function Quotes() {
                 ) : null}
               </CardContent>
 
-              {results && (
+              {combinedTotal > 0 && (
                 <>
+                  {results && labourSubtotal > 0 && (
+                    <div className="px-4 pt-2 text-sm space-y-1 border-t">
+                      <div className="flex justify-between text-muted-foreground">
+                        <span>Materials subtotal</span><span>{formatCurrency(results.grandTotal)}</span>
+                      </div>
+                      <div className="flex justify-between text-muted-foreground">
+                        <span>Labour subtotal</span><span>{formatCurrency(labourSubtotal)}</span>
+                      </div>
+                      <div className="flex justify-between font-semibold border-t pt-1">
+                        <span>Combined subtotal</span><span>{formatCurrency(combinedTotal)}</span>
+                      </div>
+                    </div>
+                  )}
                   <PricingPanel
-                    grandTotal={results.grandTotal}
+                    grandTotal={combinedTotal}
                     marginPercent={marginPercent}
                     vatPercent={vatPercent}
                     onMarginChange={setMarginPercent}
                     onVatChange={setVatPercent}
                   />
-                  <div className="px-4 pb-4 shrink-0">
-                    <div className="flex items-start gap-2 text-xs text-muted-foreground bg-amber-500/10 text-amber-800 dark:text-amber-400 p-3 rounded-md">
-                      <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-                      <p>{results.disclaimer}</p>
+                  {results && (
+                    <div className="px-4 pb-4 shrink-0">
+                      <div className="flex items-start gap-2 text-xs text-muted-foreground bg-amber-500/10 text-amber-800 dark:text-amber-400 p-3 rounded-md">
+                        <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                        <p>{results.disclaimer}</p>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </>
               )}
             </Card>
@@ -778,16 +878,28 @@ export default function Quotes() {
             </div>
 
             {/* Pricing summary in save dialog */}
-            {results && (
+            {combinedTotal > 0 && (
               <div className="bg-muted/50 rounded-md p-3 space-y-1 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Materials subtotal</span>
-                  <span>{formatCurrency(results.grandTotal)}</span>
-                </div>
+                {results && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Materials subtotal</span>
+                    <span>{formatCurrency(results.grandTotal)}</span>
+                  </div>
+                )}
+                {labourSubtotal > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Labour subtotal</span>
+                    <span>{formatCurrency(labourSubtotal)}</span>
+                  </div>
+                )}
                 {(() => {
-                  const { marginAmount, subtotalAfterMargin, vatAmount, totalIncVat } = computePricing(results.grandTotal, marginPercent, vatPercent);
+                  const { marginAmount, vatAmount, totalIncVat } = computePricing(combinedTotal, marginPercent, vatPercent);
                   return (
                     <>
+                      <div className="flex justify-between border-t pt-1">
+                        <span className="text-muted-foreground">Subtotal</span>
+                        <span>{formatCurrency(combinedTotal)}</span>
+                      </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Margin ({marginPercent}%)</span>
                         <span>{formatCurrency(marginAmount)}</span>
