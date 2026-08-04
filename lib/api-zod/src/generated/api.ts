@@ -104,6 +104,7 @@ export const GetCompanyResponse = zod.object({
   "address": zod.string().nullish(),
   "timezone": zod.string(),
   "logoUrl": zod.string().nullish(),
+  "emailAutoSend": zod.boolean().optional(),
   "createdAt": zod.coerce.date()
 })
 
@@ -130,6 +131,7 @@ export const UpdateCompanyResponse = zod.object({
   "address": zod.string().nullish(),
   "timezone": zod.string(),
   "logoUrl": zod.string().nullish(),
+  "emailAutoSend": zod.boolean().optional(),
   "createdAt": zod.coerce.date()
 })
 
@@ -974,6 +976,178 @@ export const GenerateCertificateBody = zod.object({
 export const GenerateCertificateResponse = zod.object({
   "title": zod.string(),
   "content": zod.string()
+})
+
+
+/**
+ * @summary Resend inbound email webhook (public)
+ */
+export const EmailInboundBody = zod.object({
+  "type": zod.string().describe('Event type — only \"email.received\" is processed'),
+  "created_at": zod.coerce.date().optional(),
+  "data": zod.object({
+  "email_id": zod.string().describe('Resend-assigned ID used for idempotency'),
+  "from": zod.string().describe('Sender address, \"Name <email>\" or bare email'),
+  "to": zod.array(zod.string()).optional(),
+  "subject": zod.string().optional(),
+  "text": zod.string().optional().describe('Plain-text body (may be absent)'),
+  "html": zod.string().optional().describe('HTML body (may be absent)'),
+  "created_at": zod.coerce.date().optional()
+})
+}).describe('Resend `email.received` svix webhook envelope. The sender details and message body are nested under `data`; the `email_id` is used as an idempotency key.\n')
+
+export const EmailInboundResponse = zod.unknown()
+
+
+/**
+ * @summary List email threads
+ */
+export const ListEmailThreadsQueryParams = zod.object({
+  "status": zod.enum(['all', 'pending', 'sent', 'dismissed']).optional()
+})
+
+export const ListEmailThreadsResponseItem = zod.object({
+  "id": zod.number(),
+  "fromEmail": zod.string(),
+  "fromName": zod.string(),
+  "subject": zod.string(),
+  "bodyText": zod.string(),
+  "bodyHtml": zod.string().nullish(),
+  "status": zod.enum(['pending', 'sent', 'dismissed']),
+  "aiReply": zod.string().nullish(),
+  "editedReply": zod.string().nullish(),
+  "contactId": zod.number().int().nullish(),
+  "messageId": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListEmailThreadsResponse = zod.array(ListEmailThreadsResponseItem)
+
+
+/**
+ * @summary Get an email thread by ID
+ */
+export const GetEmailThreadParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetEmailThreadResponse = zod.object({
+  "id": zod.number(),
+  "fromEmail": zod.string(),
+  "fromName": zod.string(),
+  "subject": zod.string(),
+  "bodyText": zod.string(),
+  "bodyHtml": zod.string().nullish(),
+  "status": zod.enum(['pending', 'sent', 'dismissed']),
+  "aiReply": zod.string().nullish(),
+  "editedReply": zod.string().nullish(),
+  "contactId": zod.number().int().nullish(),
+  "messageId": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update the edited reply for an email thread
+ */
+export const UpdateEmailThreadParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateEmailThreadBody = zod.object({
+  "editedReply": zod.string().optional()
+})
+
+export const UpdateEmailThreadResponse = zod.object({
+  "id": zod.number(),
+  "fromEmail": zod.string(),
+  "fromName": zod.string(),
+  "subject": zod.string(),
+  "bodyText": zod.string(),
+  "bodyHtml": zod.string().nullish(),
+  "status": zod.enum(['pending', 'sent', 'dismissed']),
+  "aiReply": zod.string().nullish(),
+  "editedReply": zod.string().nullish(),
+  "contactId": zod.number().int().nullish(),
+  "messageId": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete an email thread
+ */
+export const DeleteEmailThreadParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteEmailThreadResponse = zod.void()
+
+
+/**
+ * @summary Approve and send the AI reply for an email thread
+ */
+export const ApproveEmailThreadParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ApproveEmailThreadResponse = zod.object({
+  "id": zod.number(),
+  "fromEmail": zod.string(),
+  "fromName": zod.string(),
+  "subject": zod.string(),
+  "bodyText": zod.string(),
+  "bodyHtml": zod.string().nullish(),
+  "status": zod.enum(['pending', 'sent', 'dismissed']),
+  "aiReply": zod.string().nullish(),
+  "editedReply": zod.string().nullish(),
+  "contactId": zod.number().int().nullish(),
+  "messageId": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Dismiss an email thread without sending a reply
+ */
+export const DismissEmailThreadParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DismissEmailThreadResponse = zod.object({
+  "id": zod.number(),
+  "fromEmail": zod.string(),
+  "fromName": zod.string(),
+  "subject": zod.string(),
+  "bodyText": zod.string(),
+  "bodyHtml": zod.string().nullish(),
+  "status": zod.enum(['pending', 'sent', 'dismissed']),
+  "aiReply": zod.string().nullish(),
+  "editedReply": zod.string().nullish(),
+  "contactId": zod.number().int().nullish(),
+  "messageId": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Get email inbox settings (auto-send, forwarding address)
+ */
+export const GetEmailSettingsResponse = zod.object({
+  "autoSend": zod.boolean(),
+  "forwardingAddress": zod.string()
+})
+
+
+/**
+ * @summary Update email inbox settings
+ */
+export const UpdateEmailSettingsBody = zod.object({
+  "autoSend": zod.boolean().optional()
+})
+
+export const UpdateEmailSettingsResponse = zod.object({
+  "autoSend": zod.boolean(),
+  "forwardingAddress": zod.string()
 })
 
 

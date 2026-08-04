@@ -26,6 +26,8 @@ tags:
     description: AI-generated construction certificates and documents
   - name: dashboard
     description: Dashboard analytics and summaries
+  - name: email
+    description: AI email responder inbox
 paths:
   /healthz:
     get:
@@ -915,6 +917,174 @@ paths:
               schema:
                 $ref: "#/components/schemas/CertificateGenerateResult"
 
+  # ── Email Inbox ──────────────────────────────────────────────────────────
+  /email-threads/inbound:
+    post:
+      operationId: emailInbound
+      tags: [email]
+      summary: Resend inbound email webhook (public)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailInboundPayload"
+      responses:
+        "200":
+          description: Accepted
+
+  /email-threads:
+    get:
+      operationId: listEmailThreads
+      tags: [email]
+      summary: List email threads
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [all, pending, sent, dismissed]
+      responses:
+        "200":
+          description: List of email threads
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmailThread"
+
+  /email-threads/{id}:
+    get:
+      operationId: getEmailThread
+      tags: [email]
+      summary: Get an email thread by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Email thread detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailThread"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateEmailThread
+      tags: [email]
+      summary: Update the edited reply for an email thread
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailThreadUpdate"
+      responses:
+        "200":
+          description: Updated email thread
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailThread"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteEmailThread
+      tags: [email]
+      summary: Delete an email thread
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "204":
+          description: Deleted
+
+  /email-threads/{id}/approve:
+    post:
+      operationId: approveEmailThread
+      tags: [email]
+      summary: Approve and send the AI reply for an email thread
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Reply sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailThread"
+        "404":
+          description: Not found
+
+  /email-threads/{id}/dismiss:
+    post:
+      operationId: dismissEmailThread
+      tags: [email]
+      summary: Dismiss an email thread without sending a reply
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Dismissed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailThread"
+        "404":
+          description: Not found
+
+  /email-threads/settings:
+    get:
+      operationId: getEmailSettings
+      tags: [email]
+      summary: Get email inbox settings (auto-send, forwarding address)
+      responses:
+        "200":
+          description: Email settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailSettings"
+    patch:
+      operationId: updateEmailSettings
+      tags: [email]
+      summary: Update email inbox settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailSettingsInput"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailSettings"
+
   # ── Dashboard ─────────────────────────────────────────────────────────────
   /dashboard/summary:
     get:
@@ -1015,6 +1185,8 @@ components:
           type: string
         logoUrl:
           type: ["string", "null"]
+        emailAutoSend:
+          type: boolean
         createdAt:
           type: string
           format: date-time
@@ -1633,6 +1805,98 @@ components:
           type: string
         content:
           type: string
+
+    # ── Email Inbox ──────────────────────────────────────────────────────────
+    EmailThread:
+      type: object
+      required: [id, fromEmail, fromName, subject, bodyText, status, createdAt]
+      properties:
+        id:
+          type: number
+        fromEmail:
+          type: string
+        fromName:
+          type: string
+        subject:
+          type: string
+        bodyText:
+          type: string
+        bodyHtml:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [pending, sent, dismissed]
+        aiReply:
+          type: ["string", "null"]
+        editedReply:
+          type: ["string", "null"]
+        contactId:
+          type: ["integer", "null"]
+        messageId:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    EmailThreadUpdate:
+      type: object
+      properties:
+        editedReply:
+          type: string
+
+    EmailInboundPayload:
+      type: object
+      description: >
+        Resend `email.received` svix webhook envelope. The sender details and message
+        body are nested under `data`; the `email_id` is used as an idempotency key.
+      required: [type, data]
+      properties:
+        type:
+          type: string
+          description: Event type — only "email.received" is processed
+        created_at:
+          type: string
+          format: date-time
+        data:
+          type: object
+          required: [email_id, from]
+          properties:
+            email_id:
+              type: string
+              description: Resend-assigned ID used for idempotency
+            from:
+              type: string
+              description: Sender address, "Name <email>" or bare email
+            to:
+              type: array
+              items:
+                type: string
+            subject:
+              type: string
+            text:
+              type: string
+              description: Plain-text body (may be absent)
+            html:
+              type: string
+              description: HTML body (may be absent)
+            created_at:
+              type: string
+              format: date-time
+
+    EmailSettings:
+      type: object
+      required: [autoSend, forwardingAddress]
+      properties:
+        autoSend:
+          type: boolean
+        forwardingAddress:
+          type: string
+
+    EmailSettingsInput:
+      type: object
+      properties:
+        autoSend:
+          type: boolean
 
     # ── Dashboard ─────────────────────────────────────────────────────────────
     DashboardSummary:

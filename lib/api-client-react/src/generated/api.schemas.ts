@@ -53,6 +53,7 @@ export interface Company {
   timezone: string;
   /** @nullable */
   logoUrl?: string | null;
+  emailAutoSend?: boolean;
   createdAt: string;
 }
 
@@ -619,6 +620,72 @@ export interface CertificateGenerateResult {
   content: string;
 }
 
+export type EmailThreadStatus = typeof EmailThreadStatus[keyof typeof EmailThreadStatus];
+
+
+export const EmailThreadStatus = {
+  pending: 'pending',
+  sent: 'sent',
+  dismissed: 'dismissed',
+} as const;
+
+export interface EmailThread {
+  id: number;
+  fromEmail: string;
+  fromName: string;
+  subject: string;
+  bodyText: string;
+  /** @nullable */
+  bodyHtml?: string | null;
+  status: EmailThreadStatus;
+  /** @nullable */
+  aiReply?: string | null;
+  /** @nullable */
+  editedReply?: string | null;
+  /** @nullable */
+  contactId?: number | null;
+  /** @nullable */
+  messageId?: string | null;
+  createdAt: string;
+}
+
+export interface EmailThreadUpdate {
+  editedReply?: string;
+}
+
+export type EmailInboundPayloadData = {
+  /** Resend-assigned ID used for idempotency */
+  email_id: string;
+  /** Sender address, "Name <email>" or bare email */
+  from: string;
+  to?: string[];
+  subject?: string;
+  /** Plain-text body (may be absent) */
+  text?: string;
+  /** HTML body (may be absent) */
+  html?: string;
+  created_at?: string;
+};
+
+/**
+ * Resend `email.received` svix webhook envelope. The sender details and message body are nested under `data`; the `email_id` is used as an idempotency key.
+ */
+export interface EmailInboundPayload {
+  /** Event type — only "email.received" is processed */
+  type: string;
+  created_at?: string;
+  data: EmailInboundPayloadData;
+}
+
+export interface EmailSettings {
+  autoSend: boolean;
+  forwardingAddress: string;
+}
+
+export interface EmailSettingsInput {
+  autoSend?: boolean;
+}
+
 export interface DashboardSummary {
   callsToday: number;
   jobsThisWeek: number;
@@ -681,5 +748,19 @@ export const ListContactsType = {
   all: 'all',
   lead: 'lead',
   customer: 'customer',
+} as const;
+
+export type ListEmailThreadsParams = {
+status?: ListEmailThreadsStatus;
+};
+
+export type ListEmailThreadsStatus = typeof ListEmailThreadsStatus[keyof typeof ListEmailThreadsStatus];
+
+
+export const ListEmailThreadsStatus = {
+  all: 'all',
+  pending: 'pending',
+  sent: 'sent',
+  dismissed: 'dismissed',
 } as const;
 
