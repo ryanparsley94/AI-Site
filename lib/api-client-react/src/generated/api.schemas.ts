@@ -410,6 +410,11 @@ export interface JobUpdate {
   notes?: string;
   estimatedValue?: number;
   status?: JobUpdateStatus;
+  /**
+     * Link a quote to this job; sets estimatedValue from quote's totalIncVat
+     * @nullable
+     */
+  quoteId?: number | null;
 }
 
 export type ContactType = typeof ContactType[keyof typeof ContactType];
@@ -490,7 +495,17 @@ export interface Quote {
   materials: MaterialLineItem[];
   grandTotal: number;
   /** @nullable */
-  jobId?: string | null;
+  jobId?: number | null;
+  /** @nullable */
+  marginPercent?: number | null;
+  /** @nullable */
+  vatPercent?: number | null;
+  /** @nullable */
+  marginAmount?: number | null;
+  /** @nullable */
+  vatAmount?: number | null;
+  /** @nullable */
+  totalIncVat?: number | null;
   createdAt: string;
 }
 
@@ -498,14 +513,105 @@ export interface QuoteInput {
   title: string;
   materials: MaterialLineItem[];
   grandTotal?: number;
-  jobId?: string;
+  jobId?: number;
+  marginPercent?: number;
+  vatPercent?: number;
+  marginAmount?: number;
+  vatAmount?: number;
+  totalIncVat?: number;
 }
 
 export interface QuoteUpdate {
   title?: string;
   materials?: MaterialLineItem[];
   grandTotal?: number;
-  jobId?: string;
+  /** @nullable */
+  jobId?: number | null;
+  /** @nullable */
+  marginPercent?: number | null;
+  /** @nullable */
+  vatPercent?: number | null;
+  /** @nullable */
+  marginAmount?: number | null;
+  /** @nullable */
+  vatAmount?: number | null;
+  /** @nullable */
+  totalIncVat?: number | null;
+}
+
+export interface InvoiceLineItem {
+  name: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  total: number;
+}
+
+export type InvoiceStatus = typeof InvoiceStatus[keyof typeof InvoiceStatus];
+
+
+export const InvoiceStatus = {
+  draft: 'draft',
+  sent: 'sent',
+  paid: 'paid',
+} as const;
+
+export interface Invoice {
+  id: number;
+  invoiceNumber: string;
+  /** @nullable */
+  quoteId?: number | null;
+  /** @nullable */
+  jobId?: number | null;
+  status: InvoiceStatus;
+  issueDate: string;
+  dueDate: string;
+  lineItems: InvoiceLineItem[];
+  subtotal: number;
+  vatPercent: number;
+  vatAmount: number;
+  total: number;
+  /** @nullable */
+  notes?: string | null;
+  /** @nullable */
+  clientName?: string | null;
+  createdAt: string;
+}
+
+export interface InvoiceInput {
+  quoteId?: number;
+  jobId?: number;
+  issueDate: string;
+  dueDate: string;
+  lineItems: InvoiceLineItem[];
+  subtotal: number;
+  vatPercent: number;
+  vatAmount: number;
+  total: number;
+  notes?: string;
+  clientName?: string;
+}
+
+export type InvoiceUpdateStatus = typeof InvoiceUpdateStatus[keyof typeof InvoiceUpdateStatus];
+
+
+export const InvoiceUpdateStatus = {
+  draft: 'draft',
+  sent: 'sent',
+  paid: 'paid',
+} as const;
+
+export interface InvoiceUpdate {
+  status?: InvoiceUpdateStatus;
+  issueDate?: string;
+  dueDate?: string;
+  lineItems?: InvoiceLineItem[];
+  subtotal?: number;
+  vatPercent?: number;
+  vatAmount?: number;
+  total?: number;
+  notes?: string;
+  clientName?: string;
 }
 
 export type PriceSearchInputMaterialsItem = {
@@ -749,6 +855,14 @@ export const ListContactsType = {
   lead: 'lead',
   customer: 'customer',
 } as const;
+
+export type ListQuotesParams = {
+jobId?: number;
+};
+
+export type ListInvoicesParams = {
+jobId?: number;
+};
 
 export type ListEmailThreadsParams = {
 status?: ListEmailThreadsStatus;

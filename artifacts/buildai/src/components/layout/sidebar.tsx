@@ -10,6 +10,7 @@ import {
   Calculator,
   Award,
   Inbox,
+  Receipt,
   X
 } from "lucide-react";
 
@@ -26,6 +27,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     { href: "/calls", label: "Call Log", icon: Phone },
     { href: "/jobs", label: "Job Schedule", icon: CalendarDays },
     { href: "/quotes", label: "AI Quotes", icon: Calculator },
+    { href: "/invoices", label: "Invoices", icon: Receipt },
     { href: "/certificates", label: "Certificates", icon: Award },
     { href: "/assistants", label: "AI Assistants", icon: Bot },
     { href: "/email-inbox", label: "Email Inbox", icon: Inbox },

@@ -569,7 +569,8 @@ export const UpdateJobBody = zod.object({
   "address": zod.string().optional(),
   "notes": zod.string().optional(),
   "estimatedValue": zod.number().optional(),
-  "status": zod.enum(['scheduled', 'in_progress', 'completed', 'cancelled']).optional()
+  "status": zod.enum(['scheduled', 'in_progress', 'completed', 'cancelled']).optional(),
+  "quoteId": zod.number().int().nullish().describe('Link a quote to this job; sets estimatedValue from quote\'s totalIncVat')
 })
 
 export const UpdateJobResponse = zod.object({
@@ -712,6 +713,10 @@ export const DeleteContactResponse = zod.void()
 /**
  * @summary List saved quotes
  */
+export const ListQuotesQueryParams = zod.object({
+  "jobId": zod.coerce.number().optional()
+})
+
 export const ListQuotesResponseItem = zod.object({
   "id": zod.number(),
   "title": zod.string(),
@@ -725,7 +730,12 @@ export const ListQuotesResponseItem = zod.object({
   "total": zod.number().nullish()
 })),
   "grandTotal": zod.number(),
-  "jobId": zod.string().nullish(),
+  "jobId": zod.number().int().nullish(),
+  "marginPercent": zod.number().nullish(),
+  "vatPercent": zod.number().nullish(),
+  "marginAmount": zod.number().nullish(),
+  "vatAmount": zod.number().nullish(),
+  "totalIncVat": zod.number().nullish(),
   "createdAt": zod.coerce.date()
 })
 export const ListQuotesResponse = zod.array(ListQuotesResponseItem)
@@ -746,7 +756,12 @@ export const CreateQuoteBody = zod.object({
   "total": zod.number().nullish()
 })),
   "grandTotal": zod.number().optional(),
-  "jobId": zod.string().optional()
+  "jobId": zod.number().int().optional(),
+  "marginPercent": zod.number().optional(),
+  "vatPercent": zod.number().optional(),
+  "marginAmount": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "totalIncVat": zod.number().optional()
 })
 
 export const CreateQuoteResponse = zod.object({
@@ -762,7 +777,12 @@ export const CreateQuoteResponse = zod.object({
   "total": zod.number().nullish()
 })),
   "grandTotal": zod.number(),
-  "jobId": zod.string().nullish(),
+  "jobId": zod.number().int().nullish(),
+  "marginPercent": zod.number().nullish(),
+  "vatPercent": zod.number().nullish(),
+  "marginAmount": zod.number().nullish(),
+  "vatAmount": zod.number().nullish(),
+  "totalIncVat": zod.number().nullish(),
   "createdAt": zod.coerce.date()
 })
 
@@ -787,7 +807,12 @@ export const GetQuoteResponse = zod.object({
   "total": zod.number().nullish()
 })),
   "grandTotal": zod.number(),
-  "jobId": zod.string().nullish(),
+  "jobId": zod.number().int().nullish(),
+  "marginPercent": zod.number().nullish(),
+  "vatPercent": zod.number().nullish(),
+  "marginAmount": zod.number().nullish(),
+  "vatAmount": zod.number().nullish(),
+  "totalIncVat": zod.number().nullish(),
   "createdAt": zod.coerce.date()
 })
 
@@ -811,7 +836,12 @@ export const UpdateQuoteBody = zod.object({
   "total": zod.number().nullish()
 })).optional(),
   "grandTotal": zod.number().optional(),
-  "jobId": zod.string().optional()
+  "jobId": zod.number().int().nullish(),
+  "marginPercent": zod.number().nullish(),
+  "vatPercent": zod.number().nullish(),
+  "marginAmount": zod.number().nullish(),
+  "vatAmount": zod.number().nullish(),
+  "totalIncVat": zod.number().nullish()
 })
 
 export const UpdateQuoteResponse = zod.object({
@@ -827,7 +857,12 @@ export const UpdateQuoteResponse = zod.object({
   "total": zod.number().nullish()
 })),
   "grandTotal": zod.number(),
-  "jobId": zod.string().nullish(),
+  "jobId": zod.number().int().nullish(),
+  "marginPercent": zod.number().nullish(),
+  "vatPercent": zod.number().nullish(),
+  "marginAmount": zod.number().nullish(),
+  "vatAmount": zod.number().nullish(),
+  "totalIncVat": zod.number().nullish(),
   "createdAt": zod.coerce.date()
 })
 
@@ -840,6 +875,180 @@ export const DeleteQuoteParams = zod.object({
 })
 
 export const DeleteQuoteResponse = zod.void()
+
+
+/**
+ * @summary List all invoices
+ */
+export const ListInvoicesQueryParams = zod.object({
+  "jobId": zod.coerce.number().optional()
+})
+
+export const ListInvoicesResponseItem = zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.string(),
+  "quoteId": zod.number().int().nullish(),
+  "jobId": zod.number().int().nullish(),
+  "status": zod.enum(['draft', 'sent', 'paid']),
+  "issueDate": zod.string(),
+  "dueDate": zod.string(),
+  "lineItems": zod.array(zod.object({
+  "name": zod.string(),
+  "quantity": zod.number(),
+  "unit": zod.string(),
+  "unitPrice": zod.number(),
+  "total": zod.number()
+})),
+  "subtotal": zod.number(),
+  "vatPercent": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "notes": zod.string().nullish(),
+  "clientName": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListInvoicesResponse = zod.array(ListInvoicesResponseItem)
+
+
+/**
+ * @summary Create a new invoice
+ */
+export const CreateInvoiceBody = zod.object({
+  "quoteId": zod.number().int().optional(),
+  "jobId": zod.number().int().optional(),
+  "issueDate": zod.string(),
+  "dueDate": zod.string(),
+  "lineItems": zod.array(zod.object({
+  "name": zod.string(),
+  "quantity": zod.number(),
+  "unit": zod.string(),
+  "unitPrice": zod.number(),
+  "total": zod.number()
+})),
+  "subtotal": zod.number(),
+  "vatPercent": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "notes": zod.string().optional(),
+  "clientName": zod.string().optional()
+})
+
+export const CreateInvoiceResponse = zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.string(),
+  "quoteId": zod.number().int().nullish(),
+  "jobId": zod.number().int().nullish(),
+  "status": zod.enum(['draft', 'sent', 'paid']),
+  "issueDate": zod.string(),
+  "dueDate": zod.string(),
+  "lineItems": zod.array(zod.object({
+  "name": zod.string(),
+  "quantity": zod.number(),
+  "unit": zod.string(),
+  "unitPrice": zod.number(),
+  "total": zod.number()
+})),
+  "subtotal": zod.number(),
+  "vatPercent": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "notes": zod.string().nullish(),
+  "clientName": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Get an invoice by ID
+ */
+export const GetInvoiceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetInvoiceResponse = zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.string(),
+  "quoteId": zod.number().int().nullish(),
+  "jobId": zod.number().int().nullish(),
+  "status": zod.enum(['draft', 'sent', 'paid']),
+  "issueDate": zod.string(),
+  "dueDate": zod.string(),
+  "lineItems": zod.array(zod.object({
+  "name": zod.string(),
+  "quantity": zod.number(),
+  "unit": zod.string(),
+  "unitPrice": zod.number(),
+  "total": zod.number()
+})),
+  "subtotal": zod.number(),
+  "vatPercent": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "notes": zod.string().nullish(),
+  "clientName": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update an invoice
+ */
+export const UpdateInvoiceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateInvoiceBody = zod.object({
+  "status": zod.enum(['draft', 'sent', 'paid']).optional(),
+  "issueDate": zod.string().optional(),
+  "dueDate": zod.string().optional(),
+  "lineItems": zod.array(zod.object({
+  "name": zod.string(),
+  "quantity": zod.number(),
+  "unit": zod.string(),
+  "unitPrice": zod.number(),
+  "total": zod.number()
+})).optional(),
+  "subtotal": zod.number().optional(),
+  "vatPercent": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "notes": zod.string().optional(),
+  "clientName": zod.string().optional()
+})
+
+export const UpdateInvoiceResponse = zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.string(),
+  "quoteId": zod.number().int().nullish(),
+  "jobId": zod.number().int().nullish(),
+  "status": zod.enum(['draft', 'sent', 'paid']),
+  "issueDate": zod.string(),
+  "dueDate": zod.string(),
+  "lineItems": zod.array(zod.object({
+  "name": zod.string(),
+  "quantity": zod.number(),
+  "unit": zod.string(),
+  "unitPrice": zod.number(),
+  "total": zod.number()
+})),
+  "subtotal": zod.number(),
+  "vatPercent": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "notes": zod.string().nullish(),
+  "clientName": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete an invoice
+ */
+export const DeleteInvoiceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteInvoiceResponse = zod.void()
 
 
 /**

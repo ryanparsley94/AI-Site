@@ -19,4 +19,9 @@ export interface JobUpdate {
   notes?: string;
   estimatedValue?: number;
   status?: JobUpdateStatus;
+  /**
+     * Link a quote to this job; sets estimatedValue from quote's totalIncVat
+     * @nullable
+     */
+  quoteId?: number | null;
 }

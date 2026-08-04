@@ -21,7 +21,7 @@ tags:
   - name: contacts
     description: Customer and lead contacts
   - name: quotes
-    description: Materials quotation and AI price search
+    description: Materials quotation, AI price search, and invoices
   - name: certificates
     description: AI-generated construction certificates and documents
   - name: dashboard
@@ -705,6 +705,11 @@ paths:
       operationId: listQuotes
       tags: [quotes]
       summary: List saved quotes
+      parameters:
+        - name: jobId
+          in: query
+          schema:
+            type: number
       responses:
         "200":
           description: List of quotes
@@ -779,6 +784,100 @@ paths:
       operationId: deleteQuote
       tags: [quotes]
       summary: Delete a quote
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "204":
+          description: Deleted
+
+  /invoices:
+    get:
+      operationId: listInvoices
+      tags: [quotes]
+      summary: List all invoices
+      parameters:
+        - name: jobId
+          in: query
+          schema:
+            type: number
+      responses:
+        "200":
+          description: List of invoices
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Invoice"
+    post:
+      operationId: createInvoice
+      tags: [quotes]
+      summary: Create a new invoice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvoiceInput"
+      responses:
+        "201":
+          description: Created invoice
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invoice"
+
+  /invoices/{id}:
+    get:
+      operationId: getInvoice
+      tags: [quotes]
+      summary: Get an invoice by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Invoice
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invoice"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateInvoice
+      tags: [quotes]
+      summary: Update an invoice
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvoiceUpdate"
+      responses:
+        "200":
+          description: Updated invoice
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invoice"
+    delete:
+      operationId: deleteInvoice
+      tags: [quotes]
+      summary: Delete an invoice
       parameters:
         - name: id
           in: path
@@ -1540,6 +1639,9 @@ components:
         status:
           type: string
           enum: [scheduled, in_progress, completed, cancelled]
+        quoteId:
+          type: ["integer", "null"]
+          description: Link a quote to this job; sets estimatedValue from quote's totalIncVat
 
     # ── Contacts ─────────────────────────────────────────────────────────────
     Contact:
@@ -1639,7 +1741,17 @@ components:
         grandTotal:
           type: number
         jobId:
-          type: ["string", "null"]
+          type: ["integer", "null"]
+        marginPercent:
+          type: ["number", "null"]
+        vatPercent:
+          type: ["number", "null"]
+        marginAmount:
+          type: ["number", "null"]
+        vatAmount:
+          type: ["number", "null"]
+        totalIncVat:
+          type: ["number", "null"]
         createdAt:
           type: string
           format: date-time
@@ -1657,7 +1769,17 @@ components:
         grandTotal:
           type: number
         jobId:
-          type: string
+          type: integer
+        marginPercent:
+          type: number
+        vatPercent:
+          type: number
+        marginAmount:
+          type: number
+        vatAmount:
+          type: number
+        totalIncVat:
+          type: number
 
     QuoteUpdate:
       type: object
@@ -1671,6 +1793,126 @@ components:
         grandTotal:
           type: number
         jobId:
+          type: ["integer", "null"]
+        marginPercent:
+          type: ["number", "null"]
+        vatPercent:
+          type: ["number", "null"]
+        marginAmount:
+          type: ["number", "null"]
+        vatAmount:
+          type: ["number", "null"]
+        totalIncVat:
+          type: ["number", "null"]
+
+    InvoiceLineItem:
+      type: object
+      required: [name, quantity, unit, unitPrice, total]
+      properties:
+        name:
+          type: string
+        quantity:
+          type: number
+        unit:
+          type: string
+        unitPrice:
+          type: number
+        total:
+          type: number
+
+    Invoice:
+      type: object
+      required: [id, invoiceNumber, status, issueDate, dueDate, lineItems, subtotal, vatPercent, vatAmount, total, createdAt]
+      properties:
+        id:
+          type: number
+        invoiceNumber:
+          type: string
+        quoteId:
+          type: ["integer", "null"]
+        jobId:
+          type: ["integer", "null"]
+        status:
+          type: string
+          enum: [draft, sent, paid]
+        issueDate:
+          type: string
+        dueDate:
+          type: string
+        lineItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/InvoiceLineItem"
+        subtotal:
+          type: number
+        vatPercent:
+          type: number
+        vatAmount:
+          type: number
+        total:
+          type: number
+        notes:
+          type: ["string", "null"]
+        clientName:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    InvoiceInput:
+      type: object
+      required: [issueDate, dueDate, lineItems, subtotal, vatPercent, vatAmount, total]
+      properties:
+        quoteId:
+          type: integer
+        jobId:
+          type: integer
+        issueDate:
+          type: string
+        dueDate:
+          type: string
+        lineItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/InvoiceLineItem"
+        subtotal:
+          type: number
+        vatPercent:
+          type: number
+        vatAmount:
+          type: number
+        total:
+          type: number
+        notes:
+          type: string
+        clientName:
+          type: string
+
+    InvoiceUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [draft, sent, paid]
+        issueDate:
+          type: string
+        dueDate:
+          type: string
+        lineItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/InvoiceLineItem"
+        subtotal:
+          type: number
+        vatPercent:
+          type: number
+        vatAmount:
+          type: number
+        total:
+          type: number
+        notes:
+          type: string
+        clientName:
           type: string
 
     PriceSearchInput:

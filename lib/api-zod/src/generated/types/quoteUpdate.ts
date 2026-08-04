@@ -11,5 +11,16 @@ export interface QuoteUpdate {
   title?: string;
   materials?: MaterialLineItem[];
   grandTotal?: number;
-  jobId?: string;
+  /** @nullable */
+  jobId?: number | null;
+  /** @nullable */
+  marginPercent?: number | null;
+  /** @nullable */
+  vatPercent?: number | null;
+  /** @nullable */
+  marginAmount?: number | null;
+  /** @nullable */
+  vatAmount?: number | null;
+  /** @nullable */
+  totalIncVat?: number | null;
 }

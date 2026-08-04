@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { eq, desc } from "drizzle-orm";
-import { db, quotesTable } from "@workspace/db";
+import { db, quotesTable, jobsTable } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import {
   ListQuotesResponse,
@@ -22,13 +22,32 @@ function mapQuote(q: typeof quotesTable.$inferSelect) {
   return {
     ...q,
     grandTotal: Number(q.grandTotal),
+    marginPercent: q.marginPercent !== null ? Number(q.marginPercent) : null,
+    vatPercent: q.vatPercent !== null ? Number(q.vatPercent) : null,
+    marginAmount: q.marginAmount !== null ? Number(q.marginAmount) : null,
+    vatAmount: q.vatAmount !== null ? Number(q.vatAmount) : null,
+    totalIncVat: q.totalIncVat !== null ? Number(q.totalIncVat) : null,
     materials: Array.isArray(q.materials) ? q.materials : [],
     createdAt: q.createdAt.toISOString(),
   };
 }
 
+// Auto-sync job.estimatedValue when a quote with totalIncVat is linked to a job
+async function syncJobEstimatedValue(jobId: number, totalIncVat: number | null) {
+  if (totalIncVat !== null && !isNaN(totalIncVat)) {
+    await db
+      .update(jobsTable)
+      .set({ estimatedValue: String(totalIncVat) })
+      .where(eq(jobsTable.id, jobId));
+  }
+}
+
 router.get("/quotes", async (req, res): Promise<void> => {
-  const rows = await db.select().from(quotesTable).orderBy(desc(quotesTable.createdAt));
+  let query = db.select().from(quotesTable).orderBy(desc(quotesTable.createdAt)).$dynamic();
+  if (req.query.jobId) {
+    query = query.where(eq(quotesTable.jobId, Number(req.query.jobId)));
+  }
+  const rows = await query;
   res.json(ListQuotesResponse.parse(rows.map(mapQuote)));
 });
 
@@ -124,15 +143,26 @@ router.post("/quotes", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const { grandTotal, materials, ...rest } = parsed.data;
+  const { grandTotal, materials, marginPercent, vatPercent, marginAmount, vatAmount, totalIncVat, ...rest } = parsed.data;
   const [row] = await db
     .insert(quotesTable)
     .values({
       ...rest,
       materials: materials ?? [],
       grandTotal: String(grandTotal ?? 0),
+      marginPercent: marginPercent !== undefined ? String(marginPercent) : null,
+      vatPercent: vatPercent !== undefined ? String(vatPercent) : null,
+      marginAmount: marginAmount !== undefined ? String(marginAmount) : null,
+      vatAmount: vatAmount !== undefined ? String(vatAmount) : null,
+      totalIncVat: totalIncVat !== undefined ? String(totalIncVat) : null,
     })
     .returning();
+
+  // Auto-sync job estimatedValue
+  if (row.jobId && row.totalIncVat !== null) {
+    await syncJobEstimatedValue(row.jobId, Number(row.totalIncVat));
+  }
+
   res.status(201).json(CreateQuoteResponse.parse(mapQuote(row)));
 });
 
@@ -149,16 +179,27 @@ router.patch("/quotes/:id", async (req, res): Promise<void> => {
   if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
   const parsed = UpdateQuoteBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
-  const { grandTotal, materials, ...rest } = parsed.data;
+  const { grandTotal, materials, marginPercent, vatPercent, marginAmount, vatAmount, totalIncVat, ...rest } = parsed.data;
   const updateData: Record<string, unknown> = { ...rest };
   if (materials !== undefined) updateData.materials = materials;
   if (grandTotal !== undefined) updateData.grandTotal = String(grandTotal);
+  if (marginPercent !== undefined) updateData.marginPercent = marginPercent !== null ? String(marginPercent) : null;
+  if (vatPercent !== undefined) updateData.vatPercent = vatPercent !== null ? String(vatPercent) : null;
+  if (marginAmount !== undefined) updateData.marginAmount = marginAmount !== null ? String(marginAmount) : null;
+  if (vatAmount !== undefined) updateData.vatAmount = vatAmount !== null ? String(vatAmount) : null;
+  if (totalIncVat !== undefined) updateData.totalIncVat = totalIncVat !== null ? String(totalIncVat) : null;
   const [row] = await db
     .update(quotesTable)
     .set(updateData)
     .where(eq(quotesTable.id, params.data.id))
     .returning();
   if (!row) { res.status(404).json({ error: "Not found" }); return; }
+
+  // Auto-sync job estimatedValue when quote is linked to a job
+  if (row.jobId && row.totalIncVat !== null) {
+    await syncJobEstimatedValue(row.jobId, Number(row.totalIncVat));
+  }
+
   res.json(UpdateQuoteResponse.parse(mapQuote(row)));
 });
 

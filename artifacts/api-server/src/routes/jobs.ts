@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { eq, gte, and, lte } from "drizzle-orm";
-import { db, jobsTable } from "@workspace/db";
+import { db, jobsTable, quotesTable } from "@workspace/db";
 import {
   ListJobsResponse,
   CreateJobBody,
@@ -73,10 +73,19 @@ router.patch("/jobs/:id", async (req, res): Promise<void> => {
   if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
   const parsed = UpdateJobBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
-  const { scheduledAt, estimatedValue, ...rest } = parsed.data;
+  const { scheduledAt, estimatedValue, quoteId, ...rest } = parsed.data;
   const updateData: Record<string, unknown> = { ...rest };
   if (scheduledAt !== undefined) updateData.scheduledAt = new Date(scheduledAt);
   if (estimatedValue !== undefined) updateData.estimatedValue = String(estimatedValue);
+
+  // If linking a quote, auto-populate estimatedValue from quote.totalIncVat
+  if (quoteId !== undefined && quoteId !== null) {
+    const [quote] = await db.select().from(quotesTable).where(eq(quotesTable.id, quoteId));
+    if (quote?.totalIncVat !== null && quote?.totalIncVat !== undefined) {
+      updateData.estimatedValue = quote.totalIncVat;
+    }
+  }
+
   const [row] = await db
     .update(jobsTable)
     .set(updateData)
