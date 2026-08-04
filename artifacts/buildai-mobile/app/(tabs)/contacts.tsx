@@ -16,6 +16,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useListContacts } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
+import { OfflineBanner } from '@/components/OfflineBanner';
 
 function getInitials(name: string): string {
   return name
@@ -119,6 +121,7 @@ export default function ContactsScreen() {
   const insets = useSafeAreaInsets();
   const topPadding = Platform.OS === 'web' ? 67 : insets.top;
   const bottomPadding = Platform.OS === 'web' ? 34 : insets.bottom;
+  const isOnline = useNetworkStatus();
 
   const [search, setSearch] = useState('');
 
@@ -130,6 +133,10 @@ export default function ContactsScreen() {
       c.phone.includes(search) ||
       (c.email && c.email.toLowerCase().includes(search.toLowerCase()))
   );
+
+  // Show error UI only when offline with no cached data
+  const showError = isError && !contacts;
+  const showOfflineBanner = !isOnline && !!contacts;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -169,13 +176,15 @@ export default function ContactsScreen() {
         </View>
       </View>
 
+      {showOfflineBanner && <OfflineBanner stale />}
+
       {isLoading ? (
         <ActivityIndicator color={colors.primary} size="large" style={{ marginTop: 60 }} />
-      ) : isError ? (
+      ) : showError ? (
         <View style={styles.center}>
-          <Feather name="alert-circle" size={32} color={colors.mutedForeground} />
+          <Feather name="wifi-off" size={32} color={colors.mutedForeground} />
           <Text style={[styles.errorText, { color: colors.mutedForeground }]}>
-            Couldn't load contacts
+            No connection
           </Text>
           <TouchableOpacity onPress={() => refetch()} activeOpacity={0.7}>
             <Text style={[styles.retryText, { color: colors.primary }]}>Retry</Text>

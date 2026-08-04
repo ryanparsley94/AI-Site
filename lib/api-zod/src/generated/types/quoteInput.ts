@@ -11,5 +11,10 @@ export interface QuoteInput {
   title: string;
   materials: MaterialLineItem[];
   grandTotal?: number;
-  jobId?: string;
+  jobId?: number;
+  marginPercent?: number;
+  vatPercent?: number;
+  marginAmount?: number;
+  vatAmount?: number;
+  totalIncVat?: number;
 }

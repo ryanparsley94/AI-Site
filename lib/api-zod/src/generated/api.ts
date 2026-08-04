@@ -104,6 +104,7 @@ export const GetCompanyResponse = zod.object({
   "address": zod.string().nullish(),
   "timezone": zod.string(),
   "logoUrl": zod.string().nullish(),
+  "emailAutoSend": zod.boolean().optional(),
   "createdAt": zod.coerce.date()
 })
 
@@ -130,6 +131,7 @@ export const UpdateCompanyResponse = zod.object({
   "address": zod.string().nullish(),
   "timezone": zod.string(),
   "logoUrl": zod.string().nullish(),
+  "emailAutoSend": zod.boolean().optional(),
   "createdAt": zod.coerce.date()
 })
 
@@ -567,7 +569,8 @@ export const UpdateJobBody = zod.object({
   "address": zod.string().optional(),
   "notes": zod.string().optional(),
   "estimatedValue": zod.number().optional(),
-  "status": zod.enum(['scheduled', 'in_progress', 'completed', 'cancelled']).optional()
+  "status": zod.enum(['scheduled', 'in_progress', 'completed', 'cancelled']).optional(),
+  "quoteId": zod.number().int().nullish().describe('Link a quote to this job; sets estimatedValue from quote\'s totalIncVat')
 })
 
 export const UpdateJobResponse = zod.object({
@@ -710,6 +713,10 @@ export const DeleteContactResponse = zod.void()
 /**
  * @summary List saved quotes
  */
+export const ListQuotesQueryParams = zod.object({
+  "jobId": zod.coerce.number().optional()
+})
+
 export const ListQuotesResponseItem = zod.object({
   "id": zod.number(),
   "title": zod.string(),
@@ -723,7 +730,12 @@ export const ListQuotesResponseItem = zod.object({
   "total": zod.number().nullish()
 })),
   "grandTotal": zod.number(),
-  "jobId": zod.string().nullish(),
+  "jobId": zod.number().int().nullish(),
+  "marginPercent": zod.number().nullish(),
+  "vatPercent": zod.number().nullish(),
+  "marginAmount": zod.number().nullish(),
+  "vatAmount": zod.number().nullish(),
+  "totalIncVat": zod.number().nullish(),
   "createdAt": zod.coerce.date()
 })
 export const ListQuotesResponse = zod.array(ListQuotesResponseItem)
@@ -744,7 +756,12 @@ export const CreateQuoteBody = zod.object({
   "total": zod.number().nullish()
 })),
   "grandTotal": zod.number().optional(),
-  "jobId": zod.string().optional()
+  "jobId": zod.number().int().optional(),
+  "marginPercent": zod.number().optional(),
+  "vatPercent": zod.number().optional(),
+  "marginAmount": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "totalIncVat": zod.number().optional()
 })
 
 export const CreateQuoteResponse = zod.object({
@@ -760,7 +777,12 @@ export const CreateQuoteResponse = zod.object({
   "total": zod.number().nullish()
 })),
   "grandTotal": zod.number(),
-  "jobId": zod.string().nullish(),
+  "jobId": zod.number().int().nullish(),
+  "marginPercent": zod.number().nullish(),
+  "vatPercent": zod.number().nullish(),
+  "marginAmount": zod.number().nullish(),
+  "vatAmount": zod.number().nullish(),
+  "totalIncVat": zod.number().nullish(),
   "createdAt": zod.coerce.date()
 })
 
@@ -785,7 +807,12 @@ export const GetQuoteResponse = zod.object({
   "total": zod.number().nullish()
 })),
   "grandTotal": zod.number(),
-  "jobId": zod.string().nullish(),
+  "jobId": zod.number().int().nullish(),
+  "marginPercent": zod.number().nullish(),
+  "vatPercent": zod.number().nullish(),
+  "marginAmount": zod.number().nullish(),
+  "vatAmount": zod.number().nullish(),
+  "totalIncVat": zod.number().nullish(),
   "createdAt": zod.coerce.date()
 })
 
@@ -809,7 +836,12 @@ export const UpdateQuoteBody = zod.object({
   "total": zod.number().nullish()
 })).optional(),
   "grandTotal": zod.number().optional(),
-  "jobId": zod.string().optional()
+  "jobId": zod.number().int().nullish(),
+  "marginPercent": zod.number().nullish(),
+  "vatPercent": zod.number().nullish(),
+  "marginAmount": zod.number().nullish(),
+  "vatAmount": zod.number().nullish(),
+  "totalIncVat": zod.number().nullish()
 })
 
 export const UpdateQuoteResponse = zod.object({
@@ -825,7 +857,12 @@ export const UpdateQuoteResponse = zod.object({
   "total": zod.number().nullish()
 })),
   "grandTotal": zod.number(),
-  "jobId": zod.string().nullish(),
+  "jobId": zod.number().int().nullish(),
+  "marginPercent": zod.number().nullish(),
+  "vatPercent": zod.number().nullish(),
+  "marginAmount": zod.number().nullish(),
+  "vatAmount": zod.number().nullish(),
+  "totalIncVat": zod.number().nullish(),
   "createdAt": zod.coerce.date()
 })
 
@@ -838,6 +875,180 @@ export const DeleteQuoteParams = zod.object({
 })
 
 export const DeleteQuoteResponse = zod.void()
+
+
+/**
+ * @summary List all invoices
+ */
+export const ListInvoicesQueryParams = zod.object({
+  "jobId": zod.coerce.number().optional()
+})
+
+export const ListInvoicesResponseItem = zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.string(),
+  "quoteId": zod.number().int().nullish(),
+  "jobId": zod.number().int().nullish(),
+  "status": zod.enum(['draft', 'sent', 'paid']),
+  "issueDate": zod.string(),
+  "dueDate": zod.string(),
+  "lineItems": zod.array(zod.object({
+  "name": zod.string(),
+  "quantity": zod.number(),
+  "unit": zod.string(),
+  "unitPrice": zod.number(),
+  "total": zod.number()
+})),
+  "subtotal": zod.number(),
+  "vatPercent": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "notes": zod.string().nullish(),
+  "clientName": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListInvoicesResponse = zod.array(ListInvoicesResponseItem)
+
+
+/**
+ * @summary Create a new invoice
+ */
+export const CreateInvoiceBody = zod.object({
+  "quoteId": zod.number().int().optional(),
+  "jobId": zod.number().int().optional(),
+  "issueDate": zod.string(),
+  "dueDate": zod.string(),
+  "lineItems": zod.array(zod.object({
+  "name": zod.string(),
+  "quantity": zod.number(),
+  "unit": zod.string(),
+  "unitPrice": zod.number(),
+  "total": zod.number()
+})),
+  "subtotal": zod.number(),
+  "vatPercent": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "notes": zod.string().optional(),
+  "clientName": zod.string().optional()
+})
+
+export const CreateInvoiceResponse = zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.string(),
+  "quoteId": zod.number().int().nullish(),
+  "jobId": zod.number().int().nullish(),
+  "status": zod.enum(['draft', 'sent', 'paid']),
+  "issueDate": zod.string(),
+  "dueDate": zod.string(),
+  "lineItems": zod.array(zod.object({
+  "name": zod.string(),
+  "quantity": zod.number(),
+  "unit": zod.string(),
+  "unitPrice": zod.number(),
+  "total": zod.number()
+})),
+  "subtotal": zod.number(),
+  "vatPercent": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "notes": zod.string().nullish(),
+  "clientName": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Get an invoice by ID
+ */
+export const GetInvoiceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetInvoiceResponse = zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.string(),
+  "quoteId": zod.number().int().nullish(),
+  "jobId": zod.number().int().nullish(),
+  "status": zod.enum(['draft', 'sent', 'paid']),
+  "issueDate": zod.string(),
+  "dueDate": zod.string(),
+  "lineItems": zod.array(zod.object({
+  "name": zod.string(),
+  "quantity": zod.number(),
+  "unit": zod.string(),
+  "unitPrice": zod.number(),
+  "total": zod.number()
+})),
+  "subtotal": zod.number(),
+  "vatPercent": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "notes": zod.string().nullish(),
+  "clientName": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update an invoice
+ */
+export const UpdateInvoiceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateInvoiceBody = zod.object({
+  "status": zod.enum(['draft', 'sent', 'paid']).optional(),
+  "issueDate": zod.string().optional(),
+  "dueDate": zod.string().optional(),
+  "lineItems": zod.array(zod.object({
+  "name": zod.string(),
+  "quantity": zod.number(),
+  "unit": zod.string(),
+  "unitPrice": zod.number(),
+  "total": zod.number()
+})).optional(),
+  "subtotal": zod.number().optional(),
+  "vatPercent": zod.number().optional(),
+  "vatAmount": zod.number().optional(),
+  "total": zod.number().optional(),
+  "notes": zod.string().optional(),
+  "clientName": zod.string().optional()
+})
+
+export const UpdateInvoiceResponse = zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.string(),
+  "quoteId": zod.number().int().nullish(),
+  "jobId": zod.number().int().nullish(),
+  "status": zod.enum(['draft', 'sent', 'paid']),
+  "issueDate": zod.string(),
+  "dueDate": zod.string(),
+  "lineItems": zod.array(zod.object({
+  "name": zod.string(),
+  "quantity": zod.number(),
+  "unit": zod.string(),
+  "unitPrice": zod.number(),
+  "total": zod.number()
+})),
+  "subtotal": zod.number(),
+  "vatPercent": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "notes": zod.string().nullish(),
+  "clientName": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete an invoice
+ */
+export const DeleteInvoiceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteInvoiceResponse = zod.void()
 
 
 /**
@@ -974,6 +1185,178 @@ export const GenerateCertificateBody = zod.object({
 export const GenerateCertificateResponse = zod.object({
   "title": zod.string(),
   "content": zod.string()
+})
+
+
+/**
+ * @summary Resend inbound email webhook (public)
+ */
+export const EmailInboundBody = zod.object({
+  "type": zod.string().describe('Event type — only \"email.received\" is processed'),
+  "created_at": zod.coerce.date().optional(),
+  "data": zod.object({
+  "email_id": zod.string().describe('Resend-assigned ID used for idempotency'),
+  "from": zod.string().describe('Sender address, \"Name <email>\" or bare email'),
+  "to": zod.array(zod.string()).optional(),
+  "subject": zod.string().optional(),
+  "text": zod.string().optional().describe('Plain-text body (may be absent)'),
+  "html": zod.string().optional().describe('HTML body (may be absent)'),
+  "created_at": zod.coerce.date().optional()
+})
+}).describe('Resend `email.received` svix webhook envelope. The sender details and message body are nested under `data`; the `email_id` is used as an idempotency key.\n')
+
+export const EmailInboundResponse = zod.unknown()
+
+
+/**
+ * @summary List email threads
+ */
+export const ListEmailThreadsQueryParams = zod.object({
+  "status": zod.enum(['all', 'pending', 'sent', 'dismissed']).optional()
+})
+
+export const ListEmailThreadsResponseItem = zod.object({
+  "id": zod.number(),
+  "fromEmail": zod.string(),
+  "fromName": zod.string(),
+  "subject": zod.string(),
+  "bodyText": zod.string(),
+  "bodyHtml": zod.string().nullish(),
+  "status": zod.enum(['pending', 'sent', 'dismissed']),
+  "aiReply": zod.string().nullish(),
+  "editedReply": zod.string().nullish(),
+  "contactId": zod.number().int().nullish(),
+  "messageId": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListEmailThreadsResponse = zod.array(ListEmailThreadsResponseItem)
+
+
+/**
+ * @summary Get an email thread by ID
+ */
+export const GetEmailThreadParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetEmailThreadResponse = zod.object({
+  "id": zod.number(),
+  "fromEmail": zod.string(),
+  "fromName": zod.string(),
+  "subject": zod.string(),
+  "bodyText": zod.string(),
+  "bodyHtml": zod.string().nullish(),
+  "status": zod.enum(['pending', 'sent', 'dismissed']),
+  "aiReply": zod.string().nullish(),
+  "editedReply": zod.string().nullish(),
+  "contactId": zod.number().int().nullish(),
+  "messageId": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update the edited reply for an email thread
+ */
+export const UpdateEmailThreadParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateEmailThreadBody = zod.object({
+  "editedReply": zod.string().optional()
+})
+
+export const UpdateEmailThreadResponse = zod.object({
+  "id": zod.number(),
+  "fromEmail": zod.string(),
+  "fromName": zod.string(),
+  "subject": zod.string(),
+  "bodyText": zod.string(),
+  "bodyHtml": zod.string().nullish(),
+  "status": zod.enum(['pending', 'sent', 'dismissed']),
+  "aiReply": zod.string().nullish(),
+  "editedReply": zod.string().nullish(),
+  "contactId": zod.number().int().nullish(),
+  "messageId": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete an email thread
+ */
+export const DeleteEmailThreadParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteEmailThreadResponse = zod.void()
+
+
+/**
+ * @summary Approve and send the AI reply for an email thread
+ */
+export const ApproveEmailThreadParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ApproveEmailThreadResponse = zod.object({
+  "id": zod.number(),
+  "fromEmail": zod.string(),
+  "fromName": zod.string(),
+  "subject": zod.string(),
+  "bodyText": zod.string(),
+  "bodyHtml": zod.string().nullish(),
+  "status": zod.enum(['pending', 'sent', 'dismissed']),
+  "aiReply": zod.string().nullish(),
+  "editedReply": zod.string().nullish(),
+  "contactId": zod.number().int().nullish(),
+  "messageId": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Dismiss an email thread without sending a reply
+ */
+export const DismissEmailThreadParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DismissEmailThreadResponse = zod.object({
+  "id": zod.number(),
+  "fromEmail": zod.string(),
+  "fromName": zod.string(),
+  "subject": zod.string(),
+  "bodyText": zod.string(),
+  "bodyHtml": zod.string().nullish(),
+  "status": zod.enum(['pending', 'sent', 'dismissed']),
+  "aiReply": zod.string().nullish(),
+  "editedReply": zod.string().nullish(),
+  "contactId": zod.number().int().nullish(),
+  "messageId": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Get email inbox settings (auto-send, forwarding address)
+ */
+export const GetEmailSettingsResponse = zod.object({
+  "autoSend": zod.boolean(),
+  "forwardingAddress": zod.string()
+})
+
+
+/**
+ * @summary Update email inbox settings
+ */
+export const UpdateEmailSettingsBody = zod.object({
+  "autoSend": zod.boolean().optional()
+})
+
+export const UpdateEmailSettingsResponse = zod.object({
+  "autoSend": zod.boolean(),
+  "forwardingAddress": zod.string()
 })
 
 

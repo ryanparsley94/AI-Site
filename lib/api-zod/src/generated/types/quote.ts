@@ -13,6 +13,16 @@ export interface Quote {
   materials: MaterialLineItem[];
   grandTotal: number;
   /** @nullable */
-  jobId?: string | null;
+  jobId?: number | null;
+  /** @nullable */
+  marginPercent?: number | null;
+  /** @nullable */
+  vatPercent?: number | null;
+  /** @nullable */
+  marginAmount?: number | null;
+  /** @nullable */
+  vatAmount?: number | null;
+  /** @nullable */
+  totalIncVat?: number | null;
   createdAt: Date;
 }

@@ -1,9 +1,18 @@
-import express, { type Express } from "express";
+import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
+
+// Extend Request type to carry the raw body buffer for webhook signature verification
+declare global {
+  namespace Express {
+    interface Request {
+      rawBody?: Buffer;
+    }
+  }
+}
 
 const app: Express = express();
 
@@ -28,7 +37,16 @@ app.use(
 );
 app.use(cors({ credentials: true, origin: true }));
 app.use(cookieParser());
-app.use(express.json());
+
+// Capture raw body buffer before JSON parsing so webhook handlers can verify
+// Resend (svix) signatures against the unmodified payload.
+app.use(
+  express.json({
+    verify: (req: Request, _res: Response, buf: Buffer) => {
+      req.rawBody = buf;
+    },
+  }),
+);
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);

@@ -19,5 +19,6 @@ export interface Company {
   timezone: string;
   /** @nullable */
   logoUrl?: string | null;
+  emailAutoSend?: boolean;
   createdAt: Date;
 }

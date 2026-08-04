@@ -1,16 +1,23 @@
 import { useState } from "react";
-import { 
-  useListJobs, 
-  useCreateJob, 
+import {
+  useListJobs,
+  useCreateJob,
   useGetJob,
-  useUpdateJob, 
+  useUpdateJob,
   useDeleteJob,
+  useListQuotes,
+  useUpdateQuote,
+  useListInvoices,
   JobInputStatus,
-  JobUpdateStatus
+  JobUpdateStatus,
+  getListQuotesQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Calendar, Plus, MapPin, Search, Clock, DollarSign, ListFilter, Trash2 } from "lucide-react";
+import {
+  Calendar, Plus, MapPin, Search, Clock, DollarSign,
+  ListFilter, Trash2, FileText, Receipt, Link2, CheckCircle, Send
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 import { Button } from "@/components/ui/button";
@@ -19,8 +26,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import { formatCurrency } from "@/lib/utils";
 
 const jobStatusConfig = {
   scheduled: { label: "Scheduled", color: "bg-blue-100 text-blue-700" },
@@ -29,19 +37,184 @@ const jobStatusConfig = {
   cancelled: { label: "Cancelled", color: "bg-red-100 text-red-700" },
 };
 
-function JobEditDialog({ 
-  id, 
-  open, 
-  onOpenChange 
-}: { 
-  id: number; 
-  open: boolean; 
-  onOpenChange: (open: boolean) => void 
+const invoiceStatusConfig = {
+  draft: { label: "Draft", color: "bg-slate-100 text-slate-700" },
+  sent: { label: "Sent", color: "bg-blue-100 text-blue-700" },
+  paid: { label: "Paid", color: "bg-green-100 text-green-700" },
+};
+
+// ── Financials section inside edit dialog ────────────────────────────────────
+
+function JobFinancials({ jobId }: { jobId: number }) {
+  const { data: linkedQuotes = [], isLoading: loadingQuotes } = useListQuotes({ jobId });
+  const { data: invoices = [], isLoading: loadingInvoices } = useListInvoices({ jobId });
+  const { data: allQuotes = [] } = useListQuotes();
+  const updateQuote = useUpdateQuote();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const [showPicker, setShowPicker] = useState(false);
+  const [quoteSearch, setQuoteSearch] = useState("");
+
+  const linkedQuote = linkedQuotes[0] ?? null;
+
+  const unlinkedQuotes = allQuotes.filter(q => !q.jobId);
+  const filteredUnlinked = unlinkedQuotes.filter(q =>
+    q.title.toLowerCase().includes(quoteSearch.toLowerCase())
+  );
+
+  const linkQuote = (quoteId: number) => {
+    updateQuote.mutate({ id: quoteId, data: { jobId } }, {
+      onSuccess: () => {
+        toast({ title: "Quote linked to job" });
+        queryClient.invalidateQueries({ queryKey: getListQuotesQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getListQuotesQueryKey({ jobId }) });
+        setShowPicker(false);
+        setQuoteSearch("");
+      },
+      onError: () => {
+        toast({ title: "Failed to link quote", variant: "destructive" });
+      }
+    });
+  };
+
+  const unlinkQuote = (quoteId: number) => {
+    updateQuote.mutate({ id: quoteId, data: { jobId: null } }, {
+      onSuccess: () => {
+        toast({ title: "Quote unlinked" });
+        queryClient.invalidateQueries({ queryKey: getListQuotesQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getListQuotesQueryKey({ jobId }) });
+      }
+    });
+  };
+
+  if (loadingQuotes || loadingInvoices) {
+    return <div className="text-sm text-muted-foreground py-2">Loading financials...</div>;
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Linked quote */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="text-sm font-semibold text-secondary flex items-center gap-1.5">
+            <FileText className="h-4 w-4" /> Linked Quote
+          </h4>
+          {!linkedQuote && (
+            <Button variant="outline" size="sm" className="gap-1 h-7 text-xs" onClick={() => setShowPicker(!showPicker)}>
+              <Link2 className="h-3 w-3" /> Link a Quote
+            </Button>
+          )}
+        </div>
+
+        {showPicker && (
+          <div className="border rounded-md p-3 space-y-2 bg-muted/20">
+            <Input
+              placeholder="Search unlinked quotes..."
+              value={quoteSearch}
+              onChange={e => setQuoteSearch(e.target.value)}
+              className="h-8 text-sm"
+            />
+            <div className="max-h-36 overflow-auto divide-y">
+              {filteredUnlinked.length === 0 ? (
+                <p className="text-xs text-muted-foreground py-2 text-center">No unlinked quotes found.</p>
+              ) : filteredUnlinked.map(q => (
+                <button
+                  key={q.id}
+                  type="button"
+                  className="w-full text-left px-2 py-2 text-sm hover:bg-muted transition-colors"
+                  onClick={() => linkQuote(q.id)}
+                >
+                  <div className="font-medium">{q.title}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {q.totalIncVat !== null && q.totalIncVat !== undefined
+                      ? `${formatCurrency(q.totalIncVat)} inc. VAT`
+                      : formatCurrency(q.grandTotal)}
+                    · {(q.materials as unknown[]).length} items
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {linkedQuote ? (
+          <div className="bg-muted/30 rounded-md p-3 border flex items-start justify-between gap-3">
+            <div>
+              <p className="font-medium text-sm">{linkedQuote.title}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {(linkedQuote.materials as unknown[]).length} materials ·
+                {linkedQuote.totalIncVat !== null && linkedQuote.totalIncVat !== undefined ? (
+                  <> <span className="font-semibold text-secondary">{formatCurrency(linkedQuote.totalIncVat)}</span> inc. VAT</>
+                ) : (
+                  <> {formatCurrency(linkedQuote.grandTotal)} (ex-VAT)</>
+                )}
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 text-xs text-muted-foreground hover:text-destructive shrink-0"
+              onClick={() => unlinkQuote(linkedQuote.id)}
+            >
+              Unlink
+            </Button>
+          </div>
+        ) : (
+          !showPicker && (
+            <p className="text-xs text-muted-foreground italic">No quote linked to this job.</p>
+          )
+        )}
+      </div>
+
+      <Separator />
+
+      {/* Invoices */}
+      <div>
+        <h4 className="text-sm font-semibold text-secondary flex items-center gap-1.5 mb-2">
+          <Receipt className="h-4 w-4" /> Invoices
+        </h4>
+        {invoices.length === 0 ? (
+          <p className="text-xs text-muted-foreground italic">No invoices for this job yet.</p>
+        ) : (
+          <div className="space-y-2">
+            {invoices.map(inv => {
+              const cfg = invoiceStatusConfig[inv.status as keyof typeof invoiceStatusConfig] ?? invoiceStatusConfig.draft;
+              return (
+                <div key={inv.id} className="flex items-center justify-between bg-muted/30 rounded-md px-3 py-2 border">
+                  <div>
+                    <p className="font-mono text-sm font-semibold">{inv.invoiceNumber}</p>
+                    <p className="text-xs text-muted-foreground">Due {inv.dueDate}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-sm text-secondary">{formatCurrency(inv.total)}</p>
+                    <Badge variant="outline" className={`${cfg.color} border-0 text-[10px] mt-0.5`}>{cfg.label}</Badge>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Job edit dialog ──────────────────────────────────────────────────────────
+
+function JobEditDialog({
+  id,
+  open,
+  onOpenChange
+}: {
+  id: number;
+  open: boolean;
+  onOpenChange: (open: boolean) => void
 }) {
   const { data: job, isLoading } = useGetJob(id, {
     query: { enabled: open && !!id, queryKey: ['/api/jobs', id] }
   });
-  
+
   const updateJob = useUpdateJob();
   const deleteJob = useDeleteJob();
   const queryClient = useQueryClient();
@@ -86,77 +259,90 @@ function JobEditDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Job #{id}</DialogTitle>
         </DialogHeader>
         {isLoading || !job ? (
           <div className="p-4 text-center">Loading...</div>
         ) : (
-          <form onSubmit={handleUpdate} className="space-y-4 pt-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="edit-title">Job Title</Label>
-                <Input id="edit-title" name="title" defaultValue={job.title} required />
+          <div className="space-y-6 pt-4">
+            <form id={`job-edit-${id}`} onSubmit={handleUpdate} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-title">Job Title</Label>
+                  <Input id="edit-title" name="title" defaultValue={job.title} required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-status">Status</Label>
+                  <Select name="status" defaultValue={job.status}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="scheduled">Scheduled</SelectItem>
+                      <SelectItem value="in_progress">In Progress</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-serviceType">Service Type</Label>
+                  <Input id="edit-serviceType" name="serviceType" defaultValue={job.serviceType} required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-contactName">Customer Name</Label>
+                  <Input id="edit-contactName" name="contactName" defaultValue={job.contactName} required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-contactPhone">Phone</Label>
+                  <Input id="edit-contactPhone" name="contactPhone" defaultValue={job.contactPhone} required />
+                </div>
+                <div className="col-span-2 space-y-2">
+                  <Label htmlFor="edit-address">Address</Label>
+                  <Input id="edit-address" name="address" defaultValue={job.address || ""} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-scheduledAt">Date & Time</Label>
+                  <Input id="edit-scheduledAt" name="scheduledAt" type="datetime-local" defaultValue={new Date(job.scheduledAt).toISOString().slice(0,16)} required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-estimatedDuration">Est. Duration (min)</Label>
+                  <Input id="edit-estimatedDuration" name="estimatedDuration" type="number" defaultValue={job.estimatedDuration || 0} />
+                </div>
+                <div className="col-span-2 space-y-2">
+                  <Label htmlFor="edit-estimatedValue">Estimated Value (£)</Label>
+                  <Input id="edit-estimatedValue" name="estimatedValue" type="number" defaultValue={job.estimatedValue || 0} />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-status">Status</Label>
-                <Select name="status" defaultValue={job.status}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="scheduled">Scheduled</SelectItem>
-                    <SelectItem value="in_progress">In Progress</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                    <SelectItem value="cancelled">Cancelled</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-serviceType">Service Type</Label>
-                <Input id="edit-serviceType" name="serviceType" defaultValue={job.serviceType} required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-contactName">Customer Name</Label>
-                <Input id="edit-contactName" name="contactName" defaultValue={job.contactName} required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-contactPhone">Phone</Label>
-                <Input id="edit-contactPhone" name="contactPhone" defaultValue={job.contactPhone} required />
-              </div>
-              <div className="col-span-2 space-y-2">
-                <Label htmlFor="edit-address">Address</Label>
-                <Input id="edit-address" name="address" defaultValue={job.address || ""} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-scheduledAt">Date & Time</Label>
-                <Input id="edit-scheduledAt" name="scheduledAt" type="datetime-local" defaultValue={new Date(job.scheduledAt).toISOString().slice(0,16)} required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-estimatedDuration">Est. Duration (min)</Label>
-                <Input id="edit-estimatedDuration" name="estimatedDuration" type="number" defaultValue={job.estimatedDuration || 0} />
-              </div>
-              <div className="col-span-2 space-y-2">
-                <Label htmlFor="edit-estimatedValue">Estimated Value ($)</Label>
-                <Input id="edit-estimatedValue" name="estimatedValue" type="number" defaultValue={job.estimatedValue || 0} />
-              </div>
+            </form>
+
+            <Separator />
+
+            {/* Financials */}
+            <div>
+              <h3 className="font-bold text-sm text-secondary mb-3 uppercase tracking-wider">Financials</h3>
+              <JobFinancials jobId={id} />
             </div>
-            <DialogFooter className="pt-4 flex justify-between sm:justify-between">
+
+            <DialogFooter className="flex justify-between sm:justify-between pt-2">
               <Button type="button" variant="destructive" onClick={handleDelete} className="gap-2">
                 <Trash2 size={16} /> Delete
               </Button>
               <div className="flex gap-2">
                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-                <Button type="submit" disabled={updateJob.isPending}>
+                <Button type="submit" form={`job-edit-${id}`} disabled={updateJob.isPending}>
                   {updateJob.isPending ? "Saving..." : "Save Changes"}
                 </Button>
               </div>
             </DialogFooter>
-          </form>
+          </div>
         )}
       </DialogContent>
     </Dialog>
   );
 }
+
+// ── Main page ────────────────────────────────────────────────────────────────
 
 export default function Jobs() {
   const { data: jobs = [], isLoading } = useListJobs();
@@ -169,15 +355,15 @@ export default function Jobs() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
 
-  const filteredJobs = jobs.filter(j => 
-    j.title.toLowerCase().includes(search.toLowerCase()) || 
+  const filteredJobs = jobs.filter(j =>
+    j.title.toLowerCase().includes(search.toLowerCase()) ||
     j.contactName.toLowerCase().includes(search.toLowerCase())
   );
 
   const handleCreateJob = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    
+
     createJob.mutate({
       data: {
         title: fd.get("title") as string,
@@ -216,7 +402,7 @@ export default function Jobs() {
             <h1 className="text-2xl font-bold tracking-tight text-secondary">Job Schedule</h1>
             <p className="text-muted-foreground text-sm">Manage dispatch and work orders.</p>
           </div>
-          
+
           <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
             <DialogTrigger asChild>
               <Button className="gap-2"><Plus size={16} /> New Job</Button>
@@ -264,7 +450,7 @@ export default function Jobs() {
                     <Input id="estimatedDuration" name="estimatedDuration" type="number" defaultValue="60" />
                   </div>
                   <div className="col-span-2 space-y-2">
-                    <Label htmlFor="estimatedValue">Estimated Value ($)</Label>
+                    <Label htmlFor="estimatedValue">Estimated Value (£)</Label>
                     <Input id="estimatedValue" name="estimatedValue" type="number" defaultValue="0" />
                   </div>
                 </div>
@@ -285,8 +471,8 @@ export default function Jobs() {
           <div className="flex items-center gap-4">
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input 
-                placeholder="Search jobs..." 
+              <Input
+                placeholder="Search jobs..."
                 className="pl-9 bg-white"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -299,7 +485,7 @@ export default function Jobs() {
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredJobs.map(job => {
-                const status = jobStatusConfig[job.status];
+                const status = jobStatusConfig[job.status as keyof typeof jobStatusConfig] ?? jobStatusConfig.scheduled;
                 return (
                   <Card key={job.id} className="flex flex-col">
                     <CardHeader className="pb-3 border-b">
@@ -332,10 +518,12 @@ export default function Jobs() {
                         </div>
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <DollarSign size={16} className="text-primary"/>
-                          <span className="font-medium text-foreground">${job.estimatedValue || 0}</span>
+                          <span className="font-medium text-foreground">
+                            {job.estimatedValue ? formatCurrency(job.estimatedValue) : "—"}
+                          </span>
                         </div>
                       </div>
-                      
+
                       <div className="p-3 bg-muted/50 rounded-md border mt-2">
                         <p className="text-xs font-semibold text-secondary mb-1">Customer</p>
                         <p className="text-sm font-medium">{job.contactName}</p>
@@ -343,8 +531,8 @@ export default function Jobs() {
                       </div>
                     </CardContent>
                     <CardFooter className="pt-3 border-t bg-muted/20 flex gap-2">
-                      <Select 
-                        value={job.status} 
+                      <Select
+                        value={job.status}
                         onValueChange={(val) => updateStatus(job.id, val as JobInputStatus)}
                       >
                         <SelectTrigger className="h-8 text-xs bg-white flex-1">
@@ -360,18 +548,18 @@ export default function Jobs() {
                       <Button size="sm" variant="outline" className="h-8 px-3" onClick={() => setEditingId(job.id)}>Edit</Button>
                     </CardFooter>
                   </Card>
-                )
+                );
               })}
             </div>
           )}
         </div>
       </div>
-      
+
       {editingId && (
-        <JobEditDialog 
-          id={editingId} 
-          open={!!editingId} 
-          onOpenChange={(open) => !open && setEditingId(null)} 
+        <JobEditDialog
+          id={editingId}
+          open={!!editingId}
+          onOpenChange={(open) => !open && setEditingId(null)}
         />
       )}
     </div>

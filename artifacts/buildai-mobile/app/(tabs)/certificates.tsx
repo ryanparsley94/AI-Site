@@ -14,6 +14,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useListCertificates } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
+import { OfflineBanner } from '@/components/OfflineBanner';
 
 const CERT_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
   completion: { label: 'Completion', color: '#22c55e' },
@@ -88,8 +90,13 @@ export default function CertificatesScreen() {
   const insets = useSafeAreaInsets();
   const topPadding = Platform.OS === 'web' ? 67 : insets.top;
   const bottomPadding = Platform.OS === 'web' ? 34 : insets.bottom;
+  const isOnline = useNetworkStatus();
 
   const { data: certs, isLoading, isError, refetch } = useListCertificates();
+
+  // Show error UI only when offline with no cached data
+  const showError = isError && !certs;
+  const showOfflineBanner = !isOnline && !!certs;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -112,13 +119,15 @@ export default function CertificatesScreen() {
         </Text>
       </View>
 
+      {showOfflineBanner && <OfflineBanner stale />}
+
       {isLoading ? (
         <ActivityIndicator color={colors.primary} size="large" style={{ marginTop: 60 }} />
-      ) : isError ? (
+      ) : showError ? (
         <View style={styles.center}>
-          <Feather name="alert-circle" size={32} color={colors.mutedForeground} />
+          <Feather name="wifi-off" size={32} color={colors.mutedForeground} />
           <Text style={[styles.errorText, { color: colors.mutedForeground }]}>
-            Couldn't load certificates
+            No connection
           </Text>
           <TouchableOpacity onPress={() => refetch()} activeOpacity={0.7}>
             <Text style={[styles.retryText, { color: colors.primary }]}>Retry</Text>
