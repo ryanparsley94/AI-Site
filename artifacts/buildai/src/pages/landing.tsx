@@ -8,6 +8,7 @@ const DEMO_SCRIPT =
 
 export default function Landing() {
   const [demoState, setDemoState] = useState<"idle" | "loading" | "playing">("idle");
+  const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   async function handleDemoCall() {
@@ -277,9 +278,42 @@ export default function Landing() {
         {/* Pricing */}
         <section id="pricing" className="py-24 bg-[#0d1117]">
           <div className="max-w-7xl mx-auto px-6">
-            <div className="text-center max-w-2xl mx-auto mb-16">
+            <div className="text-center max-w-2xl mx-auto mb-10">
               <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Simple, transparent pricing.</h2>
               <p className="text-white/50 text-lg">Less than a part-time receptionist for one week — and it works 24/7.</p>
+            </div>
+
+            {/* Billing toggle */}
+            <div className="flex justify-center mb-12">
+              <div className="inline-flex items-center gap-1 bg-[#161b22] border border-white/10 rounded-full p-1">
+                <button
+                  onClick={() => setBillingCycle("monthly")}
+                  className={`px-5 py-2 rounded-full text-sm font-semibold transition-all ${
+                    billingCycle === "monthly"
+                      ? "bg-[#F97316] text-white shadow"
+                      : "text-white/50 hover:text-white"
+                  }`}
+                >
+                  Monthly
+                </button>
+                <button
+                  onClick={() => setBillingCycle("yearly")}
+                  className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-semibold transition-all ${
+                    billingCycle === "yearly"
+                      ? "bg-[#F97316] text-white shadow"
+                      : "text-white/50 hover:text-white"
+                  }`}
+                >
+                  Yearly
+                  <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full transition-all ${
+                    billingCycle === "yearly"
+                      ? "bg-white/20 text-white"
+                      : "bg-[#F97316]/20 text-[#F97316]"
+                  }`}>
+                    Save 20%
+                  </span>
+                </button>
+              </div>
             </div>
 
             <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
@@ -287,7 +321,8 @@ export default function Landing() {
                 {
                   name: "Starter",
                   desc: "Solo operators & small trades.",
-                  price: "£49",
+                  monthlyPrice: "£49",
+                  yearlyPrice: "£39",
                   features: [
                     { text: "1 AI assistant", soon: false },
                     { text: "24/7 inbound call handling", soon: false },
@@ -301,7 +336,8 @@ export default function Landing() {
                 {
                   name: "Pro",
                   desc: "Growing construction businesses.",
-                  price: "£149",
+                  monthlyPrice: "£149",
+                  yearlyPrice: "£119",
                   features: [
                     { text: "3 AI assistants", soon: false },
                     { text: "Everything in Starter", soon: false },
@@ -317,7 +353,8 @@ export default function Landing() {
                 {
                   name: "Scale",
                   desc: "High-volume contractors.",
-                  price: "£349",
+                  monthlyPrice: "£349",
+                  yearlyPrice: "£279",
                   features: [
                     { text: "Unlimited assistants", soon: false },
                     { text: "Everything in Pro", soon: false },
@@ -345,8 +382,13 @@ export default function Landing() {
                   <h3 className="text-xl font-bold mb-1">{plan.name}</h3>
                   <p className={`text-sm mb-6 ${plan.highlight ? "text-white/70" : "text-white/40"}`}>{plan.desc}</p>
                   <div className="mb-6">
-                    <span className="text-4xl font-extrabold">{plan.price}</span>
+                    <span className="text-4xl font-extrabold">
+                      {billingCycle === "yearly" ? plan.yearlyPrice : plan.monthlyPrice}
+                    </span>
                     <span className={`text-sm ${plan.highlight ? "text-white/70" : "text-white/40"}`}>/mo + VAT</span>
+                    {billingCycle === "yearly" && (
+                      <p className={`text-xs mt-1 ${plan.highlight ? "text-white/60" : "text-white/35"}`}>billed annually</p>
+                    )}
                   </div>
                   <ul className="space-y-3 mb-8 flex-1">
                     {plan.features.map((f) => (
@@ -371,7 +413,7 @@ export default function Landing() {
                           : "bg-[#F97316] hover:bg-[#ea6c0a] text-white border-0"
                       }`}
                     >
-                      Start Free Trial
+                      {billingCycle === "yearly" ? "Start Free Trial — billed annually" : "Start Free Trial"}
                     </Button>
                   </Link>
                 </div>
