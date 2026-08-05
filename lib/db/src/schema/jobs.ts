@@ -16,6 +16,7 @@ export const jobsTable = pgTable("jobs", {
   address: text("address"),
   notes: text("notes"),
   estimatedValue: numeric("estimated_value", { precision: 10, scale: 2 }),
+  googleEventId: text("google_event_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

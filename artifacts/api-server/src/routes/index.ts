@@ -14,6 +14,7 @@ import dashboardRouter from "./dashboard";
 import widgetRouter from "./widget";
 import emailInboundRouter from "./email-threads-inbound";
 import emailThreadsRouter from "./email-threads";
+import integrationsRouter from "./integrations";
 
 const router: IRouter = Router();
 
@@ -39,5 +40,6 @@ router.use(invoicesRouter);
 router.use(certificatesRouter);
 router.use(dashboardRouter);
 router.use(emailThreadsRouter);
+router.use(integrationsRouter);
 
 export default router;

@@ -17,6 +17,8 @@ export const invoicesTable = pgTable("invoices", {
   total: numeric("total", { precision: 12, scale: 2 }).notNull().default("0"),
   notes: text("notes"),
   clientName: text("client_name"),
+  externalId: text("external_id"),       // e.g. QB or Xero invoice ID
+  externalProvider: text("external_provider"), // 'quickbooks' | 'xero'
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

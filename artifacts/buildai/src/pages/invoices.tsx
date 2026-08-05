@@ -229,8 +229,12 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-// ── Invoice detail panel ─────────────────────────────────────────────────────
-
+interface InvoiceExportSectionProps {
+  invoiceId: number;
+  externalId?: string | null;
+  externalProvider?: string | null;
+  onExported: () => void;
+}
 function InvoiceDetail({
   id,
   onClose,
@@ -238,7 +242,7 @@ function InvoiceDetail({
   id: number;
   onClose: () => void;
 }) {
-  const { data: invoice, isLoading } = useGetInvoice(id);
+  const { data: invoice, isLoading, refetch } = useGetInvoice(id);
   const updateInvoice = useUpdateInvoice();
   const deleteInvoice = useDeleteInvoice();
   const queryClient = useQueryClient();
@@ -336,6 +340,10 @@ function InvoiceDetail({
   const { subtotal: displaySubtotal, vatAmount: displayVat, total: displayTotal } = recomputeTotals(lineItems);
   const isReadOnly = invoice.status !== "draft";
 
+  // externalId / externalProvider live in the raw invoice response but aren't
+  // in the generated TypeScript type yet — cast to access them safely.
+  const raw = invoice as Invoice & { externalId?: string | null; externalProvider?: string | null };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -369,6 +377,14 @@ function InvoiceDetail({
           </Button>
         </div>
       )}
+
+      {/* Accounting export */}
+      <InvoiceExportSection
+        invoiceId={id}
+        externalId={raw.externalId}
+        externalProvider={raw.externalProvider}
+        onExported={() => refetch()}
+      />
 
       {/* Line items */}
       <div>
@@ -525,28 +541,37 @@ export default function Invoices() {
             </div>
           ) : (
             <div className="divide-y">
-              {sorted.map(inv => (
-                <button
-                  key={inv.id}
-                  className={`w-full text-left px-6 py-4 hover:bg-muted/40 transition-colors flex items-center gap-4 ${selectedId === inv.id ? "bg-muted/50 border-l-2 border-primary" : ""}`}
-                  onClick={() => setSelectedId(inv.id)}
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className="font-semibold text-sm text-secondary">{inv.invoiceNumber}</span>
-                      <StatusBadge status={inv.status} />
+              {sorted.map(inv => {
+                const raw = inv as Invoice & { externalId?: string | null; externalProvider?: string | null };
+                return (
+                  <button
+                    key={inv.id}
+                    className={`w-full text-left px-6 py-4 hover:bg-muted/40 transition-colors flex items-center gap-4 ${selectedId === inv.id ? "bg-muted/50 border-l-2 border-primary" : ""}`}
+                    onClick={() => setSelectedId(inv.id)}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                        <span className="font-semibold text-sm text-secondary">{inv.invoiceNumber}</span>
+                        <StatusBadge status={inv.status} />
+                        {raw.externalProvider && (
+                          <Badge variant="outline" className="text-[10px] bg-green-50 text-green-700 border-green-200 gap-0.5 px-1.5">
+                            <CheckCircle2 className="h-2.5 w-2.5" />
+                            {raw.externalProvider === "quickbooks" ? "QB" : "Xero"}
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-sm text-muted-foreground truncate">{inv.clientName || "—"}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Issued {inv.issueDate} · Due {inv.dueDate}
+                      </p>
                     </div>
-                    <p className="text-sm text-muted-foreground truncate">{inv.clientName || "—"}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Issued {inv.issueDate} · Due {inv.dueDate}
-                    </p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className="font-bold text-secondary">{formatCurrency(inv.total)}</p>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground mt-1 ml-auto" />
-                  </div>
-                </button>
-              ))}
+                    <div className="text-right shrink-0">
+                      <p className="font-bold text-secondary">{formatCurrency(inv.total)}</p>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground mt-1 ml-auto" />
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
@@ -577,5 +602,100 @@ export default function Invoices() {
       )}
     </div>
     </>
+  );
+}
+
+function InvoiceExportSection({ invoiceId, externalId, externalProvider, onExported }: InvoiceExportSectionProps) {
+  const { data: integrations } = useGetIntegrationStatus();
+  const exportInvoice = useExportInvoice();
+  const { toast } = useToast();
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  const qbConnected = integrations?.quickbooks?.connected ?? false;
+  const xeroConnected = integrations?.xero?.connected ?? false;
+
+  // If already synced, show a badge and optional re-export
+  const alreadySynced = !!externalId;
+  const syncedProvider = externalProvider;
+
+  const handleExport = (target: "quickbooks" | "xero") => {
+    setExportError(null);
+    exportInvoice.mutate({ id: invoiceId, target }, {
+      onSuccess: (result) => {
+        toast({
+          title: `Synced to ${target === "quickbooks" ? "QuickBooks" : "Xero"} ✓`,
+          description: target === "xero" && result.url
+            ? undefined
+            : undefined,
+        });
+        onExported();
+      },
+      onError: (err) => {
+        setExportError(err.message || "Export failed — please try again");
+      },
+    });
+  };
+
+  const showQb = qbConnected || !xeroConnected;
+  const showXero = xeroConnected || !qbConnected;
+  const showSection = qbConnected || xeroConnected;
+
+  if (!showSection) return null;
+
+  return (
+    <div className="border rounded-lg p-4 space-y-3 bg-muted/20">
+      <p className="text-sm font-semibold text-secondary">Accounting Export</p>
+
+      {alreadySynced && (
+        <div className="flex items-center gap-2 text-sm text-green-700">
+          <CheckCircle2 className="h-4 w-4 shrink-0" />
+          <span>
+            Synced to {syncedProvider === "quickbooks" ? "QuickBooks" : "Xero"} — ID: <code className="font-mono text-xs">{externalId}</code>
+          </span>
+        </div>
+      )}
+
+      {exportError && (
+        <div className="flex items-start gap-2 text-sm text-destructive bg-destructive/10 rounded-md p-3">
+          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+          <span>{exportError}</span>
+        </div>
+      )}
+
+      <div className="flex gap-2 flex-wrap">
+        {qbConnected && (
+          <Button
+            size="sm"
+            variant={alreadySynced && syncedProvider === "quickbooks" ? "secondary" : "outline"}
+            className="gap-2"
+            onClick={() => handleExport("quickbooks")}
+            disabled={exportInvoice.isPending}
+          >
+            {exportInvoice.isPending && exportInvoice.variables?.target === "quickbooks" ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <BookOpen className="h-3.5 w-3.5" />
+            )}
+            {alreadySynced && syncedProvider === "quickbooks" ? "Re-export to QuickBooks" : "Export to QuickBooks"}
+          </Button>
+        )}
+        {xeroConnected && (
+          <Button
+            size="sm"
+            variant={alreadySynced && syncedProvider === "xero" ? "secondary" : "outline"}
+            className="gap-2"
+            onClick={() => handleExport("xero")}
+            disabled={exportInvoice.isPending}
+          >
+            {exportInvoice.isPending && exportInvoice.variables?.target === "xero" ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <PlugZap className="h-3.5 w-3.5" />
+            )}
+            {alreadySynced && syncedProvider === "xero" ? "Re-export to Xero" : "Export to Xero"}
+          </Button>
+        )}
+      </div>
+    </div>
   );
 }
