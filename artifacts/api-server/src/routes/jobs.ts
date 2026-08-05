@@ -13,6 +13,11 @@ import {
   UpdateJobResponse,
   DeleteJobParams,
 } from "@workspace/api-zod";
+import {
+  createCalendarEvent,
+  updateCalendarEvent,
+  deleteCalendarEvent,
+} from "../lib/google-calendar";
 
 const router = Router();
 
@@ -57,6 +62,21 @@ router.post("/jobs", async (req, res): Promise<void> => {
       estimatedValue: estimatedValue !== undefined ? String(estimatedValue) : null,
     })
     .returning();
+
+  // Sync to Google Calendar (fire-and-forget — don't fail the request if it fails)
+  createCalendarEvent({
+    title: row.title,
+    contactName: row.contactName,
+    address: row.address,
+    serviceType: row.serviceType,
+    scheduledAt: row.scheduledAt,
+    estimatedDuration: row.estimatedDuration,
+  }).then(async (eventId) => {
+    if (eventId) {
+      await db.update(jobsTable).set({ googleEventId: eventId }).where(eq(jobsTable.id, row.id));
+    }
+  }).catch(() => { /* non-fatal */ });
+
   res.status(201).json(CreateJobResponse.parse(mapJob(row)));
 });
 
@@ -92,13 +112,34 @@ router.patch("/jobs/:id", async (req, res): Promise<void> => {
     .where(eq(jobsTable.id, params.data.id))
     .returning();
   if (!row) { res.status(404).json({ error: "Not found" }); return; }
+
+  // Sync to Google Calendar if schedule changed
+  if (row.googleEventId) {
+    updateCalendarEvent(row.googleEventId, {
+      title: row.title,
+      contactName: row.contactName,
+      address: row.address,
+      serviceType: row.serviceType,
+      scheduledAt: row.scheduledAt,
+      estimatedDuration: row.estimatedDuration,
+    }).catch(() => { /* non-fatal */ });
+  }
+
   res.json(UpdateJobResponse.parse(mapJob(row)));
 });
 
 router.delete("/jobs/:id", async (req, res): Promise<void> => {
   const params = DeleteJobParams.safeParse({ id: Number(req.params.id) });
   if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  // Fetch the job first so we can remove its calendar event
+  const [job] = await db.select().from(jobsTable).where(eq(jobsTable.id, params.data.id));
   await db.delete(jobsTable).where(eq(jobsTable.id, params.data.id));
+
+  if (job?.googleEventId) {
+    deleteCalendarEvent(job.googleEventId).catch(() => { /* non-fatal */ });
+  }
+
   res.status(204).end();
 });
 
