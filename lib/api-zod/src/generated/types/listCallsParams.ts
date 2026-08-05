@@ -9,5 +9,6 @@ import type { ListCallsStatus } from './listCallsStatus';
 
 export type ListCallsParams = {
 status?: ListCallsStatus;
+source?: 'all' | 'phone' | 'widget';
 limit?: number;
 };

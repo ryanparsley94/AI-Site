@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, desc, sql } from "drizzle-orm";
+import { and, eq, desc, sql, ne } from "drizzle-orm";
 import { db, callsTable } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import {
@@ -46,12 +46,28 @@ router.get("/calls/stats", async (req, res): Promise<void> => {
 });
 
 router.get("/calls", async (req, res): Promise<void> => {
-  let query = db.select().from(callsTable).orderBy(desc(callsTable.createdAt)).$dynamic();
+  // Build predicates and combine with and() so both conditions apply together
+  const conditions: Parameters<typeof and> = [];
+
   if (req.query.status && req.query.status !== "all") {
-    query = query.where(eq(callsTable.status, req.query.status as string));
+    conditions.push(eq(callsTable.status, req.query.status as string));
   }
+
+  const source = req.query.source as string | undefined;
+  if (source === "widget") {
+    conditions.push(eq(callsTable.assistantName, "Website Widget"));
+  } else if (source === "phone") {
+    conditions.push(ne(callsTable.assistantName, "Website Widget"));
+  }
+
+  let query = db.select().from(callsTable).orderBy(desc(callsTable.createdAt)).$dynamic();
+  if (conditions.length > 0) {
+    query = query.where(and(...conditions));
+  }
+
   const limit = Number(req.query.limit) || 50;
   query = query.limit(limit);
+
   const rows = await query;
   res.json(ListCallsResponse.parse(rows.map(mapCall)));
 });

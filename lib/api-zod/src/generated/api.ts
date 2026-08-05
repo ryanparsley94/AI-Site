@@ -344,6 +344,7 @@ export const listCallsQueryLimitDefault = 50;
 
 export const ListCallsQueryParams = zod.object({
   "status": zod.enum(['all', 'booked', 'missed', 'transferred', 'spam', 'unresolved']).optional(),
+  "source": zod.enum(['all', 'phone', 'widget']).optional(),
   "limit": zod.coerce.number().default(listCallsQueryLimitDefault)
 })
 
