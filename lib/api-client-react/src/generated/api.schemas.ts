@@ -29,11 +29,13 @@ export interface WidgetKeyInfo {
   widgetKey: string | null;
   color: string;
   greeting: string;
+  widgetLeadNotify: boolean;
 }
 
 export interface WidgetSettingsInput {
   color?: string;
   greeting?: string;
+  widgetLeadNotify?: boolean;
 }
 
 export interface HealthStatus {

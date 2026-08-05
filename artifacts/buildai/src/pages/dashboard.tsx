@@ -94,26 +94,26 @@ function StatCard({
   href?: string;
 }) {
   const inner = (
-    <Card className={`relative overflow-hidden ${accent ? "bg-[#0d1117] text-white border-0" : ""}`}>
+    <Card className={`relative overflow-hidden ${accent ? "bg-secondary text-secondary-foreground border-0" : ""}`}>
       <CardContent className="p-5">
         <div className="flex items-start justify-between">
           <div className="space-y-1 flex-1">
-            <p className={`text-xs font-semibold uppercase tracking-wide ${accent ? "text-white/50" : "text-muted-foreground"}`}>
+            <p className={`text-xs font-semibold uppercase tracking-wide ${accent ? "text-secondary-foreground/50" : "text-muted-foreground"}`}>
               {label}
             </p>
-            <p className={`text-3xl font-extrabold ${accent ? "text-white" : "text-foreground"}`}>
+            <p className={`text-3xl font-extrabold ${accent ? "text-secondary-foreground" : "text-foreground"}`}>
               {loading ? <span className="text-lg text-muted-foreground">—</span> : value}
             </p>
             {sub && (
-              <p className={`text-xs mt-1 ${accent ? "text-white/50" : "text-muted-foreground"}`}>{sub}</p>
+              <p className={`text-xs mt-1 ${accent ? "text-secondary-foreground/50" : "text-muted-foreground"}`}>{sub}</p>
             )}
           </div>
-          <div className={`p-2.5 rounded-xl ${accent ? "bg-white/10" : "bg-primary/10"}`}>
-            <Icon className={`h-5 w-5 ${accent ? "text-white/80" : "text-primary"}`} />
+          <div className={`p-2.5 rounded-xl ${accent ? "bg-primary/20" : "bg-primary/10"}`}>
+            <Icon className={`h-5 w-5 ${accent ? "text-primary" : "text-primary"}`} />
           </div>
         </div>
         {href && (
-          <ArrowUpRight className={`absolute bottom-4 right-4 h-3.5 w-3.5 ${accent ? "text-white/30" : "text-muted-foreground/30"}`} />
+          <ArrowUpRight className={`absolute bottom-4 right-4 h-3.5 w-3.5 ${accent ? "text-secondary-foreground/20" : "text-muted-foreground/30"}`} />
         )}
       </CardContent>
     </Card>
@@ -157,7 +157,7 @@ type ActivityItem = {
 
 function ActivityRow({ item }: { item: ActivityItem }) {
   const Icon = item.type === "call" ? PhoneCall : Mail;
-  const iconBg = item.type === "call" ? "bg-blue-50 text-blue-600" : "bg-purple-50 text-purple-600";
+  const iconBg = item.type === "call" ? "bg-primary/10 text-primary" : "bg-secondary/10 text-secondary";
   return (
     <div className="flex items-start gap-3 py-2.5 border-b last:border-0">
       <div className={`p-1.5 rounded-lg shrink-0 mt-0.5 ${iconBg}`}>
@@ -235,9 +235,9 @@ export default function Dashboard() {
         badge: c.status === "missed" ? "Missed" : c.status === "booked" ? "Booked" : undefined,
         badgeColor:
           c.status === "missed"
-            ? "bg-red-100 text-red-600"
+            ? "bg-destructive/10 text-destructive"
             : c.status === "booked"
-            ? "bg-green-100 text-green-600"
+            ? "bg-green-100 text-green-700"
             : undefined,
       }));
 
@@ -253,9 +253,9 @@ export default function Dashboard() {
         badge: t.status === "pending" ? "Pending" : t.status === "sent" ? "Replied" : undefined,
         badgeColor:
           t.status === "pending"
-            ? "bg-amber-100 text-amber-600"
+            ? "bg-primary/15 text-primary"
             : t.status === "sent"
-            ? "bg-green-100 text-green-600"
+            ? "bg-green-100 text-green-700"
             : undefined,
       }));
 
@@ -376,7 +376,7 @@ export default function Dashboard() {
               ) : (
                 assistants.map((a) => (
                   <div key={a.id} className="flex items-center gap-3 p-3 rounded-xl border bg-card hover:bg-muted/40 transition-colors">
-                    <div className={`p-2.5 rounded-xl shrink-0 ${a.active ? "bg-green-50 text-green-700" : "bg-slate-100 text-slate-400"}`}>
+                    <div className={`p-2.5 rounded-xl shrink-0 ${a.active ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
                       <Bot size={16} />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -391,7 +391,7 @@ export default function Dashboard() {
                     <Badge
                       variant="outline"
                       className={`shrink-0 text-[11px] border-0 font-semibold ${
-                        a.active ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"
+                        a.active ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"
                       }`}
                     >
                       {a.active ? "Online" : "Offline"}
@@ -502,12 +502,12 @@ export default function Dashboard() {
             <CardContent className="h-48">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#9ca3af" }} dy={8} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#9ca3af" }} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} dy={8} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
                   <Tooltip
-                    cursor={{ fill: "#f3f4f6" }}
-                    contentStyle={{ borderRadius: "8px", border: "1px solid #e5e7eb", fontSize: 12 }}
+                    cursor={{ fill: "hsl(var(--muted))" }}
+                    contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))", fontSize: 12, background: "hsl(var(--card))", color: "hsl(var(--card-foreground))" }}
                   />
                   <Bar dataKey="calls" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} maxBarSize={40} />
                 </BarChart>
@@ -555,7 +555,7 @@ export default function Dashboard() {
                       </div>
                       <div className="text-right shrink-0">
                         <p className="text-sm font-bold text-secondary">{formatCurrency(Number(inv.total ?? 0))}</p>
-                        <span className={`text-[10px] font-bold uppercase ${inv.status === "sent" ? "text-blue-600" : "text-slate-400"}`}>
+                        <span className={`text-[10px] font-bold uppercase ${inv.status === "sent" ? "text-primary" : "text-muted-foreground"}`}>
                           {inv.status}
                         </span>
                       </div>

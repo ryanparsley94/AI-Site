@@ -13,7 +13,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   Save, Building2, Code2, RefreshCw, Copy, Check, MessageSquare,
   ExternalLink, Lock, Calendar, BookOpen, Link2, CheckCircle2,
-  XCircle, Loader2, PlugZap,
+  XCircle, Loader2, PlugZap, Bell,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -24,6 +24,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
 // Absolute API base URL
@@ -246,7 +247,8 @@ export default function Settings() {
 
   const [widgetSettings, setWidgetSettings] = useState({
     color: "#f97316",
-    greeting: "Hi! How can I help you today?"
+    greeting: "Hi! How can I help you today?",
+    widgetLeadNotify: true,
   });
 
   const [copied, setCopied] = useState(false);
@@ -273,7 +275,8 @@ export default function Settings() {
     if (widgetKeyInfo) {
       setWidgetSettings({
         color: widgetKeyInfo.color || "#f97316",
-        greeting: widgetKeyInfo.greeting || "Hi! How can I help you today?"
+        greeting: widgetKeyInfo.greeting || "Hi! How can I help you today?",
+        widgetLeadNotify: widgetKeyInfo.widgetLeadNotify ?? true,
       });
     }
   }, [widgetKeyInfo]);
@@ -599,6 +602,32 @@ export default function Settings() {
                             />
                             <p className="text-[10px] text-muted-foreground">First message shown when the chat opens.</p>
                           </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {widgetKeyInfo?.widgetKey && (
+                      <div className="space-y-3 pt-2 border-t">
+                        <p className="text-sm font-medium">Notifications</p>
+                        <div className="flex items-center justify-between rounded-lg border p-4">
+                          <div className="flex items-start gap-3">
+                            <Bell size={16} className="text-muted-foreground mt-0.5 shrink-0" />
+                            <div>
+                              <p className="text-sm font-medium leading-none">Widget lead email alerts</p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Send an email to your company address the moment a visitor submits their name and phone via the chat widget.
+                                {!company?.email && (
+                                  <span className="block text-amber-600 mt-1">
+                                    No company email set — add one in the Company Profile tab to receive alerts.
+                                  </span>
+                                )}
+                              </p>
+                            </div>
+                          </div>
+                          <Switch
+                            checked={widgetSettings.widgetLeadNotify}
+                            onCheckedChange={checked => setWidgetSettings(prev => ({ ...prev, widgetLeadNotify: checked }))}
+                          />
                         </div>
                       </div>
                     )}

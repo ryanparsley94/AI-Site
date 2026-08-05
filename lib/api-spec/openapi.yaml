@@ -1238,7 +1238,7 @@ components:
 
     WidgetKeyInfo:
       type: object
-      required: [widgetKey, color, greeting]
+      required: [widgetKey, color, greeting, widgetLeadNotify]
       properties:
         widgetKey:
           type: ["string", "null"]
@@ -1246,6 +1246,8 @@ components:
           type: string
         greeting:
           type: string
+        widgetLeadNotify:
+          type: boolean
 
     WidgetSettingsInput:
       type: object
@@ -1254,6 +1256,8 @@ components:
           type: string
         greeting:
           type: string
+        widgetLeadNotify:
+          type: boolean
 
     HealthStatus:
       type: object

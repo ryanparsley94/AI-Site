@@ -63,7 +63,8 @@ export const WidgetChatResponse = zod.object({
 export const GetWidgetKeyResponse = zod.object({
   "widgetKey": zod.string().nullable(),
   "color": zod.string(),
-  "greeting": zod.string()
+  "greeting": zod.string(),
+  "widgetLeadNotify": zod.boolean()
 })
 
 
@@ -73,7 +74,8 @@ export const GetWidgetKeyResponse = zod.object({
 export const RegenerateWidgetKeyResponse = zod.object({
   "widgetKey": zod.string().nullable(),
   "color": zod.string(),
-  "greeting": zod.string()
+  "greeting": zod.string(),
+  "widgetLeadNotify": zod.boolean()
 })
 
 
@@ -82,13 +84,15 @@ export const RegenerateWidgetKeyResponse = zod.object({
  */
 export const UpdateWidgetSettingsBody = zod.object({
   "color": zod.string().optional(),
-  "greeting": zod.string().optional()
+  "greeting": zod.string().optional(),
+  "widgetLeadNotify": zod.boolean().optional()
 })
 
 export const UpdateWidgetSettingsResponse = zod.object({
   "widgetKey": zod.string().nullable(),
   "color": zod.string(),
-  "greeting": zod.string()
+  "greeting": zod.string(),
+  "widgetLeadNotify": zod.boolean()
 })
 
 

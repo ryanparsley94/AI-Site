@@ -38,6 +38,7 @@ function mapWidgetKey(company: typeof companiesTable.$inferSelect) {
     widgetKey: company.widgetKey ?? null,
     color: company.widgetColor ?? "#f97316",
     greeting: company.widgetGreeting ?? "Hi! How can I help you today?",
+    widgetLeadNotify: company.widgetLeadNotify,
   };
 }
 
@@ -95,6 +96,7 @@ router.patch("/company/widget-settings", async (req, res): Promise<void> => {
   const updateData: Partial<typeof companiesTable.$inferInsert> = {};
   if (parsed.data.color !== undefined) updateData.widgetColor = parsed.data.color;
   if (parsed.data.greeting !== undefined) updateData.widgetGreeting = parsed.data.greeting;
+  if (parsed.data.widgetLeadNotify !== undefined) updateData.widgetLeadNotify = parsed.data.widgetLeadNotify;
   const [updated] = await db
     .update(companiesTable)
     .set(updateData)
