@@ -1,7 +1,42 @@
 import { useState, useRef } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { PhoneCall, CalendarDays, Bot, ArrowRight, CheckCircle2, Star, MapPin, Zap, Loader2, Volume2 } from "lucide-react";
+import { PhoneCall, CalendarDays, Bot, ArrowRight, CheckCircle2, Star, MapPin, Zap, Loader2, Volume2, ChevronDown } from "lucide-react";
+
+const FAQ_ITEMS = [
+  {
+    q: "What counts as a call-minute?",
+    a: "A call-minute is 60 seconds of active conversation between a caller and your BuildAI assistant. Calls are rounded up to the nearest minute. Your monthly allowance resets on your billing date, and you can see live usage in your dashboard at any time.",
+  },
+  {
+    q: "What happens when I hit my monthly allowance?",
+    a: "Your assistant keeps answering — we never cut off calls mid-conversation. If you exceed your plan's included minutes, overage is billed at a low per-minute rate (shown on your billing page). You can also upgrade your plan at any time to get a larger allowance.",
+  },
+  {
+    q: "Is there a contract, or can I cancel anytime?",
+    a: "No contracts, no lock-ins. Monthly plans can be cancelled before your next billing date — you keep access until the end of the period you've paid for. Annual plans are billed upfront and are non-refundable after 14 days, but you can cancel renewal at any time.",
+  },
+  {
+    q: "How long does setup take?",
+    a: "Most contractors are live in under 10 minutes. You connect your number, tell the AI about your trade and service area, set your availability, and you're done. Our onboarding wizard walks you through each step — no technical knowledge needed.",
+  },
+  {
+    q: "Does BuildAI work for my trade?",
+    a: "Yes — BuildAI is trained across the full range of UK trades: plumbing, electrical, gas, roofing, plastering, groundworks, landscaping, and more. The AI asks the right qualifying questions for each trade type, and you can add your own custom instructions to fine-tune it further.",
+  },
+  {
+    q: "Is my data stored in the UK? (GDPR)",
+    a: "Yes. All call recordings, transcripts, and customer data are stored on UK-based servers. BuildAI Ltd is a registered UK company and we are fully GDPR compliant. You can request a Data Processing Agreement (DPA) at any time — just contact us.",
+  },
+  {
+    q: "Can I change plans later?",
+    a: "Absolutely. You can upgrade or downgrade your plan at any time from your account settings. Upgrades take effect immediately; downgrades apply from the next billing cycle. There's no fee to change plans.",
+  },
+  {
+    q: "Is there a free trial?",
+    a: "Yes — every new account starts with a 14-day free trial on the Starter plan, no credit card required. You get full access to all Starter features so you can see exactly what BuildAI does for your business before you commit.",
+  },
+];
 
 const DEMO_SCRIPT =
   "Hi there, thanks for calling! I'm the BuildAI assistant. I can help book estimates, answer questions about our services, and schedule a visit. Are you looking to get a quote, or do you have an existing job you'd like to follow up on?";
@@ -9,6 +44,7 @@ const DEMO_SCRIPT =
 export default function Landing() {
   const [demoState, setDemoState] = useState<"idle" | "loading" | "playing">("idle");
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   async function handleDemoCall() {
@@ -422,8 +458,49 @@ export default function Landing() {
           </div>
         </section>
 
-        {/* CTA */}
+        {/* FAQ */}
         <section className="py-24 bg-[#161b22] border-t border-white/10">
+          <div className="max-w-3xl mx-auto px-6">
+            <div className="text-center mb-14">
+              <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Frequently asked questions</h2>
+              <p className="text-white/50 text-lg">Everything you need to know before you sign up.</p>
+            </div>
+            <div className="space-y-3">
+              {FAQ_ITEMS.map((item, i) => {
+                const isOpen = openFaq === i;
+                return (
+                  <div
+                    key={i}
+                    className={`rounded-xl border transition-colors ${
+                      isOpen ? "border-[#F97316]/40 bg-[#F97316]/5" : "border-white/10 bg-[#0d1117]/60"
+                    }`}
+                  >
+                    <button
+                      onClick={() => setOpenFaq(isOpen ? null : i)}
+                      className="w-full flex items-center justify-between gap-4 px-6 py-5 text-left"
+                    >
+                      <span className="text-white font-semibold text-sm md:text-base leading-snug">{item.q}</span>
+                      <ChevronDown
+                        size={18}
+                        className={`shrink-0 text-white/40 transition-transform duration-300 ${isOpen ? "rotate-180 text-[#F97316]" : ""}`}
+                      />
+                    </button>
+                    <div
+                      className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                        isOpen ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
+                      }`}
+                    >
+                      <p className="px-6 pb-5 text-white/60 text-sm leading-relaxed">{item.a}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        {/* CTA */}
+        <section className="py-24 bg-[#0d1117] border-t border-white/10">
           <div className="max-w-4xl mx-auto px-6 text-center">
             <h2 className="text-4xl md:text-5xl font-extrabold text-white mb-6">Ready to put your phones on autopilot?</h2>
             <p className="text-xl text-white/50 mb-10 max-w-2xl mx-auto">
