@@ -5,14 +5,17 @@ import {
   useGetInvoice,
   useUpdateInvoice,
   useDeleteInvoice,
+  useGetIntegrationStatus,
+  useExportInvoice,
   getListInvoicesQueryKey,
   Invoice,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
-  Receipt, Trash2, CheckCircle, Send, Clock,
-  Printer, ChevronRight, Plus, Minus, RefreshCw, FilePlus
+  Receipt, Trash2, CheckCircle, CheckCircle2, Send, Clock,
+  Printer, ChevronRight, Plus, Minus, RefreshCw, FilePlus,
+  AlertCircle, Loader2, BookOpen, PlugZap
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -621,16 +624,13 @@ function InvoiceExportSection({ invoiceId, externalId, externalProvider, onExpor
   const handleExport = (target: "quickbooks" | "xero") => {
     setExportError(null);
     exportInvoice.mutate({ id: invoiceId, target }, {
-      onSuccess: (result) => {
+      onSuccess: (_result: unknown) => {
         toast({
           title: `Synced to ${target === "quickbooks" ? "QuickBooks" : "Xero"} ✓`,
-          description: target === "xero" && result.url
-            ? undefined
-            : undefined,
         });
         onExported();
       },
-      onError: (err) => {
+      onError: (err: Error) => {
         setExportError(err.message || "Export failed — please try again");
       },
     });
