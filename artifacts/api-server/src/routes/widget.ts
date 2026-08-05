@@ -9,6 +9,53 @@ import {
   callsTable,
 } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { Resend } from "resend";
+import { logger } from "../lib/logger";
+
+function getResendClient(): Resend | null {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) return null;
+  return new Resend(key);
+}
+
+async function sendWidgetLeadNotification(
+  company: typeof companiesTable.$inferSelect,
+  visitorName: string,
+  visitorPhone: string,
+  chatSummary: string
+): Promise<void> {
+  const toEmail = company.email;
+  if (!toEmail) return;
+
+  const resend = getResendClient();
+  if (!resend) {
+    logger.warn("RESEND_API_KEY not set — skipping widget lead notification email");
+    return;
+  }
+
+  const fromAddress = process.env.RESEND_FROM_EMAIL ?? "noreply@buildai.app";
+  const subject = `New website lead: ${visitorName}`;
+  const body =
+    `You have a new lead from your website chat widget.\n\n` +
+    `Name: ${visitorName}\n` +
+    `Phone: ${visitorPhone}\n\n` +
+    `Chat summary:\n${chatSummary}\n\n` +
+    `Log in to BuildAI to view the full conversation and follow up.`;
+
+  try {
+    const result = await resend.emails.send({
+      from: `BuildAI <${fromAddress}>`,
+      to: [toEmail],
+      subject,
+      text: body,
+    });
+    if (result.error) {
+      logger.error({ err: result.error }, "Resend rejected widget lead notification");
+    }
+  } catch (err) {
+    logger.error({ err }, "Failed to send widget lead notification email");
+  }
+}
 
 const router = Router();
 
@@ -235,6 +282,7 @@ router.post("/widget/chat", async (req, res): Promise<void> => {
   }
 
   // ── Save lead (once per session, when we have name + phone) ───────────────
+  let justSavedLead = false;
   if (!session.savedLeadId && session.visitorName && session.visitorPhone) {
     try {
       const existingContacts = await db
@@ -259,6 +307,7 @@ router.post("/widget/chat", async (req, res): Promise<void> => {
         contactId = newContact.id;
       }
       session.savedLeadId = contactId;
+      justSavedLead = true;
 
       const [call] = await db
         .insert(callsTable)
@@ -351,6 +400,15 @@ router.post("/widget/chat", async (req, res): Promise<void> => {
     } catch {
       // Non-fatal
     }
+  }
+
+  // ── Send lead notification email (fire-and-forget) ────────────────────────
+  if (justSavedLead && session.visitorName && session.visitorPhone && company.widgetLeadNotify) {
+    const chatLines = session.messages
+      .map((m) => `${m.role === "user" ? session.visitorName : "Assistant"}: ${m.content}`)
+      .join("\n");
+    // Non-blocking — don't await so it doesn't delay the response
+    sendWidgetLeadNotification(company, session.visitorName, session.visitorPhone, chatLines).catch(() => {});
   }
 
   res.json({ reply, sessionId });
