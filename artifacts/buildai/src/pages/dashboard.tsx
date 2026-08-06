@@ -198,10 +198,10 @@ export default function Dashboard() {
     () => invoices.filter((inv) => inv.status !== "paid"),
     [invoices]
   );
-  const unpaidTotal = useMemo(
-    () => unpaidInvoices.reduce((s, inv) => s + Number(inv.total ?? 0), 0),
-    [unpaidInvoices]
-  );
+  // Prefer server-computed invoice stats when available; fall back to client-side totals
+  const outstandingTotal = summary?.invoiceStats?.outstandingTotal ?? unpaidInvoices.reduce((s, inv) => s + Number(inv.total ?? 0), 0);
+  const paidThisMonth = summary?.invoiceStats?.paidThisMonth ?? 0;
+  const overdueCount = summary?.invoiceStats?.overdueCount ?? 0;
 
   const pendingEmails = useMemo(
     () => emailThreads.filter((t) => t.status === "pending"),
@@ -288,7 +288,7 @@ export default function Dashboard() {
         </div>
 
         {/* ── Stat cards ──────────────────────────────────────────────────── */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <StatCard
             label="Calls Today"
             value={summary?.callsToday ?? 0}
@@ -308,13 +308,29 @@ export default function Dashboard() {
             href="/calls"
           />
           <StatCard
-            label="Unpaid Invoices"
-            value={formatCurrency(unpaidTotal)}
-            sub={`${unpaidInvoices.length} outstanding`}
+            label="Outstanding"
+            value={formatCurrency(outstandingTotal)}
+            sub={
+              overdueCount > 0 ? (
+                <span className="text-red-500 flex items-center gap-1">
+                  <AlertCircle size={11} /> {overdueCount} overdue
+                </span>
+              ) : (
+                `${unpaidInvoices.length} unpaid`
+              )
+            }
             icon={Receipt}
             accent
-            loading={isLoadingInvoices}
-            href="/invoices"
+            loading={isLoadingSummary}
+            href="/invoices?status=unpaid"
+          />
+          <StatCard
+            label="Collected This Month"
+            value={formatCurrency(paidThisMonth)}
+            sub="invoices paid"
+            icon={TrendingUp}
+            loading={isLoadingSummary}
+            href="/invoices?status=paid"
           />
           <StatCard
             label="Jobs This Week"
@@ -571,7 +587,7 @@ export default function Dashboard() {
                   <Separator className="my-3" />
                   <div className="flex items-center justify-between">
                     <p className="text-sm text-muted-foreground font-medium">Total outstanding</p>
-                    <p className="text-lg font-extrabold text-secondary">{formatCurrency(unpaidTotal)}</p>
+                    <p className="text-lg font-extrabold text-secondary">{formatCurrency(outstandingTotal)}</p>
                   </div>
                 </>
               )}

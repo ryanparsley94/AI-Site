@@ -72,6 +72,15 @@ export interface HealthStatus {
   status: string;
 }
 
+export type CompanyQuoteTemplate = typeof CompanyQuoteTemplate[keyof typeof CompanyQuoteTemplate];
+
+
+export const CompanyQuoteTemplate = {
+  classic: 'classic',
+  modern: 'modern',
+  minimal: 'minimal',
+} as const;
+
 export interface Company {
   id: number;
   name: string;
@@ -85,9 +94,26 @@ export interface Company {
   timezone: string;
   /** @nullable */
   logoUrl?: string | null;
+  quoteTemplate?: CompanyQuoteTemplate;
+  quoteAccentColor?: string;
+  /** @nullable */
+  quoteTagline?: string | null;
+  /** @nullable */
+  paymentTerms?: string | null;
+  /** @nullable */
+  quoteFooterText?: string | null;
   emailAutoSend?: boolean;
   createdAt: string;
 }
+
+export type CompanyInputQuoteTemplate = typeof CompanyInputQuoteTemplate[keyof typeof CompanyInputQuoteTemplate];
+
+
+export const CompanyInputQuoteTemplate = {
+  classic: 'classic',
+  modern: 'modern',
+  minimal: 'minimal',
+} as const;
 
 export interface CompanyInput {
   name?: string;
@@ -97,6 +123,11 @@ export interface CompanyInput {
   address?: string;
   timezone?: string;
   logoUrl?: string;
+  quoteTemplate?: CompanyInputQuoteTemplate;
+  quoteAccentColor?: string;
+  quoteTagline?: string;
+  paymentTerms?: string;
+  quoteFooterText?: string;
 }
 
 export type AssistantType = typeof AssistantType[keyof typeof AssistantType];
@@ -889,6 +920,15 @@ export interface EmailSettingsInput {
   autoSend?: boolean;
 }
 
+export interface InvoiceStats {
+  /** Sum of totals for all draft + sent invoices */
+  outstandingTotal: number;
+  /** Sum of totals for invoices paid in the current calendar month */
+  paidThisMonth: number;
+  /** Count of unpaid invoices whose due date is in the past */
+  overdueCount: number;
+}
+
 export interface DashboardSummary {
   callsToday: number;
   jobsThisWeek: number;
@@ -898,6 +938,7 @@ export interface DashboardSummary {
   revenueThisMonth: number;
   upcomingJobsCount: number;
   missedCallsToday: number;
+  invoiceStats: InvoiceStats;
 }
 
 export type GetWidgetScriptParams = {

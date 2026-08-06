@@ -13,13 +13,14 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   Save, Building2, Code2, RefreshCw, Copy, Check, MessageSquare,
   ExternalLink, Lock, Calendar, BookOpen, Link2, CheckCircle2,
-  XCircle, Loader2, PlugZap, Bell,
+  XCircle, Loader2, PlugZap, Bell, Palette, FileImage, FileText,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -245,6 +246,15 @@ export default function Settings() {
     timezone: "America/New_York"
   });
 
+  const [brandingData, setBrandingData] = useState({
+    logoUrl: "",
+    quoteTemplate: "classic" as "classic" | "modern" | "minimal",
+    quoteAccentColor: "#f97316",
+    quoteTagline: "",
+    paymentTerms: "Payment is due within 30 days of invoice date. We accept bank transfer and card payments.",
+    quoteFooterText: "",
+  });
+
   const [widgetSettings, setWidgetSettings] = useState({
     color: "#f97316",
     greeting: "Hi! How can I help you today?",
@@ -267,6 +277,14 @@ export default function Settings() {
         address: company.address || "",
         website: company.website || "",
         timezone: company.timezone || "America/New_York"
+      });
+      setBrandingData({
+        logoUrl: company.logoUrl || "",
+        quoteTemplate: (company.quoteTemplate as "classic" | "modern" | "minimal") || "classic",
+        quoteAccentColor: company.quoteAccentColor || "#f97316",
+        quoteTagline: company.quoteTagline || "",
+        paymentTerms: company.paymentTerms || "Payment is due within 30 days of invoice date. We accept bank transfer and card payments.",
+        quoteFooterText: company.quoteFooterText || "",
       });
     }
   }, [company]);
@@ -334,6 +352,34 @@ export default function Settings() {
     });
   };
 
+  const handleSaveBranding = () => {
+    updateCompany.mutate({
+      data: {
+        logoUrl: brandingData.logoUrl || undefined,
+        quoteTemplate: brandingData.quoteTemplate,
+        quoteAccentColor: brandingData.quoteAccentColor,
+        quoteTagline: brandingData.quoteTagline || undefined,
+        paymentTerms: brandingData.paymentTerms || undefined,
+        quoteFooterText: brandingData.quoteFooterText || undefined,
+      }
+    }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['/api/company'] });
+        toast({ title: "Quote branding saved" });
+      }
+    });
+  };
+
+  const handleLogoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setBrandingData(prev => ({ ...prev, logoUrl: reader.result as string }));
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleRegenerateKey = () => {
     regenerateKey.mutate(undefined, {
       onSuccess: () => {
@@ -381,6 +427,7 @@ export default function Settings() {
           <TabsList className="mb-6">
             <TabsTrigger value="profile">Company Profile</TabsTrigger>
             <TabsTrigger value="widget">Chat Widget</TabsTrigger>
+            <TabsTrigger value="branding">Quote Branding</TabsTrigger>
             <TabsTrigger value="integrations">Integrations</TabsTrigger>
           </TabsList>
 
@@ -667,6 +714,259 @@ export default function Settings() {
                   </Button>
                 </CardFooter>
               )}
+            </Card>
+          </TabsContent>
+
+          {/* ── Quote Branding ──────────────────────────────────────────── */}
+          <TabsContent value="branding">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-primary/10 text-primary rounded-lg">
+                    <Palette size={24} />
+                  </div>
+                  <div>
+                    <CardTitle>Quote Branding</CardTitle>
+                    <CardDescription>
+                      Set your logo, template, and footer details — applied to every PDF quote you download.
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-8 pt-2">
+
+                {/* ── Template picker ── */}
+                <div className="space-y-3">
+                  <Label className="text-sm font-semibold">Quote Template</Label>
+                  <p className="text-xs text-muted-foreground">Choose the visual style for your PDF quotes.</p>
+                  <div className="grid grid-cols-3 gap-4">
+                    {(
+                      [
+                        {
+                          id: "classic" as const,
+                          label: "Classic",
+                          desc: "Dark header, accent stripe, professional table",
+                          preview: (
+                            <div className="w-full h-20 rounded overflow-hidden border">
+                              <div className="h-7 bg-[#1a2332] flex items-center px-2 gap-1.5">
+                                <div className="w-8 h-1.5 rounded-sm bg-white/80" />
+                                <div className="ml-auto w-3 h-3 rounded-sm" style={{ backgroundColor: brandingData.quoteAccentColor }} />
+                              </div>
+                              <div className="h-1" style={{ backgroundColor: brandingData.quoteAccentColor }} />
+                              <div className="px-2 pt-1.5 space-y-1">
+                                <div className="flex gap-1">
+                                  <div className="w-16 h-1.5 rounded-sm bg-slate-300" />
+                                  <div className="ml-auto w-8 h-1.5 rounded-sm bg-slate-200" />
+                                </div>
+                                <div className="h-3 rounded-sm bg-slate-100 w-full" />
+                                <div className="h-2 w-full bg-slate-50 rounded-sm" />
+                              </div>
+                            </div>
+                          ),
+                        },
+                        {
+                          id: "modern" as const,
+                          label: "Modern",
+                          desc: "Accent bar, clean white layout, bold badge",
+                          preview: (
+                            <div className="w-full h-20 rounded overflow-hidden border flex">
+                              <div className="w-2 h-full shrink-0" style={{ backgroundColor: brandingData.quoteAccentColor }} />
+                              <div className="flex-1 p-2 space-y-1.5">
+                                <div className="flex items-start justify-between">
+                                  <div className="w-14 h-2 rounded-sm bg-slate-700" />
+                                  <div className="px-1.5 py-0.5 rounded text-white text-[6px] font-bold" style={{ backgroundColor: brandingData.quoteAccentColor }}>QUOTE</div>
+                                </div>
+                                <div className="h-px w-full" style={{ backgroundColor: brandingData.quoteAccentColor }} />
+                                <div className="h-3 rounded-sm w-full bg-slate-100" />
+                                <div className="h-2 w-full bg-slate-50 rounded-sm" />
+                              </div>
+                            </div>
+                          ),
+                        },
+                        {
+                          id: "minimal" as const,
+                          label: "Minimal",
+                          desc: "Clean lines, no colours, pure black & white",
+                          preview: (
+                            <div className="w-full h-20 rounded overflow-hidden border bg-white p-2 space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <div className="w-14 h-2 rounded-sm bg-slate-800" />
+                                <div className="w-10 h-2 rounded-sm bg-slate-800" />
+                              </div>
+                              <div className="h-px w-full bg-black" />
+                              <div className="h-2 w-24 rounded-sm bg-slate-300" />
+                              <div className="h-px w-full bg-slate-300" />
+                              <div className="space-y-0.5">
+                                <div className="h-2 w-full border border-slate-200 rounded-sm" />
+                                <div className="h-2 w-full border border-slate-200 rounded-sm" />
+                              </div>
+                            </div>
+                          ),
+                        },
+                      ] as const
+                    ).map(({ id, label, desc, preview }) => (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => setBrandingData(prev => ({ ...prev, quoteTemplate: id }))}
+                        className={cn(
+                          "text-left rounded-xl border-2 p-3 transition-all space-y-2",
+                          brandingData.quoteTemplate === id
+                            ? "border-primary bg-primary/5 shadow-sm"
+                            : "border-border hover:border-muted-foreground/40"
+                        )}
+                      >
+                        {preview}
+                        <div>
+                          <p className="font-semibold text-sm">{label}</p>
+                          <p className="text-[11px] text-muted-foreground leading-snug">{desc}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* ── Accent colour ── */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Accent Colour</Label>
+                  <p className="text-xs text-muted-foreground">Used for header bars, table headers, and total highlights in the PDF.</p>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <input
+                      type="color"
+                      value={brandingData.quoteAccentColor}
+                      onChange={e => setBrandingData(prev => ({ ...prev, quoteAccentColor: e.target.value }))}
+                      className="h-10 w-16 rounded-lg border cursor-pointer bg-transparent"
+                    />
+                    <Input
+                      value={brandingData.quoteAccentColor}
+                      onChange={e => setBrandingData(prev => ({ ...prev, quoteAccentColor: e.target.value }))}
+                      className="font-mono text-sm w-36"
+                      placeholder="#f97316"
+                    />
+                    <div className="flex gap-2">
+                      {["#f97316", "#2563eb", "#16a34a", "#7c3aed", "#dc2626", "#0891b2"].map(c => (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => setBrandingData(prev => ({ ...prev, quoteAccentColor: c }))}
+                          className={cn(
+                            "w-7 h-7 rounded-full border-2 transition-all",
+                            brandingData.quoteAccentColor === c ? "border-slate-500 scale-110" : "border-transparent"
+                          )}
+                          style={{ backgroundColor: c }}
+                          title={c}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── Logo ── */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Company Logo</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Appears in the top-right corner of your PDF quotes. PNG or JPEG recommended, under 200 KB.
+                  </p>
+                  <div className="flex items-start gap-4">
+                    {brandingData.logoUrl && (
+                      <div className="w-24 h-16 rounded-lg border bg-muted flex items-center justify-center overflow-hidden shrink-0">
+                        <img src={brandingData.logoUrl} alt="Company logo" className="max-w-full max-h-full object-contain" />
+                      </div>
+                    )}
+                    <div className="flex-1 space-y-2">
+                      <label className="inline-flex items-center gap-2 cursor-pointer">
+                        <div className="flex items-center gap-2 px-4 py-2 rounded-lg border border-dashed bg-muted/50 hover:bg-muted transition-colors text-sm text-muted-foreground">
+                          <FileImage size={15} />
+                          Upload image file
+                        </div>
+                        <input type="file" accept="image/*" className="sr-only" onChange={handleLogoFileChange} />
+                      </label>
+                      <p className="text-xs text-muted-foreground">Or paste a public image URL:</p>
+                      <Input
+                        placeholder="https://yourcompany.com/logo.png"
+                        value={brandingData.logoUrl.startsWith("data:") ? "(uploaded file)" : brandingData.logoUrl}
+                        onChange={e => setBrandingData(prev => ({ ...prev, logoUrl: e.target.value }))}
+                        className="text-sm"
+                        readOnly={brandingData.logoUrl.startsWith("data:")}
+                      />
+                      {brandingData.logoUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setBrandingData(prev => ({ ...prev, logoUrl: "" }))}
+                          className="text-xs text-destructive hover:underline"
+                        >
+                          Remove logo
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── Tagline ── */}
+                <div className="space-y-2">
+                  <Label htmlFor="quoteTagline" className="text-sm font-semibold">
+                    Tagline <span className="text-muted-foreground font-normal">(optional)</span>
+                  </Label>
+                  <p className="text-xs text-muted-foreground">A short phrase printed below your company name on the quote.</p>
+                  <Input
+                    id="quoteTagline"
+                    value={brandingData.quoteTagline}
+                    onChange={e => setBrandingData(prev => ({ ...prev, quoteTagline: e.target.value }))}
+                    placeholder="e.g. Trusted by Manchester's finest trades"
+                    maxLength={80}
+                  />
+                </div>
+
+                {/* ── Payment Terms ── */}
+                <div className="space-y-2">
+                  <Label htmlFor="paymentTerms" className="text-sm font-semibold">Payment Terms</Label>
+                  <p className="text-xs text-muted-foreground">Printed in the footer section of every quote PDF.</p>
+                  <Textarea
+                    id="paymentTerms"
+                    value={brandingData.paymentTerms}
+                    onChange={e => setBrandingData(prev => ({ ...prev, paymentTerms: e.target.value }))}
+                    placeholder="e.g. Payment due within 30 days of invoice. Bank transfer preferred — sort code and account number provided on invoice."
+                    className="resize-none"
+                    rows={3}
+                  />
+                </div>
+
+                {/* ── Footer Note ── */}
+                <div className="space-y-2">
+                  <Label htmlFor="quoteFooterText" className="text-sm font-semibold">
+                    Footer Note <span className="text-muted-foreground font-normal">(optional)</span>
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Extra text at the bottom — e.g. warranty info, T&amp;Cs reference, or a thank-you message.
+                  </p>
+                  <Textarea
+                    id="quoteFooterText"
+                    value={brandingData.quoteFooterText}
+                    onChange={e => setBrandingData(prev => ({ ...prev, quoteFooterText: e.target.value }))}
+                    placeholder="e.g. All work is covered by a 12-month workmanship guarantee. Full T&Cs available on request."
+                    className="resize-none"
+                    rows={3}
+                  />
+                </div>
+
+                {/* ── Hint ── */}
+                <div className="rounded-lg border border-dashed p-4 bg-muted/30 flex items-start gap-3">
+                  <FileText size={16} className="text-muted-foreground mt-0.5 shrink-0" />
+                  <div className="text-xs text-muted-foreground">
+                    <p className="font-medium text-foreground mb-1">Preview your quote</p>
+                    <p>Save your branding, then open any saved quote and click <strong>Download PDF</strong> to see your template and branding applied.</p>
+                  </div>
+                </div>
+              </CardContent>
+              <CardFooter className="border-t bg-muted/20 pt-4 flex justify-end">
+                <Button
+                  onClick={handleSaveBranding}
+                  disabled={updateCompany.isPending}
+                  className="gap-2 font-bold px-6"
+                >
+                  <Save size={16} /> {updateCompany.isPending ? "Saving..." : "Save Branding"}
+                </Button>
+              </CardFooter>
             </Card>
           </TabsContent>
 

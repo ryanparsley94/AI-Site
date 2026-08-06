@@ -141,6 +141,11 @@ export const GetCompanyResponse = zod.object({
   "address": zod.string().nullish(),
   "timezone": zod.string(),
   "logoUrl": zod.string().nullish(),
+  "quoteTemplate": zod.enum(['classic', 'modern', 'minimal']).optional(),
+  "quoteAccentColor": zod.string().optional(),
+  "quoteTagline": zod.string().nullish(),
+  "paymentTerms": zod.string().nullish(),
+  "quoteFooterText": zod.string().nullish(),
   "emailAutoSend": zod.boolean().optional(),
   "createdAt": zod.coerce.date()
 })
@@ -156,7 +161,12 @@ export const UpdateCompanyBody = zod.object({
   "website": zod.string().optional(),
   "address": zod.string().optional(),
   "timezone": zod.string().optional(),
-  "logoUrl": zod.string().optional()
+  "logoUrl": zod.string().optional(),
+  "quoteTemplate": zod.enum(['classic', 'modern', 'minimal']).optional(),
+  "quoteAccentColor": zod.string().optional(),
+  "quoteTagline": zod.string().optional(),
+  "paymentTerms": zod.string().optional(),
+  "quoteFooterText": zod.string().optional()
 })
 
 export const UpdateCompanyResponse = zod.object({
@@ -168,6 +178,11 @@ export const UpdateCompanyResponse = zod.object({
   "address": zod.string().nullish(),
   "timezone": zod.string(),
   "logoUrl": zod.string().nullish(),
+  "quoteTemplate": zod.enum(['classic', 'modern', 'minimal']).optional(),
+  "quoteAccentColor": zod.string().optional(),
+  "quoteTagline": zod.string().nullish(),
+  "paymentTerms": zod.string().nullish(),
+  "quoteFooterText": zod.string().nullish(),
   "emailAutoSend": zod.boolean().optional(),
   "createdAt": zod.coerce.date()
 })
@@ -1467,7 +1482,12 @@ export const GetDashboardSummaryResponse = zod.object({
   "bookingRate": zod.number(),
   "revenueThisMonth": zod.number(),
   "upcomingJobsCount": zod.number(),
-  "missedCallsToday": zod.number()
+  "missedCallsToday": zod.number(),
+  "invoiceStats": zod.object({
+  "outstandingTotal": zod.number().describe('Sum of totals for all draft + sent invoices'),
+  "paidThisMonth": zod.number().describe('Sum of totals for invoices paid in the current calendar month'),
+  "overdueCount": zod.number().describe('Count of unpaid invoices whose due date is in the past')
+})
 })
 
 

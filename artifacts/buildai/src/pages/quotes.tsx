@@ -7,10 +7,12 @@ import {
   useSearchMaterialPrices,
   useListJobs,
   useCreateInvoice,
+  useGetCompany,
   getListQuotesQueryKey,
   getListInvoicesQueryKey,
   PriceSearchResult,
   Quote,
+  Company,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -126,94 +128,446 @@ function computePricing(grandTotal: number, marginPercent: number, vatPercent: n
 
 // ── PDF generation ──────────────────────────────────────────────────────────
 
-async function downloadQuotePDF(quote: Quote, companyName?: string) {
+function hexToRgb(hex: string): [number, number, number] {
+  const clean = hex.replace("#", "");
+  return [
+    parseInt(clean.slice(0, 2), 16) || 249,
+    parseInt(clean.slice(2, 4), 16) || 115,
+    parseInt(clean.slice(4, 6), 16) || 22,
+  ];
+}
+
+async function loadImageAsBase64(url: string): Promise<string | null> {
+  if (!url) return null;
+  // Already a data URL
+  if (url.startsWith("data:")) return url;
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) return null;
+    const blob = await resp.blob();
+    return new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = () => resolve(null as unknown as string);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
+type QuoteMaterial = {
+  name: string; quantity: number; unit: string; type?: string;
+  unitPrice?: number | null; source?: string | null; total?: number | null;
+};
+
+async function downloadQuotePDF(quote: Quote, company?: Company | null) {
   const { default: jsPDF } = await import("jspdf");
   const { default: autoTable } = await import("jspdf-autotable");
 
   const doc = new jsPDF();
-  const marginX = 14;
+  const W = 210; // page width mm
+  const mX = 14; // margin X
+  const rX = W - mX; // right edge
 
-  // Header
-  doc.setFontSize(22);
-  doc.setFont("helvetica", "bold");
-  doc.text(companyName || "Your Company", marginX, 22);
+  const companyName = company?.name || "Your Company";
+  const template = company?.quoteTemplate || "classic";
+  const accentHex = company?.quoteAccentColor || "#f97316";
+  const [aR, aG, aB] = hexToRgb(accentHex);
+  const tagline = company?.quoteTagline || "";
+  const paymentTerms = company?.paymentTerms || "";
+  const footerText = company?.quoteFooterText || "";
+  const dateStr = format(new Date(quote.createdAt), "d MMM yyyy");
+  const disclaimer = "Prices are estimates based on current UK trade prices, ex-VAT unless stated. Confirm live pricing before purchasing.";
 
-  doc.setFontSize(14);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(80, 80, 80);
-  doc.text("Quote", marginX, 32);
+  // Load logo if available
+  const logoBase64 = company?.logoUrl ? await loadImageAsBase64(company.logoUrl) : null;
 
-  doc.setFontSize(10);
-  doc.text(quote.title, marginX, 40);
-  doc.text(`Date: ${format(new Date(quote.createdAt), "d MMM yyyy")}`, marginX, 47);
+  // Helper: add logo to doc at position
+  const addLogo = (x: number, y: number, maxW: number, maxH: number) => {
+    if (!logoBase64) return;
+    try {
+      const fmt = logoBase64.includes("png") ? "PNG" : "JPEG";
+      doc.addImage(logoBase64, fmt, x, y, maxW, maxH, undefined, "FAST");
+    } catch { /* skip if unsupported format */ }
+  };
 
-  doc.setTextColor(0, 0, 0);
+  // ── Materials table body (shared across templates) ──────────────────────
+  const materials = quote.materials as QuoteMaterial[];
+  const labourLines = materials.filter(m => m.type === "labour");
+  const matLines = materials.filter(m => m.type !== "labour");
 
-  // Materials table
-  const tableBody = (quote.materials as Array<{
-    name: string; quantity: number; unit: string;
-    unitPrice?: number | null; source?: string | null; total?: number | null;
-  }>).map(m => [
+  const tableRows: string[][] = [];
+  matLines.forEach(m => tableRows.push([
     m.name,
     `${m.quantity} ${m.unit}`,
     formatCurrency(m.unitPrice ?? 0),
-    m.source ?? "",
+    m.source ?? "—",
     formatCurrency(m.total ?? 0),
-  ]);
+  ]));
+  labourLines.forEach(m => tableRows.push([
+    `${m.name} (labour)`,
+    `${m.quantity} hrs`,
+    formatCurrency(m.unitPrice ?? 0) + "/hr",
+    "—",
+    formatCurrency(m.total ?? 0),
+  ]));
 
-  autoTable(doc, {
-    startY: 55,
-    head: [["Material", "Qty", "Unit Price", "Source", "Total"]],
-    body: tableBody,
-    theme: "striped",
-    headStyles: { fillColor: [30, 41, 59], textColor: 255 },
-    styles: { fontSize: 9 },
-    columnStyles: { 4: { halign: "right" } },
-    margin: { left: marginX, right: marginX },
-  });
-
-  const finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
-
-  // Pricing breakdown
-  doc.setFontSize(10);
-  const rightX = 196;
-  let y = finalY;
-
-  const addRow = (label: string, value: string, bold = false) => {
-    doc.setFont("helvetica", bold ? "bold" : "normal");
-    doc.text(label, 120, y);
-    doc.text(value, rightX, y, { align: "right" });
-    y += 7;
+  // ── Pricing rows (shared) ───────────────────────────────────────────────
+  const drawPricing = (startY: number, boldColor: [number, number, number]) => {
+    let y = startY;
+    const addRow = (label: string, value: string, bold = false) => {
+      doc.setFont("helvetica", bold ? "bold" : "normal");
+      doc.setFontSize(9.5);
+      doc.setTextColor(60, 60, 60);
+      doc.text(label, 115, y);
+      doc.setTextColor(0, 0, 0);
+      doc.text(value, rX, y, { align: "right" });
+      y += 6.5;
+    };
+    addRow("Materials subtotal (ex-VAT)", formatCurrency(quote.grandTotal));
+    if (quote.marginPercent != null) {
+      addRow(`Contractor margin (${quote.marginPercent}%)`, formatCurrency(quote.marginAmount ?? 0));
+      addRow("Subtotal after margin", formatCurrency((quote.grandTotal) + (quote.marginAmount ?? 0)));
+    }
+    if (quote.vatPercent != null) {
+      addRow(`VAT (${quote.vatPercent}%)`, formatCurrency(quote.vatAmount ?? 0));
+    }
+    doc.setDrawColor(180, 180, 180);
+    doc.line(115, y - 2, rX, y - 2);
+    if (quote.totalIncVat != null) {
+      doc.setTextColor(...boldColor);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.text("Total inc. VAT", 115, y + 5);
+      doc.text(formatCurrency(quote.totalIncVat), rX, y + 5, { align: "right" });
+      y += 12;
+    }
+    return y;
   };
 
-  doc.setFont("helvetica", "bold");
-  doc.text("Pricing Breakdown", marginX, y);
-  doc.setFont("helvetica", "normal");
-  y += 8;
+  // ── CLASSIC TEMPLATE ────────────────────────────────────────────────────
+  if (template === "classic") {
+    // Header band
+    doc.setFillColor(26, 35, 50);
+    doc.rect(0, 0, W, 38, "F");
 
-  addRow("Materials subtotal (ex-VAT)", formatCurrency(quote.grandTotal));
+    // Company name
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.setTextColor(255, 255, 255);
+    doc.text(companyName, mX, 16);
 
-  if (quote.marginPercent !== null && quote.marginPercent !== undefined) {
-    addRow(`Margin (${quote.marginPercent}%)`, formatCurrency(quote.marginAmount ?? 0));
-    addRow("Subtotal after margin", formatCurrency((quote.grandTotal) + (quote.marginAmount ?? 0)));
+    if (tagline) {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(aR, aG, aB);
+      doc.text(tagline, mX, 23);
+    }
+
+    // Contact info top-right
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(200, 210, 220);
+    let cInfoY = 10;
+    if (company?.phone) { doc.text(company.phone, rX, cInfoY, { align: "right" }); cInfoY += 5; }
+    if (company?.email) { doc.text(company.email, rX, cInfoY, { align: "right" }); cInfoY += 5; }
+    if (company?.website) { doc.text(company.website, rX, cInfoY, { align: "right" }); cInfoY += 5; }
+
+    // Logo (top-right if present)
+    if (logoBase64) addLogo(rX - 30, 2, 28, 18);
+
+    // Accent line
+    doc.setFillColor(aR, aG, aB);
+    doc.rect(0, 38, W, 1.5, "F");
+
+    // Quote meta
+    doc.setTextColor(0, 0, 0);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(20);
+    doc.text("QUOTE", mX, 54);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(80, 80, 80);
+    doc.text(quote.title, mX, 62);
+    doc.text(`Date: ${dateStr}`, mX, 69);
+    doc.text(`Quote #${quote.id}`, rX, 62, { align: "right" });
+
+    // Table
+    autoTable(doc, {
+      startY: 76,
+      head: [["Description", "Qty", "Unit Price", "Source", "Total"]],
+      body: tableRows,
+      theme: "striped",
+      headStyles: { fillColor: [26, 35, 50], textColor: 255, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [245, 247, 250] },
+      styles: { fontSize: 9, cellPadding: 3 },
+      columnStyles: { 4: { halign: "right" }, 2: { halign: "right" }, 0: { cellWidth: 65 } },
+      margin: { left: mX, right: mX },
+    });
+
+    const afterTable = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
+    const afterPricing = drawPricing(afterTable, [aR, aG, aB]);
+
+    // Footer accent line
+    let fy = Math.max(afterPricing + 12, 250);
+    doc.setFillColor(aR, aG, aB);
+    doc.rect(0, fy, W, 1.5, "F");
+    fy += 7;
+
+    if (paymentTerms) {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.setTextColor(0, 0, 0);
+      doc.text("Payment Terms", mX, fy);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.5);
+      doc.setTextColor(60, 60, 60);
+      const ptLines = doc.splitTextToSize(paymentTerms, 120);
+      doc.text(ptLines, mX, fy + 6);
+      fy += 6 + ptLines.length * 5;
+    }
+
+    if (footerText) {
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(8);
+      doc.setTextColor(100, 100, 100);
+      const ftLines = doc.splitTextToSize(footerText, 180);
+      doc.text(ftLines, mX, fy + 4);
+      fy += 4 + ftLines.length * 5;
+    }
+
+    // Disclaimer
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(140, 140, 140);
+    const dLines = doc.splitTextToSize(disclaimer, 180);
+    doc.text(dLines, mX, fy + 6);
+
+    // Company footer band
+    doc.setFillColor(26, 35, 50);
+    doc.rect(0, 284, W, 13, "F");
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(200, 210, 220);
+    const footerParts = [companyName, company?.address, company?.phone, company?.email].filter(Boolean).join("  ·  ");
+    doc.text(footerParts, W / 2, 291.5, { align: "center" });
   }
-  if (quote.vatPercent !== null && quote.vatPercent !== undefined) {
-    addRow(`VAT (${quote.vatPercent}%)`, formatCurrency(quote.vatAmount ?? 0));
+
+  // ── MODERN TEMPLATE ────────────────────────────────────────────────────
+  else if (template === "modern") {
+    // Left accent bar
+    doc.setFillColor(aR, aG, aB);
+    doc.rect(0, 0, 4, 297, "F");
+
+    // Logo top-right
+    if (logoBase64) addLogo(rX - 30, 8, 28, 18);
+
+    // Company name
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(20);
+    doc.setTextColor(15, 23, 42);
+    doc.text(companyName, 14, 22);
+
+    if (tagline) {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(100, 116, 139);
+      doc.text(tagline, 14, 29);
+    }
+
+    // Contact line
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(100, 116, 139);
+    const contactParts = [company?.phone, company?.email, company?.website].filter(Boolean).join("   ");
+    doc.text(contactParts, 14, tagline ? 35 : 30);
+
+    // "QUOTE" badge
+    doc.setFillColor(aR, aG, aB);
+    doc.roundedRect(rX - 34, 6, 34, 12, 2, 2, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(255, 255, 255);
+    doc.text("QUOTE", rX - 17, 14.5, { align: "center" });
+
+    // Divider
+    const divY = tagline ? 40 : 36;
+    doc.setDrawColor(aR, aG, aB);
+    doc.setLineWidth(0.8);
+    doc.line(14, divY, W - 14, divY);
+    doc.setLineWidth(0.2);
+
+    // Quote info
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(60, 60, 60);
+    doc.text(quote.title, 14, divY + 8);
+    doc.text(`#${quote.id}  ·  ${dateStr}`, rX, divY + 8, { align: "right" });
+
+    // Table
+    autoTable(doc, {
+      startY: divY + 14,
+      head: [["Description", "Qty", "Unit Price", "Source", "Total"]],
+      body: tableRows,
+      theme: "plain",
+      headStyles: { fillColor: [aR, aG, aB], textColor: 255, fontStyle: "bold" },
+      styles: { fontSize: 9, cellPadding: 3 },
+      columnStyles: { 4: { halign: "right" }, 2: { halign: "right" }, 0: { cellWidth: 65 } },
+      bodyStyles: { lineColor: [220, 220, 220], lineWidth: 0.1 },
+      margin: { left: 14, right: 14 },
+    });
+
+    const afterTable = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
+    const afterPricing = drawPricing(afterTable, [aR, aG, aB]);
+    let fy = afterPricing + 8;
+
+    if (paymentTerms) {
+      doc.setDrawColor(aR, aG, aB);
+      doc.setLineWidth(2);
+      doc.line(14, fy, 14, fy + 16);
+      doc.setLineWidth(0.2);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8.5);
+      doc.setTextColor(0, 0, 0);
+      doc.text("Payment Terms", 20, fy + 5);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(80, 80, 80);
+      const ptLines = doc.splitTextToSize(paymentTerms, 100);
+      doc.text(ptLines, 20, fy + 11);
+      fy += Math.max(20, ptLines.length * 5 + 14);
+    }
+
+    if (footerText) {
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(8);
+      doc.setTextColor(120, 120, 120);
+      const ftLines = doc.splitTextToSize(footerText, 180);
+      doc.text(ftLines, 14, fy);
+      fy += ftLines.length * 5 + 4;
+    }
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(160, 160, 160);
+    const dLines = doc.splitTextToSize(disclaimer, 180);
+    doc.text(dLines, 14, fy + 4);
+
+    // Footer bar
+    doc.setFillColor(aR, aG, aB);
+    doc.rect(0, 284, W, 13, "F");
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(255, 255, 255);
+    doc.text([companyName, company?.address, company?.phone].filter(Boolean).join("  ·  "), W / 2, 291.5, { align: "center" });
   }
 
-  doc.line(120, y - 2, rightX, y - 2);
+  // ── MINIMAL TEMPLATE ───────────────────────────────────────────────────
+  else {
+    // Company name
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.setTextColor(15, 23, 42);
+    doc.text(companyName.toUpperCase(), mX, 18);
 
-  if (quote.totalIncVat !== null && quote.totalIncVat !== undefined) {
-    addRow("Total inc. VAT", formatCurrency(quote.totalIncVat), true);
+    // Logo top-right
+    if (logoBase64) addLogo(rX - 26, 4, 24, 16);
+
+    if (tagline) {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.5);
+      doc.setTextColor(120, 120, 120);
+      doc.text(tagline, mX, 24);
+    }
+
+    // "QUOTE" label
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(22);
+    doc.setTextColor(0, 0, 0);
+    doc.text("QUOTE", rX, 18, { align: "right" });
+
+    // Top rule
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.8);
+    doc.line(mX, 28, rX, 28);
+    doc.setLineWidth(0.2);
+
+    // Quote details
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(60, 60, 60);
+    doc.text(quote.title, mX, 37);
+    doc.text(`Date: ${dateStr}  ·  Quote #${quote.id}`, rX, 37, { align: "right" });
+
+    // Contact info
+    const ctParts = [company?.phone, company?.email, company?.address].filter(Boolean).join("  |  ");
+    doc.setFontSize(8);
+    doc.setTextColor(130, 130, 130);
+    doc.text(ctParts, mX, 43);
+
+    // Sub-rule
+    doc.setDrawColor(180, 180, 180);
+    doc.line(mX, 47, rX, 47);
+
+    // Table
+    autoTable(doc, {
+      startY: 52,
+      head: [["Description", "Qty", "Unit Price", "Source", "Total"]],
+      body: tableRows,
+      theme: "grid",
+      headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: "bold", lineColor: [0, 0, 0], lineWidth: 0.4 },
+      styles: { fontSize: 9, cellPadding: 3, textColor: [30, 30, 30], lineColor: [200, 200, 200], lineWidth: 0.1 },
+      columnStyles: { 4: { halign: "right" }, 2: { halign: "right" }, 0: { cellWidth: 65 } },
+      margin: { left: mX, right: mX },
+    });
+
+    const afterTable = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
+    const afterPricing = drawPricing(afterTable, [0, 0, 0]);
+    let fy = afterPricing + 8;
+
+    doc.setDrawColor(180, 180, 180);
+    doc.line(mX, fy, rX, fy);
+    fy += 6;
+
+    if (paymentTerms) {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8.5);
+      doc.setTextColor(0, 0, 0);
+      doc.text("Payment Terms", mX, fy);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(80, 80, 80);
+      const ptLines = doc.splitTextToSize(paymentTerms, 180);
+      doc.text(ptLines, mX, fy + 6);
+      fy += 6 + ptLines.length * 5 + 4;
+    }
+
+    if (footerText) {
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(8);
+      doc.setTextColor(120, 120, 120);
+      const ftLines = doc.splitTextToSize(footerText, 180);
+      doc.text(ftLines, mX, fy);
+      fy += ftLines.length * 5 + 4;
+    }
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(160, 160, 160);
+    const dLines = doc.splitTextToSize(disclaimer, 180);
+    doc.text(dLines, mX, fy + 4);
+
+    // Bottom rule + company info
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.5);
+    doc.line(mX, 284, rX, 284);
+    doc.setLineWidth(0.2);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 100, 100);
+    doc.text([companyName, company?.phone, company?.email].filter(Boolean).join("  ·  "), W / 2, 290, { align: "center" });
   }
-
-  // Footer disclaimer
-  y += 10;
-  doc.setFontSize(8);
-  doc.setTextColor(120, 120, 120);
-  const disclaimer = "Prices are estimates based on current UK online trade prices, ex-VAT unless stated. Please confirm live pricing before purchasing. VAT at 20% applied.";
-  const lines = doc.splitTextToSize(disclaimer, 180);
-  doc.text(lines, marginX, y);
 
   doc.save(`quote-${quote.id}-${quote.title.replace(/\s+/g, "-").toLowerCase()}.pdf`);
 }
@@ -313,6 +667,7 @@ function PricingPanel({
 export default function Quotes() {
   const { data: quotes = [], isLoading: isLoadingQuotes } = useListQuotes();
   const { data: jobs = [] } = useListJobs();
+  const { data: company } = useGetCompany();
   const searchPrices = useSearchMaterialPrices();
   const createQuote = useCreateQuote();
   const updateQuote = useUpdateQuote();
@@ -456,7 +811,7 @@ export default function Quotes() {
 
   const handleDownloadPDF = async (quote: Quote) => {
     try {
-      await downloadQuotePDF(quote);
+      await downloadQuotePDF(quote, company);
     } catch {
       toast({ title: "Failed to generate PDF", variant: "destructive" });
     }

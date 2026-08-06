@@ -5,6 +5,7 @@
  * BuildAI – Construction Company AI Assistant Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { CompanyInputQuoteTemplate } from './companyInputQuoteTemplate';
 
 export interface CompanyInput {
   name?: string;
@@ -14,4 +15,9 @@ export interface CompanyInput {
   address?: string;
   timezone?: string;
   logoUrl?: string;
+  quoteTemplate?: CompanyInputQuoteTemplate;
+  quoteAccentColor?: string;
+  quoteTagline?: string;
+  paymentTerms?: string;
+  quoteFooterText?: string;
 }
