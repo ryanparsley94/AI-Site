@@ -55,6 +55,7 @@ router.get("/email-threads/settings", async (req, res): Promise<void> => {
     GetEmailSettingsResponse.parse({
       autoSend: company.emailAutoSend,
       forwardingAddress: inboundUrl,
+      resendConfigured: Boolean(process.env.RESEND_API_KEY),
     })
   );
 });
@@ -81,6 +82,7 @@ router.patch("/email-threads/settings", async (req, res): Promise<void> => {
     UpdateEmailSettingsResponse.parse({
       autoSend: updated.emailAutoSend,
       forwardingAddress: inboundUrl,
+      resendConfigured: Boolean(process.env.RESEND_API_KEY),
     })
   );
 });

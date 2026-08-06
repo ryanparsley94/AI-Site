@@ -28,6 +28,7 @@ import {
   Copy,
   Inbox,
   ChevronRight,
+  AlertTriangle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -110,6 +111,31 @@ function SettingsPanel({ onClose }: { onClose: () => void }) {
         <div className="text-sm text-muted-foreground">Loading settings…</div>
       ) : (
         <>
+          {/* Email delivery status */}
+          {settings?.resendConfigured ? (
+            <div className="flex items-center gap-2.5 rounded-lg bg-green-50 border border-green-200 px-4 py-3">
+              <CheckCircle size={16} className="text-green-600 shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-green-800">Email delivery active</p>
+                <p className="text-xs text-green-700 mt-0.5">
+                  Approved replies are sent via Resend. Set{" "}
+                  <code className="bg-green-100 px-1 rounded">RESEND_FROM_EMAIL</code> to customise the sender address.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-start gap-2.5 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3">
+              <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-amber-800">Email delivery not configured</p>
+                <p className="text-xs text-amber-700 mt-0.5">
+                  Add <code className="bg-amber-100 px-1 rounded">RESEND_API_KEY</code> and{" "}
+                  <code className="bg-amber-100 px-1 rounded">RESEND_FROM_EMAIL</code> as Replit Secrets to enable outbound sending. Until then, approved replies are recorded but not delivered.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Auto-send toggle */}
           <div className="flex items-center justify-between py-3 border-b">
             <div>

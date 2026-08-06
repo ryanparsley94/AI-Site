@@ -2261,12 +2261,15 @@ components:
 
     EmailSettings:
       type: object
-      required: [autoSend, forwardingAddress]
+      required: [autoSend, forwardingAddress, resendConfigured]
       properties:
         autoSend:
           type: boolean
         forwardingAddress:
           type: string
+        resendConfigured:
+          type: boolean
+          description: True when RESEND_API_KEY is present and outbound delivery is active
 
     EmailSettingsInput:
       type: object

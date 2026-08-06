@@ -1411,7 +1411,8 @@ export const DismissEmailThreadResponse = zod.object({
  */
 export const GetEmailSettingsResponse = zod.object({
   "autoSend": zod.boolean(),
-  "forwardingAddress": zod.string()
+  "forwardingAddress": zod.string(),
+  "resendConfigured": zod.boolean()
 })
 
 
@@ -1424,7 +1425,8 @@ export const UpdateEmailSettingsBody = zod.object({
 
 export const UpdateEmailSettingsResponse = zod.object({
   "autoSend": zod.boolean(),
-  "forwardingAddress": zod.string()
+  "forwardingAddress": zod.string(),
+  "resendConfigured": zod.boolean()
 })
 
 
@@ -1441,5 +1443,4 @@ export const GetDashboardSummaryResponse = zod.object({
   "upcomingJobsCount": zod.number(),
   "missedCallsToday": zod.number()
 })
-
 

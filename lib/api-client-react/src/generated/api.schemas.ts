@@ -874,6 +874,7 @@ export interface EmailInboundPayload {
 export interface EmailSettings {
   autoSend: boolean;
   forwardingAddress: string;
+  resendConfigured: boolean;
 }
 
 export interface EmailSettingsInput {
@@ -980,4 +981,3 @@ export const ListEmailThreadsStatus = {
   sent: 'sent',
   dismissed: 'dismissed',
 } as const;
-

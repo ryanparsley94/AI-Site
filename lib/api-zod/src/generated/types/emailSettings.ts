@@ -9,4 +9,5 @@
 export interface EmailSettings {
   autoSend: boolean;
   forwardingAddress: string;
+  resendConfigured: boolean;
 }
