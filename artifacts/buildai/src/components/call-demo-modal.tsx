@@ -89,13 +89,14 @@ function CallTimer({ running }: { running: boolean }) {
 async function fetchAudioBuffer(
   text: string,
   ctx: AudioContext,
+  voice: string = "onyx",
 ): Promise<AudioBuffer | null> {
   try {
     const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
     const resp = await fetch(`${base}/api/assistants/voice-preview`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ voice: "onyx", text }),
+      body: JSON.stringify({ voice, text }),
     });
     if (!resp.ok) return null;
     const arrayBuffer = await resp.arrayBuffer();
@@ -198,17 +199,16 @@ export function CallDemoModal({
     const ctx = new AudioContext();
     audioCtxRef.current = ctx;
 
-    // Kick off all Oliver line fetches in parallel; store Promises so playAudio
-    // can await whichever one it needs, even if the network isn't done yet.
-    const oliverPromises: Promise<void>[] = [];
+    // Kick off all line fetches in parallel — oliver uses "onyx", caller uses "alloy".
+    // Store Promises so playAudio can await whichever it needs.
+    const allPromises: Promise<void>[] = [];
     DEMO_CALL_SCRIPT.forEach((item, i) => {
-      if (item.from === "oliver") {
-        const p = fetchAudioBuffer(item.text, ctx);
-        audioBufferPromisesRef.current.set(i, p);
-        oliverPromises.push(p.then(() => {}));
-      }
+      const voice = item.from === "oliver" ? "onyx" : "alloy";
+      const p = fetchAudioBuffer(item.text, ctx, voice);
+      audioBufferPromisesRef.current.set(i, p);
+      allPromises.push(p.then(() => {}));
     });
-    Promise.all(oliverPromises).then(() => setAudioReady(true));
+    Promise.all(allPromises).then(() => setAudioReady(true));
 
     let cursor = 0;
 
@@ -224,7 +224,7 @@ export function CallDemoModal({
       const t2 = setTimeout(() => {
         setTypingFrom(null);
         setVisibleCount(index + 1);
-        if (item.from === "oliver") playAudio(index);
+        playAudio(index);
         schedule(index + 1);
       }, cursor);
       cursor += 400;
