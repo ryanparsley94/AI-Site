@@ -1409,6 +1409,17 @@ components:
           type: string
         logoUrl:
           type: ["string", "null"]
+        quoteTemplate:
+          type: string
+          enum: [classic, modern, minimal]
+        quoteAccentColor:
+          type: string
+        quoteTagline:
+          type: ["string", "null"]
+        paymentTerms:
+          type: ["string", "null"]
+        quoteFooterText:
+          type: ["string", "null"]
         emailAutoSend:
           type: boolean
         createdAt:
@@ -1431,6 +1442,17 @@ components:
         timezone:
           type: string
         logoUrl:
+          type: string
+        quoteTemplate:
+          type: string
+          enum: [classic, modern, minimal]
+        quoteAccentColor:
+          type: string
+        quoteTagline:
+          type: string
+        paymentTerms:
+          type: string
+        quoteFooterText:
           type: string
 
     # ── Assistants ──────────────────────────────────────────────────────────

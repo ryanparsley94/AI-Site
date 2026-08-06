@@ -42,6 +42,8 @@ export * from './certificateType';
 export * from './certificateUpdate';
 export * from './company';
 export * from './companyInput';
+export * from './companyInputQuoteTemplate';
+export * from './companyQuoteTemplate';
 export * from './contact';
 export * from './contactEmailThread';
 export * from './contactEmailThreadStatus';
