@@ -86,7 +86,10 @@ function CallTimer({ running }: { running: boolean }) {
 
 // ─── Audio helpers ────────────────────────────────────────────────────────────
 
-async function fetchAudioBlob(text: string): Promise<string | null> {
+async function fetchAudioBuffer(
+  text: string,
+  ctx: AudioContext,
+): Promise<AudioBuffer | null> {
   try {
     const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
     const resp = await fetch(`${base}/api/assistants/voice-preview`, {
@@ -95,8 +98,8 @@ async function fetchAudioBlob(text: string): Promise<string | null> {
       body: JSON.stringify({ voice: "onyx", text }),
     });
     if (!resp.ok) return null;
-    const blob = await resp.blob();
-    return URL.createObjectURL(blob);
+    const arrayBuffer = await resp.arrayBuffer();
+    return await ctx.decodeAudioData(arrayBuffer);
   } catch {
     return null;
   }
@@ -122,23 +125,29 @@ export function CallDemoModal({
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
-  // Map from script index → blob URL (for Oliver lines only)
-  const audioCacheRef = useRef<Map<number, string>>(new Map());
-  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
+  // AudioContext created on first Play click (inside user gesture → autoplay always works)
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  // Promise per Oliver script index → decoded AudioBuffer
+  const audioBufferPromisesRef = useRef<Map<number, Promise<AudioBuffer | null>>>(new Map());
+  const currentSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const mutedRef = useRef(false);
+
+  const stopCurrentSource = () => {
+    try { currentSourceRef.current?.stop(); } catch { /* already stopped */ }
+    currentSourceRef.current = null;
+  };
 
   const clearAll = () => {
     timeoutsRef.current.forEach(clearTimeout);
     timeoutsRef.current = [];
-    currentAudioRef.current?.pause();
-    currentAudioRef.current = null;
+    stopCurrentSource();
   };
 
   const reset = () => {
     clearAll();
-    // revoke old blob URLs
-    audioCacheRef.current.forEach((url) => URL.revokeObjectURL(url));
-    audioCacheRef.current.clear();
+    audioCtxRef.current?.close().catch(() => {});
+    audioCtxRef.current = null;
+    audioBufferPromisesRef.current.clear();
     setVisibleCount(0);
     setTypingFrom(null);
     setStarted(false);
@@ -148,7 +157,8 @@ export function CallDemoModal({
 
   useEffect(() => {
     mutedRef.current = muted;
-    if (muted) currentAudioRef.current?.pause();
+    if (muted) stopCurrentSource();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [muted]);
 
   useEffect(() => {
@@ -165,35 +175,40 @@ export function CallDemoModal({
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [visibleCount, typingFrom]);
 
-  function playAudio(index: number) {
-    if (mutedRef.current) return;
-    const url = audioCacheRef.current.get(index);
-    if (!url) return;
-    currentAudioRef.current?.pause();
-    const audio = new Audio(url);
-    currentAudioRef.current = audio;
-    audio.play().catch(() => {});
-  }
-
-  async function prefetchAllOliverAudio() {
-    const oliverLines = DEMO_CALL_SCRIPT
-      .map((item, i) => ({ item, i }))
-      .filter(({ item }) => item.from === "oliver");
-
-    // Fetch all in parallel
-    await Promise.all(
-      oliverLines.map(async ({ item, i }) => {
-        const url = await fetchAudioBlob(item.text);
-        if (url) audioCacheRef.current.set(i, url);
-      })
-    );
-    setAudioReady(true);
+  // Awaits the pre-fetched buffer promise then plays it — works even if fetch isn't done yet
+  async function playAudio(index: number) {
+    if (mutedRef.current || !audioCtxRef.current) return;
+    const ctx = audioCtxRef.current;
+    const bufPromise = audioBufferPromisesRef.current.get(index);
+    if (!bufPromise) return;
+    const buffer = await bufPromise;
+    if (!buffer || mutedRef.current || !audioCtxRef.current) return;
+    stopCurrentSource();
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(ctx.destination);
+    source.start();
+    currentSourceRef.current = source;
   }
 
   function startDemo() {
     setStarted(true);
-    // kick off audio pre-fetch in background (don't await — let it load while text plays)
-    prefetchAllOliverAudio();
+
+    // AudioContext MUST be created inside a user-gesture handler — this is it.
+    const ctx = new AudioContext();
+    audioCtxRef.current = ctx;
+
+    // Kick off all Oliver line fetches in parallel; store Promises so playAudio
+    // can await whichever one it needs, even if the network isn't done yet.
+    const oliverPromises: Promise<void>[] = [];
+    DEMO_CALL_SCRIPT.forEach((item, i) => {
+      if (item.from === "oliver") {
+        const p = fetchAudioBuffer(item.text, ctx);
+        audioBufferPromisesRef.current.set(i, p);
+        oliverPromises.push(p.then(() => {}));
+      }
+    });
+    Promise.all(oliverPromises).then(() => setAudioReady(true));
 
     let cursor = 0;
 

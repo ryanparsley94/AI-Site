@@ -67,67 +67,71 @@
 }
 
 :root {
-  --button-outline: rgba(0, 0, 0, 0.1);
-  --badge-outline: rgba(0, 0, 0, 0.05);
+  /* Dark trades theme — matches the landing page palette */
+  --button-outline: rgba(255, 255, 255, 0.12);
+  --badge-outline: rgba(255, 255, 255, 0.06);
 
-  --opaque-button-border-intensity: -8;
+  --opaque-button-border-intensity: 8;
 
-  --elevate-1: rgba(0, 0, 0, 0.03);
-  --elevate-2: rgba(0, 0, 0, 0.08);
+  --elevate-1: rgba(255, 255, 255, 0.03);
+  --elevate-2: rgba(255, 255, 255, 0.06);
 
-  /* Light gray background with slate/amber vibe */
-  --background: 210 20% 96%;
-  --foreground: 222 47% 11%;
-  
-  --border: 214 32% 91%;
-  --input: 214 32% 91%;
-  --ring: 24 100% 50%;
+  /* #0d1117 — landing page background */
+  --background: 220 28% 7%;
+  --foreground: 210 40% 98%;
 
-  --card: 0 0% 100%;
-  --card-foreground: 222 47% 11%;
-  --card-border: 214 32% 91%;
+  --border: 215 13% 16%;
+  --input: 215 16% 13%;
+  --ring: 32 98% 52%;
 
-  --popover: 0 0% 100%;
-  --popover-foreground: 222 47% 11%;
-  --popover-border: 214 32% 91%;
+  /* #161b22 — card surfaces */
+  --card: 215 16% 10%;
+  --card-foreground: 210 40% 98%;
+  --card-border: 215 13% 16%;
+
+  /* #161b22 — popovers / dropdowns */
+  --popover: 215 16% 10%;
+  --popover-foreground: 210 40% 98%;
+  --popover-border: 215 13% 16%;
 
   /* Construction Amber */
   --primary: 32 98% 52%;
   --primary-foreground: 0 0% 100%;
 
-  /* Slate */
-  --secondary: 222 47% 11%;
-  --secondary-foreground: 210 40% 98%;
+  /* Near-white so text-secondary reads as bright headings on dark bg */
+  --secondary: 210 40% 98%;
+  --secondary-foreground: 222 47% 11%;
 
-  --muted: 210 40% 96.1%;
-  --muted-foreground: 215.4 16.3% 46.9%;
+  /* #21262d — muted surfaces and disabled states */
+  --muted: 215 13% 16%;
+  --muted-foreground: 215 16% 55%;
 
-  --accent: 210 40% 96.1%;
-  --accent-foreground: 222.2 47.4% 11.2%;
+  --accent: 215 16% 13%;
+  --accent-foreground: 210 40% 98%;
 
   --destructive: 0 84.2% 60.2%;
   --destructive-foreground: 210 40% 98%;
 
-  /* Deep slate sidebar */
-  --sidebar: 222 47% 11%;
+  /* Even darker sidebar — #080d12 */
+  --sidebar: 220 35% 5%;
   --sidebar-foreground: 210 40% 98%;
-  --sidebar-border: 215 28% 17%;
+  --sidebar-border: 215 16% 12%;
   --sidebar-primary: 32 98% 52%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 215 28% 17%;
+  --sidebar-accent: 215 16% 10%;
   --sidebar-accent-foreground: 210 40% 98%;
   --sidebar-ring: 32 98% 52%;
 
   --chart-1: 32 98% 52%;
-  --chart-2: 222 47% 11%;
-  --chart-3: 215.4 16.3% 46.9%;
-  --chart-4: 210 40% 96.1%;
+  --chart-2: 210 70% 60%;
+  --chart-3: 215 16% 55%;
+  --chart-4: 142 71% 45%;
   --chart-5: 0 84.2% 60.2%;
 
   --app-font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --app-font-serif: Georgia, serif;
   --app-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  --radius: 0.3rem;
+  --radius: 0.4rem;
 }
 
 .dark {
