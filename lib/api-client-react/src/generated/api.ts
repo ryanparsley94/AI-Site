@@ -26,6 +26,7 @@ import type {
   AssistantTrainingInput,
   AssistantTrainingUpdate,
   AssistantUpdate,
+  BookingConfirmation,
   Call,
   CallDetail,
   CallStats,
@@ -48,6 +49,7 @@ import type {
   EmailThreadUpdate,
   GetWidgetConfigParams,
   GetWidgetScriptParams,
+  GetWidgetSlotsParams,
   HealthStatus,
   Invoice,
   InvoiceInput,
@@ -68,11 +70,13 @@ import type {
   QuoteUpdate,
   TestAssistantInput,
   TestAssistantResult,
+  WidgetBookInput,
   WidgetChatInput,
   WidgetConfig,
   WidgetKeyInfo,
   WidgetReply,
-  WidgetSettingsInput
+  WidgetSettingsInput,
+  WidgetSlotsResponse
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -416,6 +420,161 @@ export const useWidgetChat = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getWidgetChatMutationOptions(options));
+    }
+
+export const getGetWidgetSlotsUrl = (params: GetWidgetSlotsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/widget/slots?${stringifiedParams}` : `/api/widget/slots`
+}
+
+/**
+ * @summary Return available appointment time slots for the chat booking UI
+ */
+export const getWidgetSlots = async (params: GetWidgetSlotsParams, options?: Parameters<typeof customFetch>[1]): Promise<WidgetSlotsResponse> => {
+
+  return customFetch<WidgetSlotsResponse>(getGetWidgetSlotsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetWidgetSlotsQueryKey = (params?: GetWidgetSlotsParams,) => {
+    return [
+    `/api/widget/slots`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetWidgetSlotsQueryOptions = <TData = Awaited<ReturnType<typeof getWidgetSlots>>, TError = ErrorType<void>>(params: GetWidgetSlotsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWidgetSlots>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetWidgetSlotsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWidgetSlots>>> = ({ signal }) => getWidgetSlots(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWidgetSlots>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetWidgetSlotsQueryResult = NonNullable<Awaited<ReturnType<typeof getWidgetSlots>>>
+export type GetWidgetSlotsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Return available appointment time slots for the chat booking UI
+ */
+
+export function useGetWidgetSlots<TData = Awaited<ReturnType<typeof getWidgetSlots>>, TError = ErrorType<void>>(
+ params: GetWidgetSlotsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWidgetSlots>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetWidgetSlotsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getWidgetBookUrl = () => {
+
+
+
+
+  return `/api/widget/book`
+}
+
+/**
+ * @summary Book an appointment slot and create a pending-confirmation job
+ */
+export const widgetBook = async (widgetBookInput: WidgetBookInput, options?: Parameters<typeof customFetch>[1]): Promise<BookingConfirmation> => {
+
+  return customFetch<BookingConfirmation>(getWidgetBookUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(widgetBookInput)
+  }
+);}
+
+
+
+
+
+export const getWidgetBookMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof widgetBook>>, TError,{data: BodyType<WidgetBookInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof widgetBook>>, TError,{data: BodyType<WidgetBookInput>}, TContext> => {
+
+const mutationKey = ['widgetBook'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof widgetBook>>, {data: BodyType<WidgetBookInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  widgetBook(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type WidgetBookMutationResult = NonNullable<Awaited<ReturnType<typeof widgetBook>>>
+    export type WidgetBookMutationBody = BodyType<WidgetBookInput>
+    export type WidgetBookMutationError = ErrorType<void>
+
+    /**
+ * @summary Book an appointment slot and create a pending-confirmation job
+ */
+export const useWidgetBook = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof widgetBook>>, TError,{data: BodyType<WidgetBookInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof widgetBook>>,
+        TError,
+        {data: BodyType<WidgetBookInput>},
+        TContext
+      > => {
+      return useMutation(getWidgetBookMutationOptions(options));
     }
 
 export const getGetWidgetKeyUrl = () => {

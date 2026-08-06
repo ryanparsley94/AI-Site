@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq } from "drizzle-orm";
+import { eq, and, gte, lte, sql, or, isNull } from "drizzle-orm";
 import {
   db,
   companiesTable,
@@ -7,6 +7,7 @@ import {
   assistantTrainingTable,
   contactsTable,
   callsTable,
+  jobsTable,
 } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { Resend } from "resend";
@@ -78,6 +79,9 @@ interface ChatSession {
   visitorPhone?: string;
   savedLeadId?: number;
   savedCallId?: number;
+  bookingOffered?: boolean;
+  bookingCompleted?: boolean;
+  bookedJobId?: number;
   createdAt: Date;
 }
 
@@ -94,6 +98,19 @@ setInterval(() => {
 // ─── Per-key rate limiter ─────────────────────────────────────────────────────
 interface RateEntry { count: number; windowStart: number }
 const rateStore = new Map<string, RateEntry>();
+
+// ─── In-flight booking lock (prevent concurrent same-slot inserts) ─────────────
+// Keyed by slotIso string — held only for the duration of the DB insert.
+const bookingInFlight = new Set<string>();
+
+// ─── Deterministic int32 hash for advisory lock keys ──────────────────────────
+function hashToInt32(s: string): number {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) {
+    h = (Math.imul(h, 31) + s.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h) & 0x7fffffff; // positive int32
+}
 
 function checkRateLimit(key: string): boolean {
   const now = Date.now();
@@ -129,7 +146,9 @@ function buildWidgetSystemPrompt(
       (assistant.instructions ? assistant.instructions : "") +
       ` You are embedded on the company's website helping potential customers. ` +
       `Keep responses concise and friendly. ` +
-      `If the visitor seems interested in a service, encourage them to leave their name and phone number so the team can follow up.`
+      `If the visitor seems interested in a service, encourage them to leave their name and phone number so the team can follow up. ` +
+      `After capturing the visitor's contact info and understanding their needs, let them know they can schedule a free site visit directly through the chat. ` +
+      `A booking option will appear automatically in the chat — mention it naturally when appropriate.`
   );
 
   if (trainingEntries.length > 0) {
@@ -411,7 +430,225 @@ router.post("/widget/chat", async (req, res): Promise<void> => {
     sendWidgetLeadNotification(company, session.visitorName, session.visitorPhone, chatLines).catch(() => {});
   }
 
-  res.json({ reply, sessionId });
+  // ── Offer booking once lead is captured and they've had a real chat ──────
+  let showBooking = false;
+  const assistantTurns = session.messages.filter(m => m.role === "assistant").length;
+  if (
+    !session.bookingOffered &&
+    !session.bookingCompleted &&
+    session.savedLeadId !== undefined &&
+    assistantTurns >= 2
+  ) {
+    session.bookingOffered = true;
+    showBooking = true;
+  }
+
+  res.json({ reply, sessionId, showBooking });
+});
+
+// ─── Slot candidate generator (pure, no DB) ──────────────────────────────────
+function buildCandidateSlots(): { label: string; iso: string }[] {
+  const candidateSlots: { label: string; iso: string }[] = [];
+  const cursor = new Date();
+  cursor.setDate(cursor.getDate() + 1);
+  cursor.setHours(0, 0, 0, 0);
+  while (candidateSlots.length < 12) {
+    const day = cursor.getDay();
+    if (day !== 0 && day !== 6) { // Skip weekends
+      for (const hour of [9, 13]) {
+        const slot = new Date(cursor);
+        slot.setHours(hour, 0, 0, 0);
+        const label =
+          slot.toLocaleDateString("en-GB", { weekday: "short", month: "short", day: "numeric" }) +
+          " at " + (hour === 9 ? "9:00 AM" : "1:00 PM");
+        candidateSlots.push({ label, iso: slot.toISOString() });
+      }
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return candidateSlots;
+}
+
+// ─── Shared slot generation (company-scoped, accepts tx or db) ───────────────
+// Accepts any drizzle executor (db or an active transaction) so it runs on
+// the correct pooled connection — critical for the locked recheck inside a
+// transaction where the prior insert must be visible to the same connection.
+async function getAvailableSlots(
+  companyId: number,
+  executor: Pick<typeof db, "select"> = db
+): Promise<{ label: string; iso: string }[]> {
+  const candidateSlots = buildCandidateSlots();
+
+  // Fetch existing jobs for this company in the window to exclude conflicts (±2 hours).
+  // Jobs with companyId = null (legacy/manually-created) are also blocked for backward
+  // compatibility with existing single-tenant installations.
+  const windowStart = new Date(candidateSlots[0].iso);
+  windowStart.setHours(windowStart.getHours() - 2);
+  const windowEnd = new Date(candidateSlots[candidateSlots.length - 1].iso);
+  windowEnd.setHours(windowEnd.getHours() + 2);
+
+  const existingJobs = await executor
+    .select({ scheduledAt: jobsTable.scheduledAt })
+    .from(jobsTable)
+    .where(
+      and(
+        gte(jobsTable.scheduledAt, windowStart),
+        lte(jobsTable.scheduledAt, windowEnd),
+        or(
+          eq(jobsTable.companyId, companyId),
+          isNull(jobsTable.companyId)
+        )
+      )
+    );
+
+  const bookedTimes = existingJobs.map(j => j.scheduledAt.getTime());
+  return candidateSlots.filter(slot => {
+    const t = new Date(slot.iso).getTime();
+    return !bookedTimes.some(bt => Math.abs(bt - t) < 2 * 60 * 60 * 1000);
+  }).slice(0, 6);
+}
+
+// ─── GET /widget/slots ────────────────────────────────────────────────────────
+router.get("/widget/slots", async (req, res): Promise<void> => {
+  const key = req.query.key as string | undefined;
+  if (!key) { res.status(400).json({ error: "Missing key" }); return; }
+
+  const company = await getCompanyByKey(key);
+  if (!company) { res.status(404).json({ error: "Invalid widget key" }); return; }
+
+  const slots = await getAvailableSlots(company.id);
+  res.json({ slots });
+});
+
+// ─── POST /widget/book ────────────────────────────────────────────────────────
+router.post("/widget/book", async (req, res): Promise<void> => {
+  const { key, sessionId, slotIso, serviceDescription } = req.body as {
+    key?: string;
+    sessionId?: string;
+    slotIso?: string;
+    serviceDescription?: string;
+  };
+
+  if (!key || typeof key !== "string") { res.status(400).json({ error: "Invalid key" }); return; }
+  if (!sessionId || typeof sessionId !== "string") { res.status(400).json({ error: "Invalid sessionId" }); return; }
+  if (!slotIso || typeof slotIso !== "string") { res.status(400).json({ error: "slotIso is required" }); return; }
+
+  // ── Rate limit booking requests ────────────────────────────────────────────
+  if (!checkRateLimit(`book:${key}`)) {
+    res.status(429).json({ error: "Too many requests. Please wait a moment before trying again." });
+    return;
+  }
+
+  const company = await getCompanyByKey(key);
+  if (!company) { res.status(404).json({ error: "Invalid widget key" }); return; }
+
+  const session = sessions.get(sessionId);
+  if (!session || session.companyId !== company.id) {
+    res.status(403).json({ error: "Session not found or mismatch" });
+    return;
+  }
+
+  // ── Require a captured lead before booking ────────────────────────────────
+  // Visitors must have provided name + phone (savedLeadId set) to prevent spam.
+  if (!session.savedLeadId) {
+    res.status(403).json({ error: "Please share your contact details in the chat before booking." });
+    return;
+  }
+
+  if (session.bookingCompleted) {
+    res.status(409).json({ error: "Booking already made for this session" });
+    return;
+  }
+
+  // ── Process-level guard: prevent interleaved async operations on same slot ──
+  // This prevents two Node.js async tasks from both passing the advisory-lock
+  // acquire before either reaches the DB. The DB advisory lock below then
+  // protects against concurrent requests across multiple server instances.
+  const lockKey = `slot:${company.id}:${slotIso}`;
+  if (bookingInFlight.has(lockKey)) {
+    res.status(409).json({
+      error: "slot_unavailable",
+      message: "That time slot is being booked right now. Please choose another.",
+    });
+    return;
+  }
+  bookingInFlight.add(lockKey);
+
+  try {
+    // ── Atomic DB-level booking: advisory lock + availability recheck + insert ─
+    // pg_advisory_xact_lock(key1 int, key2 int) acquires a session-level
+    // exclusive advisory lock scoped to (companyId, slotHash). Competing
+    // requests on any server instance will block until the transaction commits
+    // or rolls back, making the recheck + insert effectively atomic.
+    const slotHash = hashToInt32(slotIso);
+
+    let bookedJob: typeof jobsTable.$inferSelect | null = null;
+    let matchedSlotLabel: string | null = null;
+
+    await db.transaction(async (tx) => {
+      // Acquire company+slot-scoped advisory lock for this transaction
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(${company.id}, ${slotHash})`
+      );
+
+      // Re-fetch availability through tx (same connection, same snapshot) —
+      // detects conflicts from jobs inserted since the widget last fetched slots,
+      // and crucially sees rows inserted by concurrent requests that committed
+      // before the advisory lock was acquired by this transaction.
+      const available = await getAvailableSlots(company.id, tx);
+      const matchedSlot = available.find(s => s.iso === slotIso);
+      if (!matchedSlot) {
+        // Throw to roll back transaction and release the lock
+        throw Object.assign(new Error("slot_unavailable"), { slotUnavailable: true });
+      }
+      matchedSlotLabel = matchedSlot.label;
+
+      const scheduledAt = new Date(slotIso);
+      const contactName = session.visitorName ?? "Website Visitor";
+      const contactPhone = session.visitorPhone ?? "";
+
+      const [job] = await tx
+        .insert(jobsTable)
+        .values({
+          title: `Site Visit – ${contactName}`,
+          description: serviceDescription
+            ? `Booked via website chat widget.\n\nVisitor request: ${serviceDescription}`
+            : "Booked via website chat widget.",
+          status: "pending_confirmation",
+          scheduledAt,
+          estimatedDuration: 60,
+          contactName,
+          contactPhone,
+          contactId: session.savedLeadId ?? null,
+          companyId: company.id,
+          serviceType: "Site Visit",
+          notes: "Widget booking — awaiting contractor confirmation.",
+        })
+        .returning();
+      bookedJob = job;
+    });
+
+    session.bookingCompleted = true;
+    session.bookedJobId = bookedJob!.id;
+
+    res.json({
+      jobId: bookedJob!.id,
+      confirmedLabel: matchedSlotLabel!,
+      message: `✅ Your site visit has been requested for ${matchedSlotLabel}. We'll confirm shortly — see you then!`,
+    });
+  } catch (err: unknown) {
+    if (err instanceof Error && (err as Error & { slotUnavailable?: boolean }).slotUnavailable) {
+      res.status(409).json({
+        error: "slot_unavailable",
+        message: "That time slot is no longer available. Please choose another.",
+      });
+    } else {
+      logger.error({ err }, "Widget booking failed");
+      res.status(500).json({ error: "Booking failed. Please try again." });
+    }
+  } finally {
+    bookingInFlight.delete(lockKey);
+  }
 });
 
 // ─── Widget script builder ────────────────────────────────────────────────────
@@ -475,6 +712,17 @@ function buildWidgetScript(): string {
     "#bai-lead-form-btns{display:flex;gap:8px;}",
     "#bai-lead-skip{flex:1;padding:8px;border:1px solid #d1d5db;border-radius:8px;background:#fff;cursor:pointer;font-size:13px;color:#6b7280;}",
     "#bai-lead-submit{flex:2;padding:8px;border:none;border-radius:8px;color:#fff;cursor:pointer;font-size:13px;font-weight:600;}",
+    "#bai-booking-panel{padding:14px 16px;background:#fff;border-top:1px solid #e5e7eb;}",
+    "#bai-booking-panel.bai-hidden{display:none;}",
+    "#bai-booking-panel h4{font-size:13px;font-weight:600;color:#111827;margin:0 0 4px;}",
+    "#bai-booking-panel p{font-size:12px;color:#6b7280;margin:0 0 10px;}",
+    "#bai-slots-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;}",
+    ".bai-slot-btn{padding:7px 8px;border:1px solid #d1d5db;border-radius:8px;background:#fff;cursor:pointer;font-size:12px;text-align:center;line-height:1.3;transition:background .15s,border-color .15s,color .15s;}",
+    ".bai-slot-btn:hover{border-color:var(--bai-primary);color:var(--bai-primary);}",
+    ".bai-slot-btn:disabled{opacity:.5;cursor:default;}",
+    "#bai-slots-loading{font-size:12px;color:#9ca3af;padding:8px 0;text-align:center;}",
+    "#bai-booking-dismiss{display:block;width:100%;padding:6px;border:none;background:none;cursor:pointer;font-size:12px;color:#9ca3af;text-align:center;}",
+    "#bai-booking-dismiss:hover{color:#6b7280;}",
     "#bai-input-row{padding:12px;background:#fff;border-top:1px solid #e5e7eb;display:flex;gap:8px;}",
     "#bai-input{flex:1;padding:10px 14px;border:1px solid #d1d5db;border-radius:24px;font-size:14px;outline:none;resize:none;}",
     "#bai-input:focus{border-color:var(--bai-primary);}",
@@ -513,6 +761,12 @@ function buildWidgetScript(): string {
     '    <button id="bai-lead-submit">Start chatting</button>',
     '  </div>',
     "</div>",
+    '<div id="bai-booking-panel" class="bai-hidden">',
+    '  <h4>📅 Schedule a free site visit</h4>',
+    '  <p>Pick a time and we\'ll confirm it shortly.</p>',
+    '  <div id="bai-slots-grid"><div id="bai-slots-loading">Loading available times…</div></div>',
+    '  <button id="bai-booking-dismiss">No thanks, I\'ll wait for a call</button>',
+    '</div>',
     '<div id="bai-input-row" style="display:none">',
     '  <input id="bai-input" type="text" placeholder="Type a message…" autocomplete="off"/>',
     '  <button id="bai-send-btn" aria-label="Send"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg></button>',
@@ -597,6 +851,106 @@ function buildWidgetScript(): string {
   nameInput.addEventListener("keydown", function (e) { if (e.key === "Enter") phoneInput.focus(); });
   phoneInput.addEventListener("keydown", function (e) { if (e.key === "Enter") { visitorName = nameInput.value.trim(); visitorPhone = phoneInput.value.trim(); startChat(); } });
 
+  // ── Booking panel ─────────────────────────────────────────────────────────
+  var bookingPanel = panel.querySelector("#bai-booking-panel");
+  var slotsGrid = panel.querySelector("#bai-slots-grid");
+  var bookingDismiss = panel.querySelector("#bai-booking-dismiss");
+  var bookingShown = false;
+
+  function hideBookingPanel() {
+    bookingPanel.classList.add("bai-hidden");
+  }
+
+  bookingDismiss.addEventListener("click", function () {
+    hideBookingPanel();
+    appendBotMessage("No problem! We\\'ll give you a call soon. Is there anything else I can help with?");
+  });
+
+  function showBookingPanel() {
+    if (bookingShown) return;
+    bookingShown = true;
+
+    // Swap to show booking above input (hide input temporarily)
+    bookingPanel.classList.remove("bai-hidden");
+
+    // Load slots
+    fetch(apiBase + "/widget/slots?key=" + encodeURIComponent(key))
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        slotsGrid.innerHTML = "";
+        var slots = (data && data.slots) ? data.slots : [];
+        if (slots.length === 0) {
+          slotsGrid.innerHTML = '<p style="font-size:12px;color:#9ca3af;grid-column:1/-1;text-align:center;padding:6px 0">No slots available right now — we\\'ll call you soon.</p>';
+          return;
+        }
+        slots.forEach(function (slot) {
+          var slotBtn = document.createElement("button");
+          slotBtn.className = "bai-slot-btn";
+          slotBtn.textContent = slot.label;
+          slotBtn.addEventListener("click", function () {
+            bookSlot(slot.iso, slot.label);
+          });
+          slotsGrid.appendChild(slotBtn);
+        });
+      })
+      .catch(function () {
+        slotsGrid.innerHTML = '<p style="font-size:12px;color:#9ca3af;grid-column:1/-1;text-align:center;padding:6px 0">Couldn\\'t load times — we\\'ll call you to arrange a visit.</p>';
+      });
+  }
+
+  function bookSlot(iso, label) {
+    // Disable all slot buttons while booking
+    slotsGrid.querySelectorAll(".bai-slot-btn").forEach(function (b) { b.disabled = true; });
+    slotsGrid.innerHTML = '<div id="bai-slots-loading">Confirming your booking…</div>';
+
+    fetch(apiBase + "/widget/book", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: key, sessionId: sessionId, slotIso: iso }),
+    })
+      .then(function (r) { return r.json().then(function(d) { return { ok: r.ok, data: d, status: r.status }; }); })
+      .then(function (result) {
+        if (result.status === 409 && result.data && result.data.error === "slot_unavailable") {
+          // Slot was taken — reload available slots and let visitor pick again
+          slotsGrid.innerHTML = '<div id="bai-slots-loading" style="color:#dc2626;">That slot was just taken. Here are the next available times:</div>';
+          setTimeout(function() { reloadSlots(); }, 800);
+        } else if (!result.ok) {
+          hideBookingPanel();
+          appendBotMessage("Sorry, we couldn\\'t complete your booking. Please call us to arrange a visit.");
+        } else {
+          hideBookingPanel();
+          appendBotMessage(result.data.message || ("✅ Site visit booked for " + label + ". We\\'ll confirm shortly!"));
+        }
+      })
+      .catch(function () {
+        hideBookingPanel();
+        appendBotMessage("Sorry, there was a connection error. Please call us to arrange a visit.");
+      });
+  }
+
+  function reloadSlots() {
+    fetch(apiBase + "/widget/slots?key=" + encodeURIComponent(key))
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        slotsGrid.innerHTML = "";
+        var slots = (data && data.slots) ? data.slots : [];
+        if (slots.length === 0) {
+          slotsGrid.innerHTML = '<p style="font-size:12px;color:#9ca3af;grid-column:1/-1;text-align:center;padding:6px 0">No slots available right now — we\\'ll call you soon.</p>';
+          return;
+        }
+        slots.forEach(function (slot) {
+          var slotBtn = document.createElement("button");
+          slotBtn.className = "bai-slot-btn";
+          slotBtn.textContent = slot.label;
+          slotBtn.addEventListener("click", function () { bookSlot(slot.iso, slot.label); });
+          slotsGrid.appendChild(slotBtn);
+        });
+      })
+      .catch(function () {
+        slotsGrid.innerHTML = '<p style="font-size:12px;color:#9ca3af;grid-column:1/-1;text-align:center;padding:6px 0">Couldn\\'t load times — we\\'ll call you to arrange a visit.</p>';
+      });
+  }
+
   // ── Send message ──────────────────────────────────────────────────────────
   var isSending = false;
   function sendMessage() {
@@ -619,7 +973,10 @@ function buildWidgetScript(): string {
       .then(function (r) { return r.json(); })
       .then(function (data) {
         typing.remove();
-        appendBotMessage(data.reply || data.error || "Sorry, I couldn't process that.");
+        appendBotMessage(data.reply || data.error || "Sorry, I couldn\\'t process that.");
+        if (data.showBooking) {
+          showBookingPanel();
+        }
       })
       .catch(function () {
         typing.remove();

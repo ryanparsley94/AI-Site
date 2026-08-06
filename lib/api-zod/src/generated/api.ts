@@ -53,7 +53,40 @@ export const WidgetChatBody = zod.object({
 
 export const WidgetChatResponse = zod.object({
   "reply": zod.string(),
-  "sessionId": zod.string()
+  "sessionId": zod.string(),
+  "showBooking": zod.boolean().optional().describe('When true the widget should display the appointment booking UI')
+})
+
+
+/**
+ * @summary Return available appointment time slots for the chat booking UI
+ */
+export const GetWidgetSlotsQueryParams = zod.object({
+  "key": zod.coerce.string()
+})
+
+export const GetWidgetSlotsResponse = zod.object({
+  "slots": zod.array(zod.object({
+  "label": zod.string().describe('Human-readable slot label e.g. \"Mon, 11 Aug at 9:00 AM\"'),
+  "iso": zod.string().describe('ISO 8601 UTC datetime string for the slot')
+}))
+})
+
+
+/**
+ * @summary Book an appointment slot and create a pending-confirmation job
+ */
+export const WidgetBookBody = zod.object({
+  "key": zod.string(),
+  "sessionId": zod.string(),
+  "slotIso": zod.string().describe('ISO 8601 UTC datetime of the chosen slot'),
+  "serviceDescription": zod.string().optional().describe('Optional description of the work the visitor needs')
+})
+
+export const WidgetBookResponse = zod.object({
+  "jobId": zod.number(),
+  "confirmedLabel": zod.string().describe('Human-readable confirmation of the booked time'),
+  "message": zod.string().describe('Confirmation message to show the visitor in the chat')
 })
 
 
@@ -451,14 +484,14 @@ export const GetCallStatsResponse = zod.object({
  * @summary List scheduled jobs
  */
 export const ListJobsQueryParams = zod.object({
-  "status": zod.enum(['all', 'scheduled', 'in_progress', 'completed', 'cancelled']).optional()
+  "status": zod.enum(['all', 'pending_confirmation', 'scheduled', 'in_progress', 'completed', 'cancelled']).optional()
 })
 
 export const ListJobsResponseItem = zod.object({
   "id": zod.number(),
   "title": zod.string(),
   "description": zod.string().nullish(),
-  "status": zod.enum(['scheduled', 'in_progress', 'completed', 'cancelled']),
+  "status": zod.enum(['pending_confirmation', 'scheduled', 'in_progress', 'completed', 'cancelled']),
   "scheduledAt": zod.coerce.date(),
   "estimatedDuration": zod.number().int().nullish().describe('Duration in minutes'),
   "contactName": zod.string(),
@@ -488,14 +521,14 @@ export const CreateJobBody = zod.object({
   "address": zod.string().optional(),
   "notes": zod.string().optional(),
   "estimatedValue": zod.number().optional(),
-  "status": zod.enum(['scheduled', 'in_progress', 'completed', 'cancelled']).optional()
+  "status": zod.enum(['pending_confirmation', 'scheduled', 'in_progress', 'completed', 'cancelled']).optional()
 })
 
 export const CreateJobResponse = zod.object({
   "id": zod.number(),
   "title": zod.string(),
   "description": zod.string().nullish(),
-  "status": zod.enum(['scheduled', 'in_progress', 'completed', 'cancelled']),
+  "status": zod.enum(['pending_confirmation', 'scheduled', 'in_progress', 'completed', 'cancelled']),
   "scheduledAt": zod.coerce.date(),
   "estimatedDuration": zod.number().int().nullish().describe('Duration in minutes'),
   "contactName": zod.string(),
@@ -516,7 +549,7 @@ export const GetUpcomingJobsResponseItem = zod.object({
   "id": zod.number(),
   "title": zod.string(),
   "description": zod.string().nullish(),
-  "status": zod.enum(['scheduled', 'in_progress', 'completed', 'cancelled']),
+  "status": zod.enum(['pending_confirmation', 'scheduled', 'in_progress', 'completed', 'cancelled']),
   "scheduledAt": zod.coerce.date(),
   "estimatedDuration": zod.number().int().nullish().describe('Duration in minutes'),
   "contactName": zod.string(),
@@ -542,7 +575,7 @@ export const GetJobResponse = zod.object({
   "id": zod.number(),
   "title": zod.string(),
   "description": zod.string().nullish(),
-  "status": zod.enum(['scheduled', 'in_progress', 'completed', 'cancelled']),
+  "status": zod.enum(['pending_confirmation', 'scheduled', 'in_progress', 'completed', 'cancelled']),
   "scheduledAt": zod.coerce.date(),
   "estimatedDuration": zod.number().int().nullish().describe('Duration in minutes'),
   "contactName": zod.string(),
@@ -574,7 +607,7 @@ export const UpdateJobBody = zod.object({
   "address": zod.string().optional(),
   "notes": zod.string().optional(),
   "estimatedValue": zod.number().optional(),
-  "status": zod.enum(['scheduled', 'in_progress', 'completed', 'cancelled']).optional(),
+  "status": zod.enum(['pending_confirmation', 'scheduled', 'in_progress', 'completed', 'cancelled']).optional(),
   "quoteId": zod.number().int().nullish().describe('Link a quote to this job; sets estimatedValue from quote\'s totalIncVat')
 })
 
@@ -582,7 +615,7 @@ export const UpdateJobResponse = zod.object({
   "id": zod.number(),
   "title": zod.string(),
   "description": zod.string().nullish(),
-  "status": zod.enum(['scheduled', 'in_progress', 'completed', 'cancelled']),
+  "status": zod.enum(['pending_confirmation', 'scheduled', 'in_progress', 'completed', 'cancelled']),
   "scheduledAt": zod.coerce.date(),
   "estimatedDuration": zod.number().int().nullish().describe('Duration in minutes'),
   "contactName": zod.string(),

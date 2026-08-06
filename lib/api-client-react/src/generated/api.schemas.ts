@@ -22,6 +22,36 @@ export interface WidgetChatInput {
 export interface WidgetReply {
   reply: string;
   sessionId: string;
+  /** When true the widget should display the appointment booking UI */
+  showBooking?: boolean;
+}
+
+export interface WidgetSlot {
+  /** Human-readable slot label e.g. "Mon, 11 Aug at 9:00 AM" */
+  label: string;
+  /** ISO 8601 UTC datetime string for the slot */
+  iso: string;
+}
+
+export interface WidgetSlotsResponse {
+  slots: WidgetSlot[];
+}
+
+export interface WidgetBookInput {
+  key: string;
+  sessionId: string;
+  /** ISO 8601 UTC datetime of the chosen slot */
+  slotIso: string;
+  /** Optional description of the work the visitor needs */
+  serviceDescription?: string;
+}
+
+export interface BookingConfirmation {
+  jobId: number;
+  /** Human-readable confirmation of the booked time */
+  confirmedLabel: string;
+  /** Confirmation message to show the visitor in the chat */
+  message: string;
 }
 
 export interface WidgetKeyInfo {
@@ -333,6 +363,7 @@ export type JobStatus = typeof JobStatus[keyof typeof JobStatus];
 
 
 export const JobStatus = {
+  pending_confirmation: 'pending_confirmation',
   scheduled: 'scheduled',
   in_progress: 'in_progress',
   completed: 'completed',
@@ -369,6 +400,7 @@ export type JobInputStatus = typeof JobInputStatus[keyof typeof JobInputStatus];
 
 
 export const JobInputStatus = {
+  pending_confirmation: 'pending_confirmation',
   scheduled: 'scheduled',
   in_progress: 'in_progress',
   completed: 'completed',
@@ -394,6 +426,7 @@ export type JobUpdateStatus = typeof JobUpdateStatus[keyof typeof JobUpdateStatu
 
 
 export const JobUpdateStatus = {
+  pending_confirmation: 'pending_confirmation',
   scheduled: 'scheduled',
   in_progress: 'in_progress',
   completed: 'completed',
@@ -813,8 +846,13 @@ export type GetWidgetConfigParams = {
 key: string;
 };
 
+export type GetWidgetSlotsParams = {
+key: string;
+};
+
 export type ListCallsParams = {
 status?: ListCallsStatus;
+source?: ListCallsSource;
 limit?: number;
 };
 
@@ -830,6 +868,15 @@ export const ListCallsStatus = {
   unresolved: 'unresolved',
 } as const;
 
+export type ListCallsSource = typeof ListCallsSource[keyof typeof ListCallsSource];
+
+
+export const ListCallsSource = {
+  all: 'all',
+  phone: 'phone',
+  widget: 'widget',
+} as const;
+
 export type ListJobsParams = {
 status?: ListJobsStatus;
 };
@@ -839,6 +886,7 @@ export type ListJobsStatus = typeof ListJobsStatus[keyof typeof ListJobsStatus];
 
 export const ListJobsStatus = {
   all: 'all',
+  pending_confirmation: 'pending_confirmation',
   scheduled: 'scheduled',
   in_progress: 'in_progress',
   completed: 'completed',

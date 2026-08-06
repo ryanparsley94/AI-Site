@@ -106,6 +106,52 @@ paths:
         "404":
           description: Invalid widget key
 
+  /widget/slots:
+    get:
+      operationId: getWidgetSlots
+      tags: [widget]
+      summary: Return available appointment time slots for the chat booking UI
+      parameters:
+        - name: key
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of available slots
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WidgetSlotsResponse"
+        "404":
+          description: Invalid widget key
+
+  /widget/book:
+    post:
+      operationId: widgetBook
+      tags: [widget]
+      summary: Book an appointment slot and create a pending-confirmation job
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WidgetBookInput"
+      responses:
+        "200":
+          description: Booking confirmed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingConfirmation"
+        "403":
+          description: Session not found, lead not captured, or key mismatch
+        "404":
+          description: Invalid widget key
+        "409":
+          description: Slot no longer available or already booked this session
+
   /company/widget-key:
     get:
       operationId: getWidgetKey
@@ -407,6 +453,11 @@ paths:
           schema:
             type: string
             enum: [all, booked, missed, transferred, spam, unresolved]
+        - name: source
+          in: query
+          schema:
+            type: string
+            enum: [all, phone, widget]
         - name: limit
           in: query
           schema:
@@ -503,7 +554,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [all, scheduled, in_progress, completed, cancelled]
+            enum: [all, pending_confirmation, scheduled, in_progress, completed, cancelled]
       responses:
         "200":
           description: List of jobs
@@ -1235,6 +1286,57 @@ components:
           type: string
         sessionId:
           type: string
+        showBooking:
+          type: boolean
+          description: When true the widget should display the appointment booking UI
+
+    WidgetSlot:
+      type: object
+      required: [label, iso]
+      properties:
+        label:
+          type: string
+          description: Human-readable slot label e.g. "Mon, 11 Aug at 9:00 AM"
+        iso:
+          type: string
+          description: ISO 8601 UTC datetime string for the slot
+
+    WidgetSlotsResponse:
+      type: object
+      required: [slots]
+      properties:
+        slots:
+          type: array
+          items:
+            $ref: "#/components/schemas/WidgetSlot"
+
+    WidgetBookInput:
+      type: object
+      required: [key, sessionId, slotIso]
+      properties:
+        key:
+          type: string
+        sessionId:
+          type: string
+        slotIso:
+          type: string
+          description: ISO 8601 UTC datetime of the chosen slot
+        serviceDescription:
+          type: string
+          description: Optional description of the work the visitor needs
+
+    BookingConfirmation:
+      type: object
+      required: [jobId, confirmedLabel, message]
+      properties:
+        jobId:
+          type: number
+        confirmedLabel:
+          type: string
+          description: Human-readable confirmation of the booked time
+        message:
+          type: string
+          description: Confirmation message to show the visitor in the chat
 
     WidgetKeyInfo:
       type: object
@@ -1560,7 +1662,7 @@ components:
           type: ["string", "null"]
         status:
           type: string
-          enum: [scheduled, in_progress, completed, cancelled]
+          enum: [pending_confirmation, scheduled, in_progress, completed, cancelled]
         scheduledAt:
           type: string
           format: date-time
@@ -1614,7 +1716,7 @@ components:
           type: number
         status:
           type: string
-          enum: [scheduled, in_progress, completed, cancelled]
+          enum: [pending_confirmation, scheduled, in_progress, completed, cancelled]
 
     JobUpdate:
       type: object
@@ -1642,7 +1744,7 @@ components:
           type: number
         status:
           type: string
-          enum: [scheduled, in_progress, completed, cancelled]
+          enum: [pending_confirmation, scheduled, in_progress, completed, cancelled]
         quoteId:
           type: ["integer", "null"]
           description: Link a quote to this job; sets estimatedValue from quote's totalIncVat

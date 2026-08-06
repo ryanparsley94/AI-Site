@@ -9,4 +9,6 @@
 export interface WidgetReply {
   reply: string;
   sessionId: string;
+  /** When true the widget should display the appointment booking UI */
+  showBooking?: boolean;
 }
