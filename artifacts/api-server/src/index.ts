@@ -21,6 +21,27 @@ const MIGRATIONS = [
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now()
   )`,
+  // 005: Create marketing_drafts table for AI-generated follow-up and review-request messages
+  `CREATE TABLE IF NOT EXISTS marketing_drafts (
+    id serial PRIMARY KEY,
+    job_id integer,
+    job_title text NOT NULL,
+    client_name text NOT NULL,
+    client_phone text,
+    company_name text NOT NULL DEFAULT '',
+    type text NOT NULL DEFAULT 'review_request',
+    status text NOT NULL DEFAULT 'pending',
+    draft_message text,
+    edited_message text,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+  )`,
+  // 006: Partial unique index on marketing_drafts (job_id, type) to prevent duplicate
+  //      auto-generated drafts per job. Applies only when job_id IS NOT NULL so that
+  //      manually created jobless drafts are unaffected.
+  `CREATE UNIQUE INDEX IF NOT EXISTS marketing_drafts_job_type_unique
+     ON marketing_drafts (job_id, type)
+     WHERE job_id IS NOT NULL`,
 ];
 
 async function runMigrations(): Promise<void> {

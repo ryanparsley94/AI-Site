@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { eq, gte, and, lte } from "drizzle-orm";
-import { db, jobsTable, quotesTable } from "@workspace/db";
+import { db, jobsTable, quotesTable, marketingDraftsTable } from "@workspace/db";
 import {
   ListJobsResponse,
   CreateJobBody,
@@ -18,6 +18,8 @@ import {
   updateCalendarEvent,
   deleteCalendarEvent,
 } from "../lib/google-calendar";
+import { draftMessage, getCompanyName } from "./marketing";
+import { hasValidSession } from "../lib/adminAuth";
 
 const router = Router();
 
@@ -123,6 +125,65 @@ router.patch("/jobs/:id", async (req, res): Promise<void> => {
       scheduledAt: row.scheduledAt,
       estimatedDuration: row.estimatedDuration,
     }).catch(() => { /* non-fatal */ });
+  }
+
+  // When a job is marked completed by an authenticated session, auto-generate
+  // marketing drafts (review request + follow-up). The hasValidSession guard
+  // prevents unauthenticated callers from triggering paid AI generation by
+  // PATCHing job status — they can still update job status but won't burn credits.
+  if (rest.status === "completed" && hasValidSession(req)) {
+    (async () => {
+      try {
+        const companyName = await getCompanyName();
+
+        const types = ["review_request", "followup"] as const;
+        for (const type of types) {
+          let insertedId: number;
+          try {
+            const [inserted] = await db
+              .insert(marketingDraftsTable)
+              .values({
+                jobId: row.id,
+                jobTitle: row.title,
+                clientName: row.contactName,
+                clientPhone: row.contactPhone || null,
+                companyName,
+                type,
+                status: "pending",
+                draftMessage: null,
+                editedMessage: null,
+              })
+              .returning();
+            insertedId = inserted.id;
+          } catch (insertErr: unknown) {
+            // Unique constraint — drafts already exist for this job, skip silently
+            const code = (insertErr as { code?: string })?.code;
+            if (code === "23505") continue;
+            throw insertErr;
+          }
+
+          // Draft AI message asynchronously; write failure sentinel on error so
+          // the UI exits the loading/polling state instead of spinning forever.
+          draftMessage(type, row.title, row.contactName, companyName)
+            .then((msg) =>
+              db
+                .update(marketingDraftsTable)
+                .set({ draftMessage: msg })
+                .where(eq(marketingDraftsTable.id, insertedId))
+            )
+            .catch(async (err) => {
+              console.error(`Failed to draft marketing message for job ${row.id} (${type}):`, err);
+              await db
+                .update(marketingDraftsTable)
+                .set({ draftMessage: "__FAILED__" })
+                .where(eq(marketingDraftsTable.id, insertedId))
+                .catch(() => { /* best-effort */ });
+            });
+        }
+      } catch (err) {
+        console.error("Failed to generate marketing drafts for completed job:", err);
+      }
+    })();
   }
 
   res.json(UpdateJobResponse.parse(mapJob(row)));

@@ -16,6 +16,7 @@ import emailInboundRouter from "./email-threads-inbound";
 import emailThreadsRouter from "./email-threads";
 import integrationsRouter from "./integrations";
 import tasksRouter from "./tasks";
+import marketingRouter from "./marketing";
 
 const router: IRouter = Router();
 
@@ -42,6 +43,10 @@ router.use(certificatesRouter);
 router.use(dashboardRouter);
 router.use(emailThreadsRouter);
 router.use(integrationsRouter);
+// Marketing drafts contain client PII and trigger paid AI — guard behind session.
+// The job completion trigger in jobsRouter also checks hasValidSession() inline
+// so unauthenticated job PATCHes cannot cause AI generation.
+router.use(adminOnly, marketingRouter);
 // Tasks route is protected by adminOnly to guard contractor data and AI generation
 router.use(adminOnly, tasksRouter);
 

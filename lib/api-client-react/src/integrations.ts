@@ -62,3 +62,114 @@ export function useExportInvoice() {
       customFetch<ExportResult>(`/api/invoices/${id}/export/${target}`, { method: "POST" }),
   });
 }
+
+// ── Marketing Drafts ─────────────────────────────────────────────────────────
+
+export type MarketingDraftType = "review_request" | "followup";
+export type MarketingDraftStatus = "pending" | "approved" | "dismissed";
+
+export interface MarketingDraft {
+  id: number;
+  jobId: number | null;
+  jobTitle: string;
+  clientName: string;
+  clientPhone: string | null;
+  companyName: string;
+  type: MarketingDraftType;
+  status: MarketingDraftStatus;
+  draftMessage: string | null;
+  editedMessage: string | null;
+  createdAt: string;
+}
+
+export const getMarketingDraftsQueryKey = (status?: string) =>
+  status ? ["/api/marketing-drafts", status] : ["/api/marketing-drafts"];
+
+export function useListMarketingDrafts(status?: string) {
+  const url = status && status !== "all"
+    ? `/api/marketing-drafts?status=${status}`
+    : "/api/marketing-drafts";
+  return useQuery<MarketingDraft[]>({
+    queryKey: getMarketingDraftsQueryKey(status),
+    queryFn: ({ signal }) => customFetch<MarketingDraft[]>(url, { method: "GET", signal }),
+    // Poll every 4 seconds while any draft still has a null draftMessage (AI still generating).
+    // The selector below drives the interval: 0 means stop, 4000 means keep polling.
+    refetchInterval: (query) => {
+      const drafts = query.state.data;
+      if (!drafts) return false;
+      const hasPending = drafts.some((d) => d.status === "pending" && d.draftMessage === null);
+      return hasPending ? 4000 : false;
+    },
+  });
+}
+
+export function useGenerateMarketingDrafts() {
+  const qc = useQueryClient();
+  return useMutation<
+    MarketingDraft[],
+    Error,
+    { jobId: number; jobTitle: string; clientName: string; clientPhone?: string; companyName: string }
+  >({
+    mutationFn: (data) =>
+      customFetch<MarketingDraft[]>("/api/marketing-drafts/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/marketing-drafts"] });
+    },
+  });
+}
+
+export function useUpdateMarketingDraft() {
+  const qc = useQueryClient();
+  return useMutation<
+    MarketingDraft,
+    Error,
+    { id: number; editedMessage?: string; status?: MarketingDraftStatus }
+  >({
+    mutationFn: ({ id, ...data }) =>
+      customFetch<MarketingDraft>(`/api/marketing-drafts/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/marketing-drafts"] });
+    },
+  });
+}
+
+export function useApproveMarketingDraft() {
+  const qc = useQueryClient();
+  return useMutation<MarketingDraft, Error, { id: number }>({
+    mutationFn: ({ id }) =>
+      customFetch<MarketingDraft>(`/api/marketing-drafts/${id}/approve`, { method: "POST" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/marketing-drafts"] });
+    },
+  });
+}
+
+export function useDismissMarketingDraft() {
+  const qc = useQueryClient();
+  return useMutation<MarketingDraft, Error, { id: number }>({
+    mutationFn: ({ id }) =>
+      customFetch<MarketingDraft>(`/api/marketing-drafts/${id}/dismiss`, { method: "POST" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/marketing-drafts"] });
+    },
+  });
+}
+
+export function useDeleteMarketingDraft() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, { id: number }>({
+    mutationFn: ({ id }) =>
+      customFetch<void>(`/api/marketing-drafts/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/marketing-drafts"] });
+    },
+  });
+}
