@@ -10,6 +10,7 @@ export type JobInputStatus = typeof JobInputStatus[keyof typeof JobInputStatus];
 
 
 export const JobInputStatus = {
+  pending_confirmation: 'pending_confirmation',
   scheduled: 'scheduled',
   in_progress: 'in_progress',
   completed: 'completed',

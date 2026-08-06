@@ -6,10 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface WidgetKeyInfo {
-  /** @nullable */
-  widgetKey: string | null;
-  color: string;
-  greeting: string;
-  widgetLeadNotify: boolean;
-}
+export type GetWidgetSlotsParams = {
+key: string;
+};

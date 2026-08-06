@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { 
   useListContacts, 
   ListContactsType,
@@ -11,7 +12,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Search, User, Mail, Phone, MapPin, Briefcase, Plus, Save, Trash2 } from "lucide-react";
+import { Search, Mail, Phone, MapPin, Briefcase, Plus, Trash2, Clock, CheckCircle, XCircle, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 import { Input } from "@/components/ui/input";
@@ -21,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { formatCurrency } from "@/lib/utils";
 import { 
   Table, 
@@ -30,6 +32,12 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
+
+const emailStatusConfig = {
+  pending: { label: "Pending", icon: Clock, className: "text-amber-600 bg-amber-50 border-amber-200" },
+  sent:    { label: "Sent",    icon: CheckCircle, className: "text-green-600 bg-green-50 border-green-200" },
+  dismissed: { label: "Dismissed", icon: XCircle, className: "text-slate-500 bg-slate-50 border-slate-200" },
+};
 
 function ContactDetailDialog({ 
   id, 
@@ -48,6 +56,7 @@ function ContactDetailDialog({
   const deleteContact = useDeleteContact();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [, navigate] = useLocation();
 
   const handleUpdate = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -83,60 +92,121 @@ function ContactDetailDialog({
     }
   };
 
+  const handleOpenThread = (threadId: number) => {
+    onOpenChange(false);
+    navigate(`/email-inbox?thread=${threadId}`);
+  };
+
+  const emailThreads = contact?.emailThreads ?? [];
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Edit Contact</DialogTitle>
+          <DialogTitle>{contact?.name ?? "Contact"}</DialogTitle>
         </DialogHeader>
         {isLoading || !contact ? (
           <div className="p-4 text-center">Loading...</div>
         ) : (
-          <form onSubmit={handleUpdate} className="space-y-4 pt-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Name</Label>
-              <Input id="name" name="name" defaultValue={contact.name} required />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone</Label>
-                <Input id="phone" name="phone" defaultValue={contact.phone} required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="type">Type</Label>
-                <Select name="type" defaultValue={contact.type}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="lead">Lead</SelectItem>
-                    <SelectItem value="customer">Customer</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" name="email" type="email" defaultValue={contact.email || ""} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="address">Address</Label>
-              <Input id="address" name="address" defaultValue={contact.address || ""} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notes</Label>
-              <Textarea id="notes" name="notes" defaultValue={contact.notes || ""} />
-            </div>
-            <DialogFooter className="pt-4 flex justify-between sm:justify-between">
-              <Button type="button" variant="destructive" onClick={handleDelete} className="gap-2">
-                <Trash2 size={16} /> Delete
-              </Button>
-              <div className="flex gap-2">
-                <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-                <Button type="submit" disabled={updateContact.isPending}>
-                  {updateContact.isPending ? "Saving..." : "Save Changes"}
-                </Button>
-              </div>
-            </DialogFooter>
-          </form>
+          <Tabs defaultValue="details" className="mt-2">
+            <TabsList className="mb-4">
+              <TabsTrigger value="details">Details</TabsTrigger>
+              <TabsTrigger value="emails">
+                Emails
+                {emailThreads.length > 0 && (
+                  <span className="ml-1.5 text-xs bg-primary/10 text-primary rounded-full px-1.5 py-0.5 font-medium">
+                    {emailThreads.length}
+                  </span>
+                )}
+              </TabsTrigger>
+            </TabsList>
+
+            {/* ── Details tab ── */}
+            <TabsContent value="details">
+              <form onSubmit={handleUpdate} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Name</Label>
+                  <Input id="name" name="name" defaultValue={contact.name} required />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Phone</Label>
+                    <Input id="phone" name="phone" defaultValue={contact.phone} required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="type">Type</Label>
+                    <Select name="type" defaultValue={contact.type}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="lead">Lead</SelectItem>
+                        <SelectItem value="customer">Customer</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input id="email" name="email" type="email" defaultValue={contact.email || ""} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="address">Address</Label>
+                  <Input id="address" name="address" defaultValue={contact.address || ""} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="notes">Notes</Label>
+                  <Textarea id="notes" name="notes" defaultValue={contact.notes || ""} />
+                </div>
+                <DialogFooter className="pt-4 flex justify-between sm:justify-between">
+                  <Button type="button" variant="destructive" onClick={handleDelete} className="gap-2">
+                    <Trash2 size={16} /> Delete
+                  </Button>
+                  <div className="flex gap-2">
+                    <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+                    <Button type="submit" disabled={updateContact.isPending}>
+                      {updateContact.isPending ? "Saving..." : "Save Changes"}
+                    </Button>
+                  </div>
+                </DialogFooter>
+              </form>
+            </TabsContent>
+
+            {/* ── Emails tab ── */}
+            <TabsContent value="emails">
+              {emailThreads.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
+                  <Mail size={32} className="mb-3 opacity-30" />
+                  <p className="text-sm">No email threads linked to this contact yet.</p>
+                  <p className="text-xs mt-1">Emails from this contact will appear here automatically.</p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                  {emailThreads.map((thread) => {
+                    const cfg = emailStatusConfig[thread.status as keyof typeof emailStatusConfig];
+                    const StatusIcon = cfg?.icon ?? Clock;
+                    return (
+                      <button
+                        key={thread.id}
+                        onClick={() => handleOpenThread(thread.id)}
+                        className="w-full text-left flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors group"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm text-secondary truncate">{thread.subject}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {format(new Date(thread.createdAt), "MMM d, yyyy")}
+                          </p>
+                        </div>
+                        <div className={`flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border ${cfg?.className ?? ""}`}>
+                          <StatusIcon size={11} />
+                          {cfg?.label ?? thread.status}
+                        </div>
+                        <ExternalLink size={14} className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
         )}
       </DialogContent>
     </Dialog>

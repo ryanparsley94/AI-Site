@@ -53,7 +53,40 @@ export const WidgetChatBody = zod.object({
 
 export const WidgetChatResponse = zod.object({
   "reply": zod.string(),
-  "sessionId": zod.string()
+  "sessionId": zod.string(),
+  "showBooking": zod.boolean().optional().describe('When true the widget should display the appointment booking UI')
+})
+
+
+/**
+ * @summary Return available appointment time slots for the chat booking UI
+ */
+export const GetWidgetSlotsQueryParams = zod.object({
+  "key": zod.coerce.string()
+})
+
+export const GetWidgetSlotsResponse = zod.object({
+  "slots": zod.array(zod.object({
+  "label": zod.string().describe('Human-readable slot label e.g. \"Mon, 11 Aug at 9:00 AM\"'),
+  "iso": zod.string().describe('ISO 8601 UTC datetime string for the slot')
+}))
+})
+
+
+/**
+ * @summary Book an appointment slot and create a pending-confirmation job
+ */
+export const WidgetBookBody = zod.object({
+  "key": zod.string(),
+  "sessionId": zod.string(),
+  "slotIso": zod.string().describe('ISO 8601 UTC datetime of the chosen slot'),
+  "serviceDescription": zod.string().optional().describe('Optional description of the work the visitor needs')
+})
+
+export const WidgetBookResponse = zod.object({
+  "jobId": zod.number(),
+  "confirmedLabel": zod.string().describe('Human-readable confirmation of the booked time'),
+  "message": zod.string().describe('Confirmation message to show the visitor in the chat')
 })
 
 
@@ -146,6 +179,7 @@ export const UpdateCompanyResponse = zod.object({
 export const ListAssistantsResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
+  "type": zod.enum(['phone', 'email', 'chat', 'marketing', 'scheduling']),
   "voice": zod.enum(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']),
   "personality": zod.enum(['professional', 'friendly', 'direct']),
   "greeting": zod.string().optional(),
@@ -163,6 +197,7 @@ export const ListAssistantsResponse = zod.array(ListAssistantsResponseItem)
  */
 export const CreateAssistantBody = zod.object({
   "name": zod.string(),
+  "type": zod.enum(['phone', 'email', 'chat', 'marketing', 'scheduling']),
   "voice": zod.enum(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']),
   "personality": zod.enum(['professional', 'friendly', 'direct']),
   "greeting": zod.string().optional(),
@@ -173,6 +208,7 @@ export const CreateAssistantBody = zod.object({
 export const CreateAssistantResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
+  "type": zod.enum(['phone', 'email', 'chat', 'marketing', 'scheduling']),
   "voice": zod.enum(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']),
   "personality": zod.enum(['professional', 'friendly', 'direct']),
   "greeting": zod.string().optional(),
@@ -194,6 +230,7 @@ export const GetAssistantParams = zod.object({
 export const GetAssistantResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
+  "type": zod.enum(['phone', 'email', 'chat', 'marketing', 'scheduling']),
   "voice": zod.enum(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']),
   "personality": zod.enum(['professional', 'friendly', 'direct']),
   "greeting": zod.string().optional(),
@@ -214,6 +251,7 @@ export const UpdateAssistantParams = zod.object({
 
 export const UpdateAssistantBody = zod.object({
   "name": zod.string().optional(),
+  "type": zod.enum(['phone', 'email', 'chat', 'marketing', 'scheduling']).optional(),
   "voice": zod.enum(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']).optional(),
   "personality": zod.enum(['professional', 'friendly', 'direct']).optional(),
   "greeting": zod.string().optional(),
@@ -224,6 +262,7 @@ export const UpdateAssistantBody = zod.object({
 export const UpdateAssistantResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
+  "type": zod.enum(['phone', 'email', 'chat', 'marketing', 'scheduling']),
   "voice": zod.enum(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']),
   "personality": zod.enum(['professional', 'friendly', 'direct']),
   "greeting": zod.string().optional(),
@@ -344,6 +383,7 @@ export const listCallsQueryLimitDefault = 50;
 
 export const ListCallsQueryParams = zod.object({
   "status": zod.enum(['all', 'booked', 'missed', 'transferred', 'spam', 'unresolved']).optional(),
+  "source": zod.enum(['all', 'phone', 'widget']).optional(),
   "limit": zod.coerce.number().default(listCallsQueryLimitDefault)
 })
 
@@ -450,14 +490,14 @@ export const GetCallStatsResponse = zod.object({
  * @summary List scheduled jobs
  */
 export const ListJobsQueryParams = zod.object({
-  "status": zod.enum(['all', 'scheduled', 'in_progress', 'completed', 'cancelled']).optional()
+  "status": zod.enum(['all', 'pending_confirmation', 'scheduled', 'in_progress', 'completed', 'cancelled']).optional()
 })
 
 export const ListJobsResponseItem = zod.object({
   "id": zod.number(),
   "title": zod.string(),
   "description": zod.string().nullish(),
-  "status": zod.enum(['scheduled', 'in_progress', 'completed', 'cancelled']),
+  "status": zod.enum(['pending_confirmation', 'scheduled', 'in_progress', 'completed', 'cancelled']),
   "scheduledAt": zod.coerce.date(),
   "estimatedDuration": zod.number().int().nullish().describe('Duration in minutes'),
   "contactName": zod.string(),
@@ -487,14 +527,14 @@ export const CreateJobBody = zod.object({
   "address": zod.string().optional(),
   "notes": zod.string().optional(),
   "estimatedValue": zod.number().optional(),
-  "status": zod.enum(['scheduled', 'in_progress', 'completed', 'cancelled']).optional()
+  "status": zod.enum(['pending_confirmation', 'scheduled', 'in_progress', 'completed', 'cancelled']).optional()
 })
 
 export const CreateJobResponse = zod.object({
   "id": zod.number(),
   "title": zod.string(),
   "description": zod.string().nullish(),
-  "status": zod.enum(['scheduled', 'in_progress', 'completed', 'cancelled']),
+  "status": zod.enum(['pending_confirmation', 'scheduled', 'in_progress', 'completed', 'cancelled']),
   "scheduledAt": zod.coerce.date(),
   "estimatedDuration": zod.number().int().nullish().describe('Duration in minutes'),
   "contactName": zod.string(),
@@ -515,7 +555,7 @@ export const GetUpcomingJobsResponseItem = zod.object({
   "id": zod.number(),
   "title": zod.string(),
   "description": zod.string().nullish(),
-  "status": zod.enum(['scheduled', 'in_progress', 'completed', 'cancelled']),
+  "status": zod.enum(['pending_confirmation', 'scheduled', 'in_progress', 'completed', 'cancelled']),
   "scheduledAt": zod.coerce.date(),
   "estimatedDuration": zod.number().int().nullish().describe('Duration in minutes'),
   "contactName": zod.string(),
@@ -541,7 +581,7 @@ export const GetJobResponse = zod.object({
   "id": zod.number(),
   "title": zod.string(),
   "description": zod.string().nullish(),
-  "status": zod.enum(['scheduled', 'in_progress', 'completed', 'cancelled']),
+  "status": zod.enum(['pending_confirmation', 'scheduled', 'in_progress', 'completed', 'cancelled']),
   "scheduledAt": zod.coerce.date(),
   "estimatedDuration": zod.number().int().nullish().describe('Duration in minutes'),
   "contactName": zod.string(),
@@ -573,7 +613,7 @@ export const UpdateJobBody = zod.object({
   "address": zod.string().optional(),
   "notes": zod.string().optional(),
   "estimatedValue": zod.number().optional(),
-  "status": zod.enum(['scheduled', 'in_progress', 'completed', 'cancelled']).optional(),
+  "status": zod.enum(['pending_confirmation', 'scheduled', 'in_progress', 'completed', 'cancelled']).optional(),
   "quoteId": zod.number().int().nullish().describe('Link a quote to this job; sets estimatedValue from quote\'s totalIncVat')
 })
 
@@ -581,7 +621,7 @@ export const UpdateJobResponse = zod.object({
   "id": zod.number(),
   "title": zod.string(),
   "description": zod.string().nullish(),
-  "status": zod.enum(['scheduled', 'in_progress', 'completed', 'cancelled']),
+  "status": zod.enum(['pending_confirmation', 'scheduled', 'in_progress', 'completed', 'cancelled']),
   "scheduledAt": zod.coerce.date(),
   "estimatedDuration": zod.number().int().nullish().describe('Duration in minutes'),
   "contactName": zod.string(),
@@ -622,7 +662,13 @@ export const ListContactsResponseItem = zod.object({
   "notes": zod.string().nullish(),
   "totalJobs": zod.number().optional(),
   "totalSpent": zod.number().optional(),
+  "createdAt": zod.coerce.date(),
+  "emailThreads": zod.array(zod.object({
+  "id": zod.number(),
+  "subject": zod.string(),
+  "status": zod.enum(['pending', 'sent', 'dismissed']),
   "createdAt": zod.coerce.date()
+})).optional()
 })
 export const ListContactsResponse = zod.array(ListContactsResponseItem)
 
@@ -649,7 +695,13 @@ export const CreateContactResponse = zod.object({
   "notes": zod.string().nullish(),
   "totalJobs": zod.number().optional(),
   "totalSpent": zod.number().optional(),
+  "createdAt": zod.coerce.date(),
+  "emailThreads": zod.array(zod.object({
+  "id": zod.number(),
+  "subject": zod.string(),
+  "status": zod.enum(['pending', 'sent', 'dismissed']),
   "createdAt": zod.coerce.date()
+})).optional()
 })
 
 
@@ -670,7 +722,13 @@ export const GetContactResponse = zod.object({
   "notes": zod.string().nullish(),
   "totalJobs": zod.number().optional(),
   "totalSpent": zod.number().optional(),
+  "createdAt": zod.coerce.date(),
+  "emailThreads": zod.array(zod.object({
+  "id": zod.number(),
+  "subject": zod.string(),
+  "status": zod.enum(['pending', 'sent', 'dismissed']),
   "createdAt": zod.coerce.date()
+})).optional()
 })
 
 
@@ -700,7 +758,13 @@ export const UpdateContactResponse = zod.object({
   "notes": zod.string().nullish(),
   "totalJobs": zod.number().optional(),
   "totalSpent": zod.number().optional(),
+  "createdAt": zod.coerce.date(),
+  "emailThreads": zod.array(zod.object({
+  "id": zod.number(),
+  "subject": zod.string(),
+  "status": zod.enum(['pending', 'sent', 'dismissed']),
   "createdAt": zod.coerce.date()
+})).optional()
 })
 
 

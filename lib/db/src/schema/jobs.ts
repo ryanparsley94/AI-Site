@@ -12,6 +12,7 @@ export const jobsTable = pgTable("jobs", {
   contactName: text("contact_name").notNull(),
   contactPhone: text("contact_phone").notNull(),
   contactId: integer("contact_id"),
+  companyId: integer("company_id"),
   serviceType: text("service_type").notNull(),
   address: text("address"),
   notes: text("notes"),

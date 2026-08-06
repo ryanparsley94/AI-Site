@@ -5,11 +5,8 @@
  * BuildAI – Construction Company AI Assistant Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { WidgetSlot } from './widgetSlot';
 
-export interface WidgetKeyInfo {
-  /** @nullable */
-  widgetKey: string | null;
-  color: string;
-  greeting: string;
-  widgetLeadNotify: boolean;
+export interface WidgetSlotsResponse {
+  slots: WidgetSlot[];
 }

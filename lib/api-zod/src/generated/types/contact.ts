@@ -5,6 +5,7 @@
  * BuildAI – Construction Company AI Assistant Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { ContactEmailThread } from './contactEmailThread';
 import type { ContactType } from './contactType';
 
 export interface Contact {
@@ -21,4 +22,5 @@ export interface Contact {
   totalJobs?: number;
   totalSpent?: number;
   createdAt: Date;
+  emailThreads?: ContactEmailThread[];
 }

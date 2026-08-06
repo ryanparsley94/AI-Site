@@ -11,6 +11,7 @@ export type ListJobsStatus = typeof ListJobsStatus[keyof typeof ListJobsStatus];
 
 export const ListJobsStatus = {
   all: 'all',
+  pending_confirmation: 'pending_confirmation',
   scheduled: 'scheduled',
   in_progress: 'in_progress',
   completed: 'completed',

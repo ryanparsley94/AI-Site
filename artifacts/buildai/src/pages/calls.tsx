@@ -6,7 +6,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { 
   Search, 
-  Filter,
   PhoneIncoming,
   PhoneMissed,
   PhoneForwarded,
@@ -14,7 +13,10 @@ import {
   CalendarCheck,
   ChevronRight,
   Clock,
-  Trash2
+  Trash2,
+  MessageSquare,
+  Phone,
+  PhoneCall,
 } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
@@ -38,12 +40,18 @@ const statusConfig = {
   unresolved: { icon: PhoneIncoming, color: "text-slate-600", bg: "bg-slate-100", label: "Unresolved" },
 };
 
+type SourceFilter = "all" | "phone" | "widget";
+
 export default function Calls() {
   const [statusFilter, setStatusFilter] = useState<ListCallsStatus | "all">("all");
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [search, setSearch] = useState("");
 
   const { data: calls = [], isLoading } = useListCalls(
-    statusFilter !== "all" ? { status: statusFilter } : {}
+    {
+      ...(statusFilter !== "all" ? { status: statusFilter } : {}),
+      ...(sourceFilter !== "all" ? { source: sourceFilter } : {}),
+    }
   );
   
   const deleteCall = useDeleteCall();
@@ -69,6 +77,8 @@ export default function Calls() {
     }
   };
 
+  const isWidgetChat = (assistantName: string) => assistantName === "Website Widget";
+
   return (
     <div className="flex-1 flex flex-col h-full bg-background overflow-hidden">
       <div className="p-6 border-b flex-shrink-0">
@@ -89,19 +99,51 @@ export default function Calls() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          <div className="flex gap-2 overflow-x-auto pb-2 sm:pb-0">
-            {(['all', 'booked', 'unresolved', 'transferred', 'missed', 'spam'] as const).map((s) => (
-              <Button 
-                key={s}
-                variant={statusFilter === s ? "default" : "outline"}
-                className={`capitalize ${statusFilter === s ? "" : "bg-white"}`}
-                onClick={() => setStatusFilter(s)}
-                size="sm"
-              >
-                {s}
-              </Button>
-            ))}
+
+          {/* Source filter */}
+          <div className="flex gap-2 shrink-0">
+            <Button
+              variant={sourceFilter === "all" ? "default" : "outline"}
+              className={sourceFilter === "all" ? "" : "bg-white"}
+              onClick={() => setSourceFilter("all")}
+              size="sm"
+            >
+              All Channels
+            </Button>
+            <Button
+              variant={sourceFilter === "phone" ? "default" : "outline"}
+              className={`gap-1.5 ${sourceFilter === "phone" ? "" : "bg-white"}`}
+              onClick={() => setSourceFilter("phone")}
+              size="sm"
+            >
+              <Phone size={14} />
+              Phone
+            </Button>
+            <Button
+              variant={sourceFilter === "widget" ? "default" : "outline"}
+              className={`gap-1.5 ${sourceFilter === "widget" ? "" : "bg-white"}`}
+              onClick={() => setSourceFilter("widget")}
+              size="sm"
+            >
+              <MessageSquare size={14} />
+              Website Chat
+            </Button>
           </div>
+        </div>
+
+        {/* Status filter */}
+        <div className="flex gap-2 overflow-x-auto pb-2 sm:pb-0 mt-3">
+          {(['all', 'booked', 'unresolved', 'transferred', 'missed', 'spam'] as const).map((s) => (
+            <Button 
+              key={s}
+              variant={statusFilter === s ? "default" : "outline"}
+              className={`capitalize ${statusFilter === s ? "" : "bg-white"}`}
+              onClick={() => setStatusFilter(s)}
+              size="sm"
+            >
+              {s}
+            </Button>
+          ))}
         </div>
       </div>
 
@@ -112,6 +154,7 @@ export default function Calls() {
               <TableRow className="bg-muted/50">
                 <TableHead className="w-[180px]">Date & Time</TableHead>
                 <TableHead>Caller</TableHead>
+                <TableHead>Channel</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Duration</TableHead>
                 <TableHead>Assistant</TableHead>
@@ -121,13 +164,13 @@ export default function Calls() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
+                  <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
                     Loading calls...
                   </TableCell>
                 </TableRow>
               ) : filteredCalls.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
+                  <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
                     No calls found matching the current filters.
                   </TableCell>
                 </TableRow>
@@ -135,6 +178,7 @@ export default function Calls() {
                 filteredCalls.map((call) => {
                   const statusInfo = statusConfig[call.status] || statusConfig.unresolved;
                   const StatusIcon = statusInfo.icon;
+                  const widget = isWidgetChat(call.assistantName);
                   
                   return (
                     <TableRow key={call.id} className="cursor-pointer hover:bg-muted/50 transition-colors">
@@ -149,6 +193,19 @@ export default function Calls() {
                           <span className="font-bold text-secondary">{call.callerName}</span>
                           <span className="text-xs text-muted-foreground font-mono">{call.callerPhone}</span>
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        {widget ? (
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-violet-100 text-violet-700">
+                            <MessageSquare size={13} />
+                            Website Chat
+                          </div>
+                        ) : (
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-sky-100 text-sky-700">
+                            <Phone size={13} />
+                            Phone
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold ${statusInfo.bg} ${statusInfo.color}`}>
@@ -169,6 +226,19 @@ export default function Calls() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
+                          {widget && call.callerPhone && call.callerPhone !== "Unknown" && (
+                            <a href={`tel:${call.callerPhone}`} onClick={(e) => e.stopPropagation()}>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="gap-1 h-8 text-xs border-violet-200 text-violet-700 hover:bg-violet-50"
+                                title="Call back this lead"
+                              >
+                                <PhoneCall size={14} />
+                                Call Back
+                              </Button>
+                            </a>
+                          )}
                           <Button 
                             variant="ghost" 
                             size="icon" 

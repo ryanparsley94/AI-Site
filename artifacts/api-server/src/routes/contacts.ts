@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { eq, sql } from "drizzle-orm";
-import { db, contactsTable, jobsTable } from "@workspace/db";
+import { db, contactsTable, jobsTable, emailThreadsTable } from "@workspace/db";
 import {
   ListContactsResponse,
   CreateContactBody,
@@ -16,10 +16,18 @@ import {
 const router = Router();
 
 async function enrichContact(c: typeof contactsTable.$inferSelect) {
-  const jobs = await db
-    .select()
-    .from(jobsTable)
-    .where(eq(jobsTable.contactId, c.id));
+  const [jobs, emailThreads] = await Promise.all([
+    db.select().from(jobsTable).where(eq(jobsTable.contactId, c.id)),
+    db
+      .select({
+        id: emailThreadsTable.id,
+        subject: emailThreadsTable.subject,
+        status: emailThreadsTable.status,
+        createdAt: emailThreadsTable.createdAt,
+      })
+      .from(emailThreadsTable)
+      .where(eq(emailThreadsTable.contactId, c.id)),
+  ]);
 
   const totalSpent = jobs
     .filter((j) => j.status === "completed" && j.estimatedValue)
@@ -30,6 +38,10 @@ async function enrichContact(c: typeof contactsTable.$inferSelect) {
     totalJobs: jobs.length,
     totalSpent,
     createdAt: c.createdAt.toISOString(),
+    emailThreads: emailThreads.map((t) => ({
+      ...t,
+      createdAt: t.createdAt.toISOString(),
+    })),
   };
 }
 

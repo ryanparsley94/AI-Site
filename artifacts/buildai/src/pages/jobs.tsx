@@ -31,6 +31,7 @@ import { Separator } from "@/components/ui/separator";
 import { formatCurrency } from "@/lib/utils";
 
 const jobStatusConfig = {
+  pending_confirmation: { label: "Pending Confirmation", color: "bg-purple-100 text-purple-700" },
   scheduled: { label: "Scheduled", color: "bg-blue-100 text-blue-700" },
   in_progress: { label: "In Progress", color: "bg-amber-100 text-amber-700" },
   completed: { label: "Completed", color: "bg-green-100 text-green-700" },
@@ -278,6 +279,7 @@ function JobEditDialog({
                   <Select name="status" defaultValue={job.status}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="pending_confirmation">Pending Confirmation</SelectItem>
                       <SelectItem value="scheduled">Scheduled</SelectItem>
                       <SelectItem value="in_progress">In Progress</SelectItem>
                       <SelectItem value="completed">Completed</SelectItem>
@@ -539,6 +541,7 @@ export default function Jobs() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="pending_confirmation">Pending Confirmation</SelectItem>
                           <SelectItem value="scheduled">Scheduled</SelectItem>
                           <SelectItem value="in_progress">In Progress</SelectItem>
                           <SelectItem value="completed">Completed</SelectItem>

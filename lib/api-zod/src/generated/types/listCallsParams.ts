@@ -5,9 +5,11 @@
  * BuildAI – Construction Company AI Assistant Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { ListCallsSource } from './listCallsSource';
 import type { ListCallsStatus } from './listCallsStatus';
 
 export type ListCallsParams = {
 status?: ListCallsStatus;
+source?: ListCallsSource;
 limit?: number;
 };

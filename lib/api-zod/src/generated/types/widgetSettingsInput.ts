@@ -9,4 +9,5 @@
 export interface WidgetSettingsInput {
   color?: string;
   greeting?: string;
+  widgetLeadNotify?: boolean;
 }

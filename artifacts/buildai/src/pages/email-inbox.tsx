@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearch } from "wouter";
 import {
   useListEmailThreads,
   useGetEmailThread,
@@ -363,9 +364,21 @@ function EmailDetail({
 }
 
 export default function EmailInbox() {
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("pending");
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const searchStr = useSearch();
+  const initialThreadId = searchStr
+    ? Number(new URLSearchParams(searchStr).get("thread")) || null
+    : null;
+
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(
+    initialThreadId ? "all" : "pending"
+  );
+  const [selectedId, setSelectedId] = useState<number | null>(initialThreadId);
   const [showSettings, setShowSettings] = useState(false);
+
+  // When a thread ID arrives via URL (e.g. from Contacts page), select it
+  useEffect(() => {
+    if (initialThreadId) setSelectedId(initialThreadId);
+  }, [initialThreadId]);
   const deleteThread = useDeleteEmailThread();
   const queryClient = useQueryClient();
   const { toast } = useToast();
