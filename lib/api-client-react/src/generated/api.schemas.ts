@@ -843,6 +843,13 @@ export interface EmailThread {
   createdAt: string;
 }
 
+export interface EmailThreadInput {
+  fromName?: string;
+  fromEmail: string;
+  subject: string;
+  bodyText: string;
+}
+
 export interface EmailThreadUpdate {
   editedReply?: string;
 }
@@ -874,6 +881,8 @@ export interface EmailInboundPayload {
 export interface EmailSettings {
   autoSend: boolean;
   forwardingAddress: string;
+  /** True when RESEND_API_KEY is present and outbound delivery is active */
+  resendConfigured: boolean;
 }
 
 export interface EmailSettingsInput {

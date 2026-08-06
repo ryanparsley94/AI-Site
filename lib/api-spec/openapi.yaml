@@ -1103,6 +1103,25 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/EmailThread"
+    post:
+      operationId: createEmailThread
+      tags: [email]
+      summary: Manually log an inbound email and trigger AI reply drafting
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailThreadInput"
+      responses:
+        "201":
+          description: Created email thread with AI-drafted reply
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailThread"
+        "400":
+          description: Invalid input
 
   /email-threads/{id}:
     get:
@@ -2214,6 +2233,19 @@ components:
           type: string
           format: date-time
 
+    EmailThreadInput:
+      type: object
+      required: [fromEmail, subject, bodyText]
+      properties:
+        fromName:
+          type: string
+        fromEmail:
+          type: string
+        subject:
+          type: string
+        bodyText:
+          type: string
+
     EmailThreadUpdate:
       type: object
       properties:
@@ -2261,12 +2293,15 @@ components:
 
     EmailSettings:
       type: object
-      required: [autoSend, forwardingAddress]
+      required: [autoSend, forwardingAddress, resendConfigured]
       properties:
         autoSend:
           type: boolean
         forwardingAddress:
           type: string
+        resendConfigured:
+          type: boolean
+          description: True when RESEND_API_KEY is present and outbound delivery is active
 
     EmailSettingsInput:
       type: object

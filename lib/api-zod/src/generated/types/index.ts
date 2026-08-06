@@ -56,6 +56,7 @@ export * from './emailInboundPayloadData';
 export * from './emailSettings';
 export * from './emailSettingsInput';
 export * from './emailThread';
+export * from './emailThreadInput';
 export * from './emailThreadStatus';
 export * from './emailThreadUpdate';
 export * from './getWidgetConfigParams';

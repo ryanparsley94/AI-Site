@@ -98,7 +98,7 @@ async function buildEmailSystemPrompt(): Promise<string> {
   return prompt;
 }
 
-async function draftAiReply(
+export async function draftAiReply(
   subject: string,
   bodyText: string,
   fromName: string,

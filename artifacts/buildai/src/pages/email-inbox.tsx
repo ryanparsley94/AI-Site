@@ -9,6 +9,7 @@ import {
   useDeleteEmailThread,
   useGetEmailSettings,
   useUpdateEmailSettings,
+  useCreateEmailThread,
   ListEmailThreadsParams,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -28,12 +29,15 @@ import {
   Copy,
   Inbox,
   ChevronRight,
+  AlertTriangle,
+  PenLine,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -44,6 +48,145 @@ import {
 import { cn } from "@/lib/utils";
 
 type StatusFilter = "all" | "pending" | "sent" | "dismissed";
+
+// ─── Log Email Dialog ─────────────────────────────────────────────────────────
+
+function LogEmailDialog({
+  open,
+  onClose,
+  onCreated,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onCreated: (id: number) => void;
+}) {
+  const createThread = useCreateEmailThread();
+  const { toast } = useToast();
+  const [form, setForm] = useState({
+    fromName: "",
+    fromEmail: "",
+    subject: "",
+    bodyText: "",
+  });
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.fromEmail.trim() || !form.subject.trim() || !form.bodyText.trim()) {
+      toast({ title: "Please fill in all required fields", variant: "destructive" });
+      return;
+    }
+    createThread.mutate(
+      {
+        data: {
+          fromName: form.fromName || undefined,
+          fromEmail: form.fromEmail,
+          subject: form.subject,
+          bodyText: form.bodyText,
+        },
+      },
+      {
+        onSuccess: (thread) => {
+          toast({
+            title: "Email logged",
+            description: "An AI reply is being drafted.",
+          });
+          setForm({ fromName: "", fromEmail: "", subject: "", bodyText: "" });
+          onCreated(thread.id);
+          onClose();
+        },
+        onError: () => {
+          toast({ title: "Failed to log email", variant: "destructive" });
+        },
+      }
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <PenLine size={17} className="text-primary" />
+            Log email inquiry
+          </DialogTitle>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4 mt-1">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="fromName">Sender name</Label>
+              <Input
+                id="fromName"
+                name="fromName"
+                placeholder="Jane Smith"
+                value={form.fromName}
+                onChange={handleChange}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="fromEmail">
+                Sender email <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="fromEmail"
+                name="fromEmail"
+                type="email"
+                placeholder="jane@example.com"
+                value={form.fromEmail}
+                onChange={handleChange}
+                required
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="subject">
+              Subject <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="subject"
+              name="subject"
+              placeholder="Roofing quote request"
+              value={form.subject}
+              onChange={handleChange}
+              required
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="bodyText">
+              Message body <span className="text-destructive">*</span>
+            </Label>
+            <Textarea
+              id="bodyText"
+              name="bodyText"
+              placeholder="Paste the email content here…"
+              rows={6}
+              className="resize-none text-sm"
+              value={form.bodyText}
+              onChange={handleChange}
+              required
+            />
+          </div>
+
+          <DialogFooter className="gap-2 mt-2">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={createThread.isPending} className="gap-2">
+              <Send size={14} />
+              {createThread.isPending ? "Saving…" : "Log & draft reply"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 const statusConfig = {
   pending: {
@@ -110,6 +253,31 @@ function SettingsPanel({ onClose }: { onClose: () => void }) {
         <div className="text-sm text-muted-foreground">Loading settings…</div>
       ) : (
         <>
+          {/* Email delivery status */}
+          {settings?.resendConfigured ? (
+            <div className="flex items-center gap-2.5 rounded-lg bg-green-50 border border-green-200 px-4 py-3">
+              <CheckCircle size={16} className="text-green-600 shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-green-800">Email delivery active</p>
+                <p className="text-xs text-green-700 mt-0.5">
+                  Approved replies are sent via Resend. Set{" "}
+                  <code className="bg-green-100 px-1 rounded">RESEND_FROM_EMAIL</code> to customise the sender address.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-start gap-2.5 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3">
+              <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-amber-800">Email delivery not configured</p>
+                <p className="text-xs text-amber-700 mt-0.5">
+                  Add <code className="bg-amber-100 px-1 rounded">RESEND_API_KEY</code> and{" "}
+                  <code className="bg-amber-100 px-1 rounded">RESEND_FROM_EMAIL</code> as Replit Secrets to enable outbound sending. Until then, approved replies are recorded but not delivered.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Auto-send toggle */}
           <div className="flex items-center justify-between py-3 border-b">
             <div>
@@ -374,6 +542,7 @@ export default function EmailInbox() {
   );
   const [selectedId, setSelectedId] = useState<number | null>(initialThreadId);
   const [showSettings, setShowSettings] = useState(false);
+  const [showLogEmail, setShowLogEmail] = useState(false);
 
   // When a thread ID arrives via URL (e.g. from Contacts page), select it
   useEffect(() => {
@@ -433,6 +602,14 @@ export default function EmailInbox() {
             >
               <RefreshCw size={14} />
               Refresh
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => setShowLogEmail(true)}
+              className="gap-1.5"
+            >
+              <PenLine size={14} />
+              Log email
             </Button>
             <Button
               variant={showSettings ? "secondary" : "outline"}
@@ -582,6 +759,16 @@ export default function EmailInbox() {
           </div>
         )}
       </div>
+
+      <LogEmailDialog
+        open={showLogEmail}
+        onClose={() => setShowLogEmail(false)}
+        onCreated={(id) => {
+          queryClient.invalidateQueries({ queryKey: ["/api/email-threads"] });
+          setStatusFilter("pending");
+          setSelectedId(id);
+        }}
+      />
     </div>
   );
 }

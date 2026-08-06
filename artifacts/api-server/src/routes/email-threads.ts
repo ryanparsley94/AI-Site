@@ -21,8 +21,10 @@ import {
   GetEmailSettingsResponse,
   UpdateEmailSettingsBody,
   UpdateEmailSettingsResponse,
+  CreateEmailThreadBody,
+  CreateEmailThreadResponse,
 } from "@workspace/api-zod";
-import { sendEmailReply } from "./email-threads-inbound";
+import { sendEmailReply, draftAiReply } from "./email-threads-inbound";
 
 const router = Router();
 
@@ -55,6 +57,7 @@ router.get("/email-threads/settings", async (req, res): Promise<void> => {
     GetEmailSettingsResponse.parse({
       autoSend: company.emailAutoSend,
       forwardingAddress: inboundUrl,
+      resendConfigured: Boolean(process.env.RESEND_API_KEY),
     })
   );
 });
@@ -81,8 +84,52 @@ router.patch("/email-threads/settings", async (req, res): Promise<void> => {
     UpdateEmailSettingsResponse.parse({
       autoSend: updated.emailAutoSend,
       forwardingAddress: inboundUrl,
+      resendConfigured: Boolean(process.env.RESEND_API_KEY),
     })
   );
+});
+
+// ─── Create (manual log) ───────────────────────────────────────────────────────
+
+router.post("/email-threads", async (req, res): Promise<void> => {
+  const parsed = CreateEmailThreadBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const { fromEmail, fromName = "", subject, bodyText } = parsed.data;
+
+  // Insert the thread immediately as "pending" so it shows in the list
+  // while the AI drafts the reply.
+  const [row] = await db
+    .insert(emailThreadsTable)
+    .values({
+      fromEmail,
+      fromName,
+      subject,
+      bodyText,
+      status: "pending",
+    })
+    .returning();
+
+  // Draft the AI reply asynchronously — fire-and-forget so the response is fast.
+  // The UI will pick up the draft on next poll/refresh.
+  (async () => {
+    try {
+      const aiReply = await draftAiReply(subject, bodyText, fromName, fromEmail);
+      await db
+        .update(emailThreadsTable)
+        .set({ aiReply })
+        .where(eq(emailThreadsTable.id, row.id));
+    } catch (err) {
+      // Non-fatal: the thread exists without a draft; the contractor can still
+      // write their own reply manually.
+      console.error("Failed to draft AI reply for manual thread:", err);
+    }
+  })();
+
+  res.status(201).json(CreateEmailThreadResponse.parse(mapThread(row)));
 });
 
 // ─── List ─────────────────────────────────────────────────────────────────────
