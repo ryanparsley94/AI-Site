@@ -9,5 +9,6 @@
 export interface EmailSettings {
   autoSend: boolean;
   forwardingAddress: string;
+  /** True when RESEND_API_KEY is present and outbound delivery is active */
   resendConfigured: boolean;
 }

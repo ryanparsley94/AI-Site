@@ -46,6 +46,7 @@ import type {
   EmailSettings,
   EmailSettingsInput,
   EmailThread,
+  EmailThreadInput,
   EmailThreadUpdate,
   GetWidgetConfigParams,
   GetWidgetScriptParams,
@@ -4302,6 +4303,77 @@ export function useListEmailThreads<TData = Awaited<ReturnType<typeof listEmailT
 
 
 
+
+export const getCreateEmailThreadUrl = () => {
+
+
+
+
+  return `/api/email-threads`
+}
+
+/**
+ * @summary Manually log an inbound email and trigger AI reply drafting
+ */
+export const createEmailThread = async (emailThreadInput: EmailThreadInput, options?: Parameters<typeof customFetch>[1]): Promise<EmailThread> => {
+
+  return customFetch<EmailThread>(getCreateEmailThreadUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(emailThreadInput)
+  }
+);}
+
+
+
+
+
+export const getCreateEmailThreadMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createEmailThread>>, TError,{data: BodyType<EmailThreadInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createEmailThread>>, TError,{data: BodyType<EmailThreadInput>}, TContext> => {
+
+const mutationKey = ['createEmailThread'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createEmailThread>>, {data: BodyType<EmailThreadInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createEmailThread(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateEmailThreadMutationResult = NonNullable<Awaited<ReturnType<typeof createEmailThread>>>
+    export type CreateEmailThreadMutationBody = BodyType<EmailThreadInput>
+    export type CreateEmailThreadMutationError = ErrorType<void>
+
+    /**
+ * @summary Manually log an inbound email and trigger AI reply drafting
+ */
+export const useCreateEmailThread = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createEmailThread>>, TError,{data: BodyType<EmailThreadInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createEmailThread>>,
+        TError,
+        {data: BodyType<EmailThreadInput>},
+        TContext
+      > => {
+      return useMutation(getCreateEmailThreadMutationOptions(options));
+    }
 
 export const getGetEmailThreadUrl = (id: number,) => {
 

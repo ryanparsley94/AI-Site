@@ -1301,6 +1301,32 @@ export const ListEmailThreadsResponse = zod.array(ListEmailThreadsResponseItem)
 
 
 /**
+ * @summary Manually log an inbound email and trigger AI reply drafting
+ */
+export const CreateEmailThreadBody = zod.object({
+  "fromName": zod.string().optional(),
+  "fromEmail": zod.string(),
+  "subject": zod.string(),
+  "bodyText": zod.string()
+})
+
+export const CreateEmailThreadResponse = zod.object({
+  "id": zod.number(),
+  "fromEmail": zod.string(),
+  "fromName": zod.string(),
+  "subject": zod.string(),
+  "bodyText": zod.string(),
+  "bodyHtml": zod.string().nullish(),
+  "status": zod.enum(['pending', 'sent', 'dismissed']),
+  "aiReply": zod.string().nullish(),
+  "editedReply": zod.string().nullish(),
+  "contactId": zod.number().int().nullish(),
+  "messageId": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
  * @summary Get an email thread by ID
  */
 export const GetEmailThreadParams = zod.object({
@@ -1412,7 +1438,7 @@ export const DismissEmailThreadResponse = zod.object({
 export const GetEmailSettingsResponse = zod.object({
   "autoSend": zod.boolean(),
   "forwardingAddress": zod.string(),
-  "resendConfigured": zod.boolean()
+  "resendConfigured": zod.boolean().describe('True when RESEND_API_KEY is present and outbound delivery is active')
 })
 
 
@@ -1426,7 +1452,7 @@ export const UpdateEmailSettingsBody = zod.object({
 export const UpdateEmailSettingsResponse = zod.object({
   "autoSend": zod.boolean(),
   "forwardingAddress": zod.string(),
-  "resendConfigured": zod.boolean()
+  "resendConfigured": zod.boolean().describe('True when RESEND_API_KEY is present and outbound delivery is active')
 })
 
 
@@ -1443,4 +1469,5 @@ export const GetDashboardSummaryResponse = zod.object({
   "upcomingJobsCount": zod.number(),
   "missedCallsToday": zod.number()
 })
+
 
