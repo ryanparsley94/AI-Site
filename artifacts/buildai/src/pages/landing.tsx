@@ -56,6 +56,7 @@ export default function Landing() {
           <a href="#features" className="hover:text-white transition-colors">Features</a>
           <a href="#how-it-works" className="hover:text-white transition-colors">How it Works</a>
           <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
+          <a href="#faq" className="hover:text-white transition-colors">FAQ</a>
         </nav>
         <div className="flex items-center gap-4">
           <Link href="/dashboard" className="text-sm font-medium text-white/70 hover:text-white transition-colors">
@@ -426,7 +427,7 @@ export default function Landing() {
         </section>
 
         {/* FAQ */}
-        <section className="py-24 bg-[#161b22] border-t border-white/10">
+        <section id="faq" className="py-24 bg-[#161b22] border-t border-white/10">
           <div className="max-w-3xl mx-auto px-6">
             <div className="text-center mb-14">
               <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Frequently asked questions</h2>
