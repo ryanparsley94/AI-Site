@@ -1467,7 +1467,12 @@ export const GetDashboardSummaryResponse = zod.object({
   "bookingRate": zod.number(),
   "revenueThisMonth": zod.number(),
   "upcomingJobsCount": zod.number(),
-  "missedCallsToday": zod.number()
+  "missedCallsToday": zod.number(),
+  "invoiceStats": zod.object({
+  "outstandingTotal": zod.number().describe('Sum of totals for all draft + sent invoices'),
+  "paidThisMonth": zod.number().describe('Sum of totals for invoices paid in the current calendar month'),
+  "overdueCount": zod.number().describe('Count of unpaid invoices whose due date is in the past')
+})
 })
 
 

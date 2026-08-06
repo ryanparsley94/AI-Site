@@ -889,6 +889,15 @@ export interface EmailSettingsInput {
   autoSend?: boolean;
 }
 
+export interface InvoiceStats {
+  /** Sum of totals for all draft + sent invoices */
+  outstandingTotal: number;
+  /** Sum of totals for invoices paid in the current calendar month */
+  paidThisMonth: number;
+  /** Count of unpaid invoices whose due date is in the past */
+  overdueCount: number;
+}
+
 export interface DashboardSummary {
   callsToday: number;
   jobsThisWeek: number;
@@ -898,6 +907,7 @@ export interface DashboardSummary {
   revenueThisMonth: number;
   upcomingJobsCount: number;
   missedCallsToday: number;
+  invoiceStats: InvoiceStats;
 }
 
 export type GetWidgetScriptParams = {

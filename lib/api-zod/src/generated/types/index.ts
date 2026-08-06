@@ -66,6 +66,7 @@ export * from './healthStatus';
 export * from './invoice';
 export * from './invoiceInput';
 export * from './invoiceLineItem';
+export * from './invoiceStats';
 export * from './invoiceStatus';
 export * from './invoiceUpdate';
 export * from './invoiceUpdateStatus';

@@ -5,6 +5,7 @@
  * BuildAI – Construction Company AI Assistant Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { InvoiceStats } from './invoiceStats';
 
 export interface DashboardSummary {
   callsToday: number;
@@ -15,4 +16,5 @@ export interface DashboardSummary {
   revenueThisMonth: number;
   upcomingJobsCount: number;
   missedCallsToday: number;
+  invoiceStats: InvoiceStats;
 }

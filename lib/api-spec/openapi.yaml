@@ -2310,9 +2310,23 @@ components:
           type: boolean
 
     # ── Dashboard ─────────────────────────────────────────────────────────────
+    InvoiceStats:
+      type: object
+      required: [outstandingTotal, paidThisMonth, overdueCount]
+      properties:
+        outstandingTotal:
+          type: number
+          description: Sum of totals for all draft + sent invoices
+        paidThisMonth:
+          type: number
+          description: Sum of totals for invoices paid in the current calendar month
+        overdueCount:
+          type: number
+          description: Count of unpaid invoices whose due date is in the past
+
     DashboardSummary:
       type: object
-      required: [callsToday, jobsThisWeek, activeAssistants, newLeadsThisWeek, bookingRate, revenueThisMonth, upcomingJobsCount, missedCallsToday]
+      required: [callsToday, jobsThisWeek, activeAssistants, newLeadsThisWeek, bookingRate, revenueThisMonth, upcomingJobsCount, missedCallsToday, invoiceStats]
       properties:
         callsToday:
           type: number
@@ -2330,3 +2344,5 @@ components:
           type: number
         missedCallsToday:
           type: number
+        invoiceStats:
+          $ref: "#/components/schemas/InvoiceStats"
