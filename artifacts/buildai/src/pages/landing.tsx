@@ -1,7 +1,8 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { PhoneCall, CalendarDays, Bot, ArrowRight, CheckCircle2, Star, MapPin, Zap, Loader2, Volume2, ChevronDown } from "lucide-react";
+import { PhoneCall, CalendarDays, Bot, ArrowRight, CheckCircle2, Star, MapPin, Zap, Play, ChevronDown } from "lucide-react";
+import { CallDemoModal } from "@/components/call-demo-modal";
 
 const FAQ_ITEMS = [
   {
@@ -38,43 +39,10 @@ const FAQ_ITEMS = [
   },
 ];
 
-const DEMO_SCRIPT =
-  "Hi there, thanks for calling! I'm the BuildAI assistant. I can help book estimates, answer questions about our services, and schedule a visit. Are you looking to get a quote, or do you have an existing job you'd like to follow up on?";
-
 export default function Landing() {
-  const [demoState, setDemoState] = useState<"idle" | "loading" | "playing">("idle");
+  const [demoOpen, setDemoOpen] = useState(false);
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  async function handleDemoCall() {
-    if (demoState === "loading") return;
-    if (demoState === "playing") {
-      audioRef.current?.pause();
-      setDemoState("idle");
-      return;
-    }
-    setDemoState("loading");
-    try {
-      const base = import.meta.env.BASE_URL.replace(/\/$/, "");
-      const resp = await fetch(`${base}/api/assistants/voice-preview`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ voice: "nova", text: DEMO_SCRIPT }),
-      });
-      if (!resp.ok) throw new Error("Audio generation failed");
-      const blob = await resp.blob();
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      audioRef.current = audio;
-      audio.onended = () => { setDemoState("idle"); URL.revokeObjectURL(url); };
-      audio.onerror = () => { setDemoState("idle"); URL.revokeObjectURL(url); };
-      await audio.play();
-      setDemoState("playing");
-    } catch {
-      setDemoState("idle");
-    }
-  }
 
   return (
     <div className="min-h-screen bg-[#0d1117] text-white flex flex-col font-sans">
@@ -144,12 +112,11 @@ export default function Landing() {
                 <Button
                   size="lg"
                   variant="outline"
-                  onClick={handleDemoCall}
+                  onClick={() => setDemoOpen(true)}
                   className="w-full sm:w-auto text-lg h-14 px-8 bg-white/5 border-white/20 text-white hover:bg-white/10 hover:text-white gap-2"
                 >
-                  {demoState === "loading" && <Loader2 size={18} className="animate-spin shrink-0" />}
-                  {demoState === "playing" && <Volume2 size={18} className="shrink-0 text-[#F97316]" />}
-                  {demoState === "playing" ? "Stop Demo" : "Hear a Demo Call"}
+                  <Play size={18} className="shrink-0" />
+                  Hear a Demo Call
                 </Button>
               </div>
 
@@ -525,6 +492,8 @@ export default function Landing() {
           <p className="text-white/30 text-sm">© {new Date().getFullYear()} BuildAI Ltd. All rights reserved. UK company.</p>
         </div>
       </footer>
+
+      <CallDemoModal open={demoOpen} onOpenChange={setDemoOpen} autoPlay />
     </div>
   );
 }

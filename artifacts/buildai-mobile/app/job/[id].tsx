@@ -13,6 +13,8 @@ import { useColors } from '@/hooks/useColors';
 import { useGetJob } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
+import { OfflineBanner } from '@/components/OfflineBanner';
 
 const JOB_STATUS_COLORS: Record<string, string> = {
   scheduled: '#fb8c04',
@@ -67,12 +69,13 @@ export default function JobDetailScreen() {
   const jobId = parseInt(id ?? '', 10);
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const isOnline = useNetworkStatus();
 
   const { data: job, isLoading, isError } = useGetJob(jobId, {
     query: { enabled: !isNaN(jobId) },
   });
 
-  if (isLoading) {
+  if (isLoading && !job) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
         <ActivityIndicator color={colors.primary} size="large" />
@@ -80,9 +83,11 @@ export default function JobDetailScreen() {
     );
   }
 
-  if (isError || !job) {
+  // Show error only when offline AND no cached data, or online with a real error and no data
+  if ((isError || !job) && !job) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
+        {!isOnline && <OfflineBanner />}
         <Feather name="alert-circle" size={32} color={colors.mutedForeground} />
         <Text style={[styles.centerText, { color: colors.mutedForeground }]}>
           Job not found
@@ -91,8 +96,8 @@ export default function JobDetailScreen() {
     );
   }
 
-  const statusColor = JOB_STATUS_COLORS[job.status] ?? '#94a3b8';
-  const statusLabel = JOB_STATUS_LABELS[job.status] ?? job.status;
+  const statusColor = JOB_STATUS_COLORS[job!.status] ?? '#94a3b8';
+  const statusLabel = JOB_STATUS_LABELS[job!.status] ?? job!.status;
 
   return (
     <ScrollView
@@ -100,6 +105,7 @@ export default function JobDetailScreen() {
       contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
       showsVerticalScrollIndicator={false}
     >
+      {!isOnline && <OfflineBanner stale />}
       {/* Hero section */}
       <View
         style={[
