@@ -99,6 +99,17 @@ export interface CompanyInput {
   logoUrl?: string;
 }
 
+export type AssistantType = typeof AssistantType[keyof typeof AssistantType];
+
+
+export const AssistantType = {
+  phone: 'phone',
+  email: 'email',
+  chat: 'chat',
+  marketing: 'marketing',
+  scheduling: 'scheduling',
+} as const;
+
 export type AssistantVoice = typeof AssistantVoice[keyof typeof AssistantVoice];
 
 
@@ -123,6 +134,7 @@ export const AssistantPersonality = {
 export interface Assistant {
   id: number;
   name: string;
+  type: AssistantType;
   voice: AssistantVoice;
   personality: AssistantPersonality;
   greeting?: string;
@@ -133,6 +145,17 @@ export interface Assistant {
   jobsBooked?: number;
   createdAt: string;
 }
+
+export type AssistantInputType = typeof AssistantInputType[keyof typeof AssistantInputType];
+
+
+export const AssistantInputType = {
+  phone: 'phone',
+  email: 'email',
+  chat: 'chat',
+  marketing: 'marketing',
+  scheduling: 'scheduling',
+} as const;
 
 export type AssistantInputVoice = typeof AssistantInputVoice[keyof typeof AssistantInputVoice];
 
@@ -157,6 +180,7 @@ export const AssistantInputPersonality = {
 
 export interface AssistantInput {
   name: string;
+  type: AssistantInputType;
   voice: AssistantInputVoice;
   personality: AssistantInputPersonality;
   greeting?: string;
@@ -226,6 +250,17 @@ export interface TestAssistantResult {
   answer: string;
 }
 
+export type AssistantUpdateType = typeof AssistantUpdateType[keyof typeof AssistantUpdateType];
+
+
+export const AssistantUpdateType = {
+  phone: 'phone',
+  email: 'email',
+  chat: 'chat',
+  marketing: 'marketing',
+  scheduling: 'scheduling',
+} as const;
+
 export type AssistantUpdateVoice = typeof AssistantUpdateVoice[keyof typeof AssistantUpdateVoice];
 
 
@@ -249,6 +284,7 @@ export const AssistantUpdatePersonality = {
 
 export interface AssistantUpdate {
   name?: string;
+  type?: AssistantUpdateType;
   voice?: AssistantUpdateVoice;
   personality?: AssistantUpdatePersonality;
   greeting?: string;

@@ -6,10 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { AssistantUpdatePersonality } from './assistantUpdatePersonality';
+import type { AssistantUpdateType } from './assistantUpdateType';
 import type { AssistantUpdateVoice } from './assistantUpdateVoice';
 
 export interface AssistantUpdate {
   name?: string;
+  type?: AssistantUpdateType;
   voice?: AssistantUpdateVoice;
   personality?: AssistantUpdatePersonality;
   greeting?: string;

@@ -179,6 +179,7 @@ export const UpdateCompanyResponse = zod.object({
 export const ListAssistantsResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
+  "type": zod.enum(['phone', 'email', 'chat', 'marketing', 'scheduling']),
   "voice": zod.enum(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']),
   "personality": zod.enum(['professional', 'friendly', 'direct']),
   "greeting": zod.string().optional(),
@@ -196,6 +197,7 @@ export const ListAssistantsResponse = zod.array(ListAssistantsResponseItem)
  */
 export const CreateAssistantBody = zod.object({
   "name": zod.string(),
+  "type": zod.enum(['phone', 'email', 'chat', 'marketing', 'scheduling']),
   "voice": zod.enum(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']),
   "personality": zod.enum(['professional', 'friendly', 'direct']),
   "greeting": zod.string().optional(),
@@ -206,6 +208,7 @@ export const CreateAssistantBody = zod.object({
 export const CreateAssistantResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
+  "type": zod.enum(['phone', 'email', 'chat', 'marketing', 'scheduling']),
   "voice": zod.enum(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']),
   "personality": zod.enum(['professional', 'friendly', 'direct']),
   "greeting": zod.string().optional(),
@@ -227,6 +230,7 @@ export const GetAssistantParams = zod.object({
 export const GetAssistantResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
+  "type": zod.enum(['phone', 'email', 'chat', 'marketing', 'scheduling']),
   "voice": zod.enum(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']),
   "personality": zod.enum(['professional', 'friendly', 'direct']),
   "greeting": zod.string().optional(),
@@ -247,6 +251,7 @@ export const UpdateAssistantParams = zod.object({
 
 export const UpdateAssistantBody = zod.object({
   "name": zod.string().optional(),
+  "type": zod.enum(['phone', 'email', 'chat', 'marketing', 'scheduling']).optional(),
   "voice": zod.enum(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']).optional(),
   "personality": zod.enum(['professional', 'friendly', 'direct']).optional(),
   "greeting": zod.string().optional(),
@@ -257,6 +262,7 @@ export const UpdateAssistantBody = zod.object({
 export const UpdateAssistantResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
+  "type": zod.enum(['phone', 'email', 'chat', 'marketing', 'scheduling']),
   "voice": zod.enum(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']),
   "personality": zod.enum(['professional', 'friendly', 'direct']),
   "greeting": zod.string().optional(),

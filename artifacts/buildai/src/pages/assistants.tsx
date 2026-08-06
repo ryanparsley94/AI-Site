@@ -14,12 +14,14 @@ import {
   AssistantInputPersonality,
   AssistantUpdateVoice,
   AssistantUpdatePersonality,
+  AssistantInputType,
 } from "@workspace/api-client-react";
-import type { AssistantTrainingCategory, AssistantTraining } from "@workspace/api-client-react";
+import type { AssistantTrainingCategory, AssistantTraining, Assistant } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Bot, Plus, Trash2, Power, Play, Loader2, Volume2,
-  BookOpen, ChevronDown, ChevronUp, Pencil, Send, Sparkles, X
+  BookOpen, ChevronDown, ChevronUp, Pencil, Send, Sparkles, X,
+  PhoneCall, Mail, MessageSquare, TrendingUp, Calendar, ArrowLeft,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -38,16 +40,82 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// ─── Assistant types ──────────────────────────────────────────────────────────
+
+interface AssistantTypeConfig {
+  value: AssistantInputType;
+  label: string;
+  icon: React.ElementType;
+  description: string;
+  colour: string;      // card accent / badge bg
+  textColour: string;  // badge text
+  tip: string;         // shown inside form
+}
+
+const ASSISTANT_TYPES: AssistantTypeConfig[] = [
+  {
+    value: "phone",
+    label: "Phone Operator",
+    icon: PhoneCall,
+    description: "Answers inbound calls, books jobs, and takes messages 24/7.",
+    colour: "bg-primary/10",
+    textColour: "text-primary",
+    tip: "Your phone operator answers calls in your name, qualifies the caller, and books jobs straight into your schedule.",
+  },
+  {
+    value: "email",
+    label: "Email Responder",
+    icon: Mail,
+    description: "Drafts and sends replies to your incoming emails automatically.",
+    colour: "bg-blue-50",
+    textColour: "text-blue-700",
+    tip: "Your email responder monitors your inbox and drafts intelligent replies based on your services and FAQs.",
+  },
+  {
+    value: "chat",
+    label: "Chat Assistant",
+    icon: MessageSquare,
+    description: "Powers the live chat widget on your website to capture leads.",
+    colour: "bg-purple-50",
+    textColour: "text-purple-700",
+    tip: "Your chat assistant greets website visitors, answers questions, and collects their contact details as a lead.",
+  },
+  {
+    value: "marketing",
+    label: "Marketing Assistant",
+    icon: TrendingUp,
+    description: "Sends review requests, follow-ups, and win-back messages.",
+    colour: "bg-rose-50",
+    textColour: "text-rose-700",
+    tip: "Your marketing assistant automatically follows up with past customers to request reviews and repeat business.",
+  },
+  {
+    value: "scheduling",
+    label: "Scheduling Assistant",
+    icon: Calendar,
+    description: "Manages your diary, reschedules jobs, and sends reminders.",
+    colour: "bg-green-50",
+    textColour: "text-green-700",
+    tip: "Your scheduling assistant keeps your calendar organised and sends job reminders to clients automatically.",
+  },
+];
+
+function getTypeConfig(type: string): AssistantTypeConfig {
+  return ASSISTANT_TYPES.find((t) => t.value === type) ?? ASSISTANT_TYPES[0];
+}
+
+// ─── Voice constants ──────────────────────────────────────────────────────────
 
 const VOICES: { value: AssistantInputVoice; label: string; description: string }[] = [
-  { value: "alloy",   label: "Alice",   description: "Neutral, professional" },
-  { value: "echo",    label: "Edward",  description: "Warm, authoritative" },
+  { value: "alloy",   label: "Alice",    description: "Neutral, professional" },
+  { value: "echo",    label: "Edward",   description: "Warm, authoritative" },
   { value: "fable",   label: "Florence", description: "Friendly, approachable" },
-  { value: "onyx",    label: "Oliver",  description: "Deep, confident" },
-  { value: "nova",    label: "Nora",    description: "Energetic, clear" },
-  { value: "shimmer", label: "Sophie",  description: "Bright, reassuring" },
+  { value: "onyx",    label: "Oliver",   description: "Deep, confident" },
+  { value: "nova",    label: "Nora",     description: "Energetic, clear" },
+  { value: "shimmer", label: "Sophie",   description: "Bright, reassuring" },
 ];
+
+// ─── Trade templates (phone only) ─────────────────────────────────────────────
 
 interface TradeTemplate {
   label: string;
@@ -80,9 +148,9 @@ const TRADE_TEMPLATES: TradeTemplate[] = [
     personality: "professional",
     greeting: "Hello, you've reached our gas and heating team. What can I help you with today?",
     instructions: `You are a receptionist for a UK Gas Safe registered heating and gas company. You understand:
-- All gas work in the UK must be carried out by a Gas Safe registered engineer (registration number should be confirmed on arrival)
+- All gas work in the UK must be carried out by a Gas Safe registered engineer
 - Common jobs: boiler service, boiler breakdown, gas leak, no heating, no hot water, radiator bleeding, thermostat issues, landlord gas safety certificates (CP12)
-- SAFETY CRITICAL: If the caller suspects a gas leak, instruct them to: do not operate any switches, open windows and doors, evacuate the property, and call the National Gas Emergency line on 0800 111 999 immediately — do NOT book this as a routine call
+- SAFETY CRITICAL: If the caller suspects a gas leak, instruct them to open windows, evacuate, and call 0800 111 999 immediately
 - Boiler brands we cover: Worcester Bosch, Vaillant, Ideal, Baxi, Potterton, Glow-worm, Viessmann
 - Always ask for the boiler make, model, and fault code if displayed
 - Landlord CP12 certificates are legally required annually`,
@@ -94,12 +162,12 @@ const TRADE_TEMPLATES: TradeTemplate[] = [
     personality: "professional",
     greeting: "Hi there, you've reached our electrical team. How can I help?",
     instructions: `You are a receptionist for a UK NICEIC/NAPIT registered electrical contractor. You understand:
-- UK wiring regulations: BS 7671 18th Edition (IET Wiring Regulations)
-- Part P Building Regulations: notifiable work (new circuits, consumer unit changes, work in kitchens/bathrooms) must be certified — we handle this as part of the job
-- Common jobs: consumer unit (fuse board) replacement, additional sockets and lighting circuits, EV charger installation, EICR (Electrical Installation Condition Report), fault finding, power outages, rewires
+- UK wiring regulations: BS 7671 18th Edition
+- Part P Building Regulations: notifiable work must be certified
+- Common jobs: consumer unit replacement, additional sockets, EV charger installation, EICR, fault finding, rewires
 - EV charger installations under OZEV grant scheme — mention government grants available
-- EICR required every 5 years for rental properties — landlords often call for this
-- Always ask: what the electrical issue is, when it started, whether there's a tripped breaker, property type, and whether power is completely off`,
+- EICR required every 5 years for rental properties
+- Always ask: what the issue is, whether there's a tripped breaker, property type, and whether power is completely off`,
   },
   {
     label: "Roofer",
@@ -108,11 +176,10 @@ const TRADE_TEMPLATES: TradeTemplate[] = [
     personality: "friendly",
     greeting: "Thanks for calling our roofing team. What can I help you with today?",
     instructions: `You are a receptionist for a UK roofing contractor. You understand:
-- Roofing materials: concrete tiles, clay tiles, slate (natural and fibre cement), flat roof (EPDM rubber, felt, GRP fibreglass, liquid coating), lead flashing, UPVC fascias and soffits, guttering
-- Common jobs: missing/broken tiles, leaking roof, flat roof repair or replacement, chimney repointing or stack repair, velux/skylight installation, guttering replacement, new roof installation
-- Urgency: active leaks causing interior water damage are urgent — offer emergency patch/tarpaulin cover
-- Planning permission: most roofing work is permitted development but some changes (e.g. flat to pitched, listed buildings, conservation areas) may require planning permission — we can advise
-- Always ask: roof type, approximate age, location/postcode, whether they've noticed damp internally, and if scaffolding access has been considered`,
+- Roofing materials: concrete tiles, clay tiles, slate, flat roof (EPDM, felt, GRP fibreglass), lead flashing, UPVC fascias
+- Common jobs: missing/broken tiles, leaking roof, flat roof repair, chimney repointing, guttering replacement
+- Urgency: active leaks causing interior water damage are urgent
+- Always ask: roof type, approximate age, location/postcode, whether damp noticed internally`,
   },
   {
     label: "General Builder",
@@ -121,11 +188,8 @@ const TRADE_TEMPLATES: TradeTemplate[] = [
     personality: "friendly",
     greeting: "Morning! You've reached our building team. What project can we help you with?",
     instructions: `You are a receptionist for a UK general building contractor. You understand:
-- Services: extensions (single-storey, double-storey, loft conversions, garage conversions), new builds, structural alterations (RSJ steel beam installation, load-bearing wall removal), brickwork, blockwork, plastering, rendering, damp proofing, underpinning
-- Planning and regulations: extensions over 3m (detached) or 4m (semi/terrace) rear, or side extensions, typically need planning permission — we advise and can manage applications; all structural work requires Building Regulations approval
-- Party Wall Act: works near a boundary or shared wall require a Party Wall Agreement — we can recommend surveyors
-- Common materials: blocks, bricks, insulation, lintels, timber, OSB, plasterboard
-- Always ask: what the project is, rough dimensions or scope, timescale, whether they have planning permission yet, and their postcode for availability`,
+- Services: extensions, loft conversions, garage conversions, new builds, structural alterations, brickwork, plastering, damp proofing
+- Always ask: type of project, property type, rough timescale, budget range, and whether planning permission has been considered`,
   },
   {
     label: "Painter & Decorator",
@@ -134,11 +198,10 @@ const TRADE_TEMPLATES: TradeTemplate[] = [
     personality: "friendly",
     greeting: "Hi, thanks for calling our decorating team! How can I help you today?",
     instructions: `You are a receptionist for a UK painting and decorating company. You understand:
-- Services: interior painting (walls, ceilings, woodwork/trim), exterior painting, wallpapering, feature walls, coving, UPVC window and door spray painting, commercial decorating
-- Common paint brands used in UK trade: Dulux Trade, Crown Trade, Johnstone's Trade, Farrow & Ball (premium), Little Greene (premium)
-- Preparation is key: stripping old wallpaper, filling cracks (fine surface filler vs powder filler), sanding, mist coat on new plaster — all affect the quote
-- New plaster must dry fully (approx. 1 month per inch thickness) before decorating — important to flag to customers
-- Always ask: number of rooms or areas, condition of walls, whether wallpaper is involved, ceiling height, preferred brand or colour if known, and whether it's a new build or renovation`,
+- Services: interior and exterior painting, wallpapering, feature walls, coving, commercial decorating
+- Common paint brands: Dulux Trade, Crown Trade, Johnstone's Trade, Farrow & Ball, Little Greene
+- New plaster must dry fully before decorating — important to flag to customers
+- Always ask: number of rooms, condition of walls, whether wallpaper is involved, ceiling height`,
   },
   {
     label: "Tiler",
@@ -147,13 +210,9 @@ const TRADE_TEMPLATES: TradeTemplate[] = [
     personality: "professional",
     greeting: "Hi, thanks for calling. How can I help with your tiling project?",
     instructions: `You are a receptionist for a UK tiling contractor. You understand:
-- Services: bathroom tiling (walls and floor), kitchen splashbacks, wet rooms, porcelain floor tiles, natural stone, mosaic, external paving
-- Tile types: ceramic, porcelain (rectified or non-rectified), natural stone (travertine, slate, marble), glass mosaic — each has different substrate and adhesive requirements
-- Wetroom and shower installations require tanking (waterproof membrane) beneath tiles — this is a separate cost
-- Underfloor heating compatibility: must confirm tiles and adhesive are UFH-rated
-- Grout types: standard, epoxy (more durable, stain-resistant, used in commercial and wet areas), flexible
-- UK suppliers: Topps Tiles, Tile Giant, CTD, Porcelanosa, Fired Earth, Screwfix for adhesives and grout
-- Always ask: room dimensions (m²), tile size preference, whether there's existing tiling to remove, substrate type (plasterboard, cement board, existing tiles), and if underfloor heating is present`,
+- Services: bathroom tiling, kitchen splashbacks, wet rooms, porcelain floor tiles, natural stone, mosaic
+- Wetroom installations require tanking beneath tiles
+- Always ask: room dimensions (m²), tile size preference, substrate type, and if underfloor heating is present`,
   },
   {
     label: "Carpenter & Joiner",
@@ -162,11 +221,9 @@ const TRADE_TEMPLATES: TradeTemplate[] = [
     personality: "friendly",
     greeting: "Hi there, you've reached our carpentry and joinery team. What can we help with?",
     instructions: `You are a receptionist for a UK carpentry and joinery business. You understand:
-- Services: fitted wardrobes and furniture (bespoke or MFC flat-pack assembly), stud walls and timber framing, skirting and architrave, door hanging (internal and external), flooring (solid wood, engineered wood, laminate fitting), loft boarding, decking, fencing, window boards, stairs and handrails
-- Bespoke joinery: kitchen units, alcove shelving, window seats — made to measure in the workshop and installed on site
-- Fire doors: FD30 and FD60 rated doors for flats and commercial properties — required under Building Regulations in certain locations
-- Flooring acclimatisation: solid and engineered wood flooring must acclimatise in the property for 48–72 hours before fitting
-- Always ask: what the job is, approximate size or number of items, whether existing items need removing, preferred wood species or board finish, and timescale`,
+- Services: fitted wardrobes, stud walls, skirting and architrave, door hanging, flooring fitting, decking, stairs and handrails
+- Flooring must acclimatise 48–72 hours before fitting
+- Always ask: what the job is, approximate size, preferred wood species or board finish, and timescale`,
   },
 ];
 
@@ -179,7 +236,9 @@ function TradeTemplatePicker({
 }) {
   return (
     <div>
-      <Label className="mb-2 block">Trade Template <span className="text-xs font-normal text-muted-foreground">(optional — auto-fills the form)</span></Label>
+      <Label className="mb-2 block">
+        Trade Template <span className="text-xs font-normal text-muted-foreground">(optional — auto-fills the form)</span>
+      </Label>
       <div className="grid grid-cols-2 gap-1.5">
         {TRADE_TEMPLATES.map((t) => (
           <button
@@ -202,21 +261,9 @@ function TradeTemplatePicker({
   );
 }
 
+// ─── VoicePicker ──────────────────────────────────────────────────────────────
+
 const SAMPLE_TEXT = "Hi, thanks for calling. How can I help you today?";
-
-const TRAINING_CATEGORIES: { value: AssistantTrainingCategory; label: string; color: string; description: string }[] = [
-  { value: "service", label: "Service",       color: "bg-blue-100 text-blue-700",   description: "Services you offer with pricing" },
-  { value: "faq",     label: "FAQ",           color: "bg-purple-100 text-purple-700", description: "Common questions & answers" },
-  { value: "area",    label: "Service Area",  color: "bg-green-100 text-green-700",  description: "Cities, zip codes, regions served" },
-  { value: "hours",   label: "Hours",         color: "bg-amber-100 text-amber-700",  description: "Business & availability hours" },
-  { value: "upsell",  label: "Upsell",        color: "bg-rose-100 text-rose-700",    description: "Add-ons & upgrades to pitch" },
-];
-
-function categoryMeta(cat: AssistantTrainingCategory) {
-  return TRAINING_CATEGORIES.find((c) => c.value === cat) ?? TRAINING_CATEGORIES[0];
-}
-
-// ─── VoicePicker ─────────────────────────────────────────────────────────────
 
 function VoicePicker({
   value,
@@ -286,42 +333,74 @@ function VoicePicker({
   );
 }
 
-// ─── AssistantFormFields ──────────────────────────────────────────────────────
+// ─── Type picker step ─────────────────────────────────────────────────────────
 
-function AssistantFormFields({
-  defaults,
-  voice,
-  onVoiceChange,
+function AssistantTypePicker({
+  onSelect,
 }: {
-  defaults?: Record<string, string>;
-  voice: AssistantInputVoice;
-  onVoiceChange: (v: AssistantInputVoice) => void;
+  onSelect: (type: AssistantInputType) => void;
 }) {
   return (
-    <div className="space-y-4">
-      <input type="hidden" name="voice" value={voice} />
+    <div className="space-y-3">
+      <div>
+        <p className="text-sm font-semibold text-secondary">What kind of AI assistant do you need?</p>
+        <p className="text-xs text-muted-foreground mt-0.5">Each type is trained for a specific role in your business.</p>
+      </div>
+      <div className="grid gap-2">
+        {ASSISTANT_TYPES.map((t) => {
+          const Icon = t.icon;
+          return (
+            <button
+              key={t.value}
+              type="button"
+              onClick={() => onSelect(t.value)}
+              className="flex items-center gap-3 px-4 py-3 rounded-xl border border-border hover:border-primary/50 hover:bg-muted/40 transition-all text-left group"
+            >
+              <div className={cn("p-2 rounded-lg shrink-0", t.colour)}>
+                <Icon className={cn("h-4 w-4", t.textColour)} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-secondary group-hover:text-primary transition-colors">{t.label}</p>
+                <p className="text-xs text-muted-foreground leading-snug mt-0.5">{t.description}</p>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
+// ─── Form fields shared by all types ─────────────────────────────────────────
+
+function CommonFields({
+  defaults,
+  typeConfig,
+}: {
+  defaults?: Record<string, string>;
+  typeConfig: AssistantTypeConfig;
+}) {
+  return (
+    <>
       <div className="space-y-2">
         <Label htmlFor="name">Assistant Name</Label>
         <Input
           id="name"
           name="name"
           required
-          placeholder="e.g. Sarah (Front Desk)"
+          placeholder={
+            typeConfig.value === "phone" ? "e.g. Sarah (Front Desk)"
+            : typeConfig.value === "email" ? "e.g. Emily (Email Team)"
+            : typeConfig.value === "chat" ? "e.g. Chloe (Web Chat)"
+            : typeConfig.value === "marketing" ? "e.g. Max (Marketing)"
+            : "e.g. Sam (Scheduler)"
+          }
           defaultValue={defaults?.name}
         />
       </div>
 
       <div className="space-y-2">
-        <Label className="flex items-center gap-2">
-          <Volume2 size={14} /> Voice Profile
-          <span className="text-xs text-muted-foreground font-normal ml-1">— tap ▶ to preview</span>
-        </Label>
-        <VoicePicker value={voice} onChange={onVoiceChange} />
-      </div>
-
-      <div className="space-y-2">
-        <Label>Personality</Label>
+        <Label>Tone / Personality</Label>
         <Select name="personality" defaultValue={defaults?.personality ?? "professional"}>
           <SelectTrigger>
             <SelectValue />
@@ -333,24 +412,124 @@ function AssistantFormFields({
           </SelectContent>
         </Select>
       </div>
+    </>
+  );
+}
 
-      <div className="space-y-2">
-        <Label>Default Greeting</Label>
-        <Textarea
-          name="greeting"
-          required
-          placeholder="Hi, thanks for calling. How can I help you today?"
-          className="h-20 resize-none"
-          defaultValue={defaults?.greeting}
-        />
+// ─── Phone-specific fields ────────────────────────────────────────────────────
+
+function PhoneFormFields({
+  defaults,
+  voice,
+  onVoiceChange,
+  template,
+  onTemplateSelect,
+}: {
+  defaults?: Record<string, string>;
+  voice: AssistantInputVoice;
+  onVoiceChange: (v: AssistantInputVoice) => void;
+  template: TradeTemplate | null;
+  onTemplateSelect: (t: TradeTemplate) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <input type="hidden" name="voice" value={voice} />
+
+      <TradeTemplatePicker selected={template?.label ?? null} onSelect={onTemplateSelect} />
+
+      <div className="border-t pt-4 space-y-4">
+        <CommonFields defaults={defaults} typeConfig={ASSISTANT_TYPES[0]} />
+
+        <div className="space-y-2">
+          <Label className="flex items-center gap-2">
+            <Volume2 size={14} /> Voice Profile
+            <span className="text-xs text-muted-foreground font-normal ml-1">— tap ▶ to preview</span>
+          </Label>
+          <VoicePicker value={voice} onChange={onVoiceChange} />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Default Greeting</Label>
+          <Textarea
+            name="greeting"
+            required
+            placeholder="Hi, thanks for calling. How can I help you today?"
+            className="h-20 resize-none"
+            defaultValue={defaults?.greeting}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Custom Instructions</Label>
+          <Textarea
+            name="instructions"
+            placeholder="e.g. Always ask for the caller's postcode first. If it's an emergency, book the immediate slot."
+            className="h-24 resize-none"
+            defaultValue={defaults?.instructions}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Non-phone form fields ────────────────────────────────────────────────────
+
+function OtherFormFields({
+  defaults,
+  typeConfig,
+}: {
+  defaults?: Record<string, string>;
+  typeConfig: AssistantTypeConfig;
+}) {
+  const greetingLabel =
+    typeConfig.value === "chat" ? "Welcome Message"
+    : typeConfig.value === "email" ? "Email Sign-off / Signature"
+    : null;
+
+  const greetingPlaceholder =
+    typeConfig.value === "chat" ? "Hi! How can I help you today?"
+    : typeConfig.value === "email" ? "Kind regards, the BuildAI team"
+    : "";
+
+  return (
+    <div className="space-y-4">
+      <input type="hidden" name="voice" value="alloy" />
+
+      {/* Tip banner */}
+      <div className={cn("rounded-lg px-3 py-2.5 text-xs text-secondary leading-relaxed", typeConfig.colour)}>
+        <span className={cn("font-semibold", typeConfig.textColour)}>{typeConfig.label}: </span>
+        {typeConfig.tip}
       </div>
 
+      <CommonFields defaults={defaults} typeConfig={typeConfig} />
+
+      {greetingLabel && (
+        <div className="space-y-2">
+          <Label>{greetingLabel}</Label>
+          <Textarea
+            name="greeting"
+            placeholder={greetingPlaceholder}
+            className="h-20 resize-none"
+            defaultValue={defaults?.greeting}
+          />
+        </div>
+      )}
+
       <div className="space-y-2">
-        <Label>Custom Instructions</Label>
+        <Label>Instructions & Context</Label>
         <Textarea
           name="instructions"
-          placeholder="e.g. Always ask for the caller's address first. If it's an emergency, book the immediate slot."
-          className="h-24 resize-none"
+          placeholder={
+            typeConfig.value === "email"
+              ? "e.g. Always mention our 5-year workmanship guarantee. Offer a free quote for any new enquiry."
+              : typeConfig.value === "chat"
+              ? "e.g. Capture the visitor's name, phone number, and the type of job they need. Always offer a same-day callback."
+              : typeConfig.value === "marketing"
+              ? "e.g. Follow up 3 days after job completion to request a Google review. Offer 10% off their next booking."
+              : "e.g. Send a reminder 24 hours before each job. If the client needs to reschedule, offer 3 alternative slots."
+          }
+          className="h-28 resize-none"
           defaultValue={defaults?.instructions}
         />
       </div>
@@ -358,7 +537,19 @@ function AssistantFormFields({
   );
 }
 
-// ─── TrainingEntryRow ─────────────────────────────────────────────────────────
+// ─── Training ─────────────────────────────────────────────────────────────────
+
+const TRAINING_CATEGORIES: { value: AssistantTrainingCategory; label: string; color: string; description: string }[] = [
+  { value: "service", label: "Service",      color: "bg-primary/10 text-primary",        description: "Services you offer with pricing" },
+  { value: "faq",     label: "FAQ",          color: "bg-blue-100 text-blue-700",          description: "Common questions & answers" },
+  { value: "area",    label: "Service Area", color: "bg-green-100 text-green-700",        description: "Cities, postcodes, regions served" },
+  { value: "hours",   label: "Hours",        color: "bg-secondary/10 text-secondary",     description: "Business & availability hours" },
+  { value: "upsell",  label: "Upsell",       color: "bg-rose-100 text-rose-700",          description: "Add-ons & upgrades to pitch" },
+];
+
+function categoryMeta(cat: AssistantTrainingCategory) {
+  return TRAINING_CATEGORIES.find((c) => c.value === cat) ?? TRAINING_CATEGORIES[0];
+}
 
 function TrainingEntryRow({
   entry,
@@ -410,8 +601,6 @@ function TrainingEntryRow({
   );
 }
 
-// ─── TrainingEntryForm ────────────────────────────────────────────────────────
-
 function TrainingEntryForm({
   assistantId,
   initial,
@@ -427,7 +616,6 @@ function TrainingEntryForm({
   const queryClient = useQueryClient();
   const createTraining = useCreateAssistantTraining();
   const updateTraining = useUpdateAssistantTraining();
-
   const [category, setCategory] = useState<AssistantTrainingCategory>(initial?.category ?? "service");
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -438,25 +626,17 @@ function TrainingEntryForm({
       question: fd.get("question") as string,
       answer: fd.get("answer") as string,
     };
-
     const invalidate = () => queryClient.invalidateQueries({ queryKey: [`/api/assistants/${assistantId}/training`] });
-
     if (initial) {
-      updateTraining.mutate(
-        { id: assistantId, trainingId: initial.id, data },
-        {
-          onSuccess: () => { invalidate(); onDone(); toast({ title: "Entry updated" }); },
-          onError: () => toast({ title: "Failed to update", variant: "destructive" }),
-        }
-      );
+      updateTraining.mutate({ id: assistantId, trainingId: initial.id, data }, {
+        onSuccess: () => { invalidate(); onDone(); toast({ title: "Entry updated" }); },
+        onError: () => toast({ title: "Failed to update", variant: "destructive" }),
+      });
     } else {
-      createTraining.mutate(
-        { id: assistantId, data },
-        {
-          onSuccess: () => { invalidate(); onDone(); toast({ title: "Training entry added" }); },
-          onError: () => toast({ title: "Failed to add entry", variant: "destructive" }),
-        }
-      );
+      createTraining.mutate({ id: assistantId, data }, {
+        onSuccess: () => { invalidate(); onDone(); toast({ title: "Training entry added" }); },
+        onError: () => toast({ title: "Failed to add entry", variant: "destructive" }),
+      });
     }
   };
 
@@ -515,11 +695,11 @@ function TrainingEntryForm({
           name="answer"
           required
           placeholder={
-            category === "service" ? "e.g. Full tear-off and replacement. Typical cost $8,000–$15,000 depending on size."
+            category === "service" ? "e.g. Full tear-off and replacement. Typical cost £8,000–£15,000 depending on size."
             : category === "faq" ? "e.g. Yes! We offer free estimates Monday–Friday."
-            : category === "area" ? "e.g. Denver, Lakewood, Aurora, Littleton — within 30 miles of downtown."
+            : category === "area" ? "e.g. Manchester, Salford, Stockport — within 20 miles of the city centre."
             : category === "hours" ? "e.g. Mon–Fri 7am–6pm, Sat 8am–2pm. Emergency line 24/7."
-            : "e.g. Gutter cleaning available for $150 when booked with any roofing job."
+            : "e.g. Gutter cleaning available for £120 when booked with any roofing job."
           }
           defaultValue={initial?.answer}
           className="h-20 resize-none text-sm"
@@ -531,22 +711,17 @@ function TrainingEntryForm({
           {isPending ? <Loader2 size={13} className="animate-spin" /> : null}
           {initial ? "Save Changes" : "Add Entry"}
         </Button>
-        <Button type="button" size="sm" variant="outline" onClick={onCancel}>
-          Cancel
-        </Button>
+        <Button type="button" size="sm" variant="outline" onClick={onCancel}>Cancel</Button>
       </div>
     </form>
   );
 }
-
-// ─── TrainingTab ──────────────────────────────────────────────────────────────
 
 function TrainingTab({ assistantId }: { assistantId: number }) {
   const { data: entries = [], isLoading } = useListAssistantTraining(assistantId);
   const deleteTraining = useDeleteAssistantTraining();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingEntry, setEditingEntry] = useState<AssistantTraining | null>(null);
   const [testQuestion, setTestQuestion] = useState("");
@@ -555,28 +730,22 @@ function TrainingTab({ assistantId }: { assistantId: number }) {
 
   const handleDelete = (trainingId: number) => {
     if (!confirm("Delete this training entry?")) return;
-    deleteTraining.mutate(
-      { id: assistantId, trainingId },
-      {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: [`/api/assistants/${assistantId}/training`] });
-          toast({ title: "Entry deleted" });
-        },
-      }
-    );
+    deleteTraining.mutate({ id: assistantId, trainingId }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: [`/api/assistants/${assistantId}/training`] });
+        toast({ title: "Entry deleted" });
+      },
+    });
   };
 
   const handleTest = (e: React.FormEvent) => {
     e.preventDefault();
     if (!testQuestion.trim()) return;
     setTestAnswer(null);
-    testAssistant.mutate(
-      { id: assistantId, data: { question: testQuestion } },
-      {
-        onSuccess: (result) => setTestAnswer(result.answer),
-        onError: () => toast({ title: "Test failed", variant: "destructive" }),
-      }
-    );
+    testAssistant.mutate({ id: assistantId, data: { question: testQuestion } }, {
+      onSuccess: (result) => setTestAnswer(result.answer),
+      onError: () => toast({ title: "Test failed", variant: "destructive" }),
+    });
   };
 
   const grouped = entries.reduce<Record<string, AssistantTraining[]>>((acc, e) => {
@@ -587,12 +756,11 @@ function TrainingTab({ assistantId }: { assistantId: number }) {
 
   return (
     <div className="space-y-4">
-      {/* Training entries */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-semibold text-secondary">Knowledge Base</p>
-            <p className="text-xs text-muted-foreground">These entries are injected into the AI's prompt for every call.</p>
+            <p className="text-xs text-muted-foreground">These entries are injected into the AI's prompt for every interaction.</p>
           </div>
           {!showAddForm && !editingEntry && (
             <Button size="sm" variant="outline" className="gap-1.5 shrink-0" onClick={() => setShowAddForm(true)}>
@@ -645,12 +813,7 @@ function TrainingTab({ assistantId }: { assistantId: number }) {
                   </div>
                   <div className="space-y-1 pl-1">
                     {catEntries.map((entry) => (
-                      <TrainingEntryRow
-                        key={entry.id}
-                        entry={entry}
-                        onEdit={setEditingEntry}
-                        onDelete={handleDelete}
-                      />
+                      <TrainingEntryRow key={entry.id} entry={entry} onEdit={setEditingEntry} onDelete={handleDelete} />
                     ))}
                   </div>
                 </div>
@@ -660,14 +823,13 @@ function TrainingTab({ assistantId }: { assistantId: number }) {
         )}
       </div>
 
-      {/* Test panel */}
       <div className="border rounded-lg p-3 bg-muted/10 space-y-3">
         <div className="flex items-center gap-2">
           <Sparkles size={14} className="text-primary" />
           <p className="text-sm font-semibold text-secondary">Test Your Assistant</p>
         </div>
         <p className="text-xs text-muted-foreground -mt-1">
-          Type a sample caller question to see how the AI would respond using your training data.
+          Ask a sample question to see how the AI responds using your training data.
         </p>
         <form onSubmit={handleTest} className="flex gap-2">
           <Input
@@ -683,11 +845,7 @@ function TrainingTab({ assistantId }: { assistantId: number }) {
         </form>
         {testAnswer !== null && (
           <div className="relative bg-white border rounded-lg p-3 text-sm text-secondary">
-            <button
-              type="button"
-              onClick={() => setTestAnswer(null)}
-              className="absolute top-2 right-2 text-muted-foreground hover:text-foreground"
-            >
+            <button type="button" onClick={() => setTestAnswer(null)} className="absolute top-2 right-2 text-muted-foreground hover:text-foreground">
               <X size={13} />
             </button>
             <p className="font-semibold text-xs text-primary mb-1">AI Response:</p>
@@ -699,7 +857,7 @@ function TrainingTab({ assistantId }: { assistantId: number }) {
   );
 }
 
-// ─── AssistantEditDialog ──────────────────────────────────────────────────────
+// ─── Edit dialog ──────────────────────────────────────────────────────────────
 
 function AssistantEditDialog({
   id,
@@ -718,7 +876,6 @@ function AssistantEditDialog({
   const { toast } = useToast();
   const [voice, setVoice] = useState<AssistantInputVoice>("alloy");
 
-  // Sync voice from loaded data
   if (assistant && voice !== assistant.voice && !updateAssistant.isPending) {
     setVoice(assistant.voice as AssistantInputVoice);
   }
@@ -726,62 +883,72 @@ function AssistantEditDialog({
   const handleUpdate = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    updateAssistant.mutate(
-      {
-        id,
-        data: {
-          name: fd.get("name") as string,
-          voice: fd.get("voice") as AssistantUpdateVoice,
-          personality: fd.get("personality") as AssistantUpdatePersonality,
-          greeting: fd.get("greeting") as string,
-          instructions: fd.get("instructions") as string,
-        },
+    updateAssistant.mutate({
+      id,
+      data: {
+        name: fd.get("name") as string,
+        voice: fd.get("voice") as AssistantUpdateVoice,
+        personality: fd.get("personality") as AssistantUpdatePersonality,
+        greeting: fd.get("greeting") as string || undefined,
+        instructions: fd.get("instructions") as string || undefined,
       },
-      {
-        onSuccess: () => {
-          onOpenChange(false);
-          queryClient.invalidateQueries({ queryKey: ["/api/assistants"] });
-          toast({ title: "Assistant updated" });
-        },
-      }
-    );
+    }, {
+      onSuccess: () => {
+        onOpenChange(false);
+        queryClient.invalidateQueries({ queryKey: ["/api/assistants"] });
+        toast({ title: "Assistant updated" });
+      },
+    });
   };
+
+  const typeConfig = assistant ? getTypeConfig(assistant.type) : ASSISTANT_TYPES[0];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[95vw] max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Edit Assistant</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            {assistant && (() => { const Icon = typeConfig.icon; return <Icon className={cn("h-4 w-4", typeConfig.textColour)} />; })()}
+            Edit {typeConfig.label}
+          </DialogTitle>
         </DialogHeader>
         {isLoading || !assistant ? (
           <div className="p-4 text-center text-muted-foreground">Loading…</div>
         ) : (
           <Tabs defaultValue="settings" className="pt-1">
             <TabsList className="w-full">
-              <TabsTrigger value="settings" className="flex-1 gap-1.5">
-                <Bot size={13} /> Settings
-              </TabsTrigger>
-              <TabsTrigger value="training" className="flex-1 gap-1.5">
-                <BookOpen size={13} /> Training
-              </TabsTrigger>
+              <TabsTrigger value="settings" className="flex-1 gap-1.5"><Bot size={13} /> Settings</TabsTrigger>
+              <TabsTrigger value="training" className="flex-1 gap-1.5"><BookOpen size={13} /> Training</TabsTrigger>
             </TabsList>
 
             <TabsContent value="settings" className="mt-3">
               <form onSubmit={handleUpdate} className="space-y-4">
-                <AssistantFormFields
-                  defaults={{
-                    name: assistant.name,
-                    personality: assistant.personality,
-                    greeting: assistant.greeting ?? "",
-                    instructions: assistant.instructions ?? "",
-                  }}
-                  voice={voice}
-                  onVoiceChange={setVoice}
-                />
+                {assistant.type === "phone" ? (
+                  <PhoneFormFields
+                    defaults={{
+                      name: assistant.name,
+                      personality: assistant.personality,
+                      greeting: assistant.greeting ?? "",
+                      instructions: assistant.instructions ?? "",
+                    }}
+                    voice={voice}
+                    onVoiceChange={setVoice}
+                    template={null}
+                    onTemplateSelect={(t) => setVoice(t.voice)}
+                  />
+                ) : (
+                  <OtherFormFields
+                    defaults={{
+                      name: assistant.name,
+                      personality: assistant.personality,
+                      greeting: assistant.greeting ?? "",
+                      instructions: assistant.instructions ?? "",
+                    }}
+                    typeConfig={typeConfig}
+                  />
+                )}
                 <DialogFooter className="pt-2 flex-col-reverse sm:flex-row gap-2">
-                  <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                    Cancel
-                  </Button>
+                  <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
                   <Button type="submit" disabled={updateAssistant.isPending}>
                     {updateAssistant.isPending ? "Saving…" : "Save Changes"}
                   </Button>
@@ -799,11 +966,225 @@ function AssistantEditDialog({
   );
 }
 
+// ─── Assistant card ───────────────────────────────────────────────────────────
+
+function AssistantCard({
+  assistant,
+  onToggle,
+  onEdit,
+  onDelete,
+}: {
+  assistant: Assistant;
+  onToggle: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const typeConfig = getTypeConfig(assistant.type ?? "phone");
+  const Icon = typeConfig.icon;
+  const isPhone = typeConfig.value === "phone";
+
+  return (
+    <Card className={cn("flex flex-col border-2 transition-colors", assistant.active ? "border-primary/30" : "border-border opacity-70")}>
+      <CardContent className="pt-5 pb-4 flex-1 space-y-4">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className={cn("w-10 h-10 rounded-full flex items-center justify-center shrink-0", typeConfig.colour)}>
+              <Icon className={cn("h-5 w-5", typeConfig.textColour)} />
+            </div>
+            <div className="min-w-0">
+              <p className="font-bold text-secondary truncate">{assistant.name}</p>
+              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                <span className={cn("text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full", typeConfig.colour, typeConfig.textColour)}>
+                  {typeConfig.label}
+                </span>
+                <span className="text-[10px] text-muted-foreground capitalize">{assistant.personality}</span>
+              </div>
+            </div>
+          </div>
+          <span className={cn("text-[10px] font-bold uppercase px-2 py-0.5 rounded-full shrink-0", assistant.active ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground")}>
+            {assistant.active ? "Live" : "Off"}
+          </span>
+        </div>
+
+        {/* Stats (phone only) */}
+        {isPhone && (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-muted/40 p-3 rounded-lg border text-center">
+              <p className="text-2xl font-bold text-secondary">{assistant.callsHandled || 0}</p>
+              <p className="text-[10px] uppercase font-bold text-muted-foreground mt-0.5">Calls</p>
+            </div>
+            <div className="bg-muted/40 p-3 rounded-lg border text-center">
+              <p className="text-2xl font-bold text-secondary">{assistant.jobsBooked || 0}</p>
+              <p className="text-[10px] uppercase font-bold text-muted-foreground mt-0.5">Booked</p>
+            </div>
+          </div>
+        )}
+
+        {/* Greeting / description preview */}
+        {assistant.greeting ? (
+          <div>
+            <p className="text-xs font-bold text-muted-foreground uppercase mb-1">
+              {isPhone ? "Greeting" : assistant.type === "chat" ? "Welcome Message" : "Sign-off"}
+            </p>
+            <p className="text-sm italic text-secondary bg-white p-2.5 rounded border line-clamp-2">
+              "{assistant.greeting}"
+            </p>
+          </div>
+        ) : assistant.instructions ? (
+          <div>
+            <p className="text-xs font-bold text-muted-foreground uppercase mb-1">Instructions</p>
+            <p className="text-sm text-secondary bg-white p-2.5 rounded border line-clamp-2">
+              {assistant.instructions}
+            </p>
+          </div>
+        ) : (
+          <div className={cn("rounded-lg px-3 py-2 text-xs text-secondary", typeConfig.colour)}>
+            {typeConfig.description}
+          </div>
+        )}
+      </CardContent>
+
+      <CardFooter className="pt-3 border-t bg-muted/10 gap-2">
+        <Button
+          variant={assistant.active ? "destructive" : "default"}
+          className="flex-1 gap-2"
+          size="sm"
+          onClick={onToggle}
+        >
+          <Power size={15} />
+          {assistant.active ? "Turn Off" : "Turn On"}
+        </Button>
+        <Button variant="outline" size="sm" className="gap-1.5" onClick={onEdit}>Edit</Button>
+        <Button variant="outline" size="icon" className="shrink-0" onClick={onDelete}>
+          <Trash2 size={15} className="text-muted-foreground" />
+        </Button>
+      </CardFooter>
+    </Card>
+  );
+}
+
+// ─── Create dialog ────────────────────────────────────────────────────────────
+
+function CreateDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const createAssistant = useCreateAssistant();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const [step, setStep] = useState<"type" | "form">("type");
+  const [selectedType, setSelectedType] = useState<AssistantInputType>("phone");
+  const [voice, setVoice] = useState<AssistantInputVoice>("alloy");
+  const [template, setTemplate] = useState<TradeTemplate | null>(null);
+  const [formKey, setFormKey] = useState(0);
+
+  const reset = () => {
+    setStep("type");
+    setSelectedType("phone");
+    setVoice("alloy");
+    setTemplate(null);
+    setFormKey((k) => k + 1);
+  };
+
+  const handleOpenChange = (v: boolean) => {
+    if (!v) reset();
+    onOpenChange(v);
+  };
+
+  const handleTypeSelect = (type: AssistantInputType) => {
+    setSelectedType(type);
+    setStep("form");
+  };
+
+  const handleTemplateSelect = (t: TradeTemplate) => {
+    setTemplate(t);
+    setVoice(t.voice);
+    setFormKey((k) => k + 1);
+  };
+
+  const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    createAssistant.mutate({
+      data: {
+        name: fd.get("name") as string,
+        type: selectedType,
+        voice: fd.get("voice") as AssistantInputVoice,
+        personality: fd.get("personality") as AssistantInputPersonality,
+        greeting: fd.get("greeting") as string || undefined,
+        instructions: fd.get("instructions") as string || undefined,
+        active: true,
+      },
+    }, {
+      onSuccess: () => {
+        handleOpenChange(false);
+        queryClient.invalidateQueries({ queryKey: ["/api/assistants"] });
+        toast({ title: `${getTypeConfig(selectedType).label} created` });
+      },
+    });
+  };
+
+  const typeConfig = getTypeConfig(selectedType);
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            {step === "form" && (
+              <button
+                type="button"
+                onClick={() => setStep("type")}
+                className="text-muted-foreground hover:text-foreground transition-colors mr-1"
+              >
+                <ArrowLeft size={16} />
+              </button>
+            )}
+            {step === "type" ? "New AI Assistant" : `Configure ${typeConfig.label}`}
+          </DialogTitle>
+        </DialogHeader>
+
+        {step === "type" ? (
+          <AssistantTypePicker onSelect={handleTypeSelect} />
+        ) : (
+          <form key={formKey} onSubmit={handleCreate} className="space-y-4 pt-1">
+            {selectedType === "phone" ? (
+              <PhoneFormFields
+                defaults={template ? {
+                  personality: template.personality,
+                  greeting: template.greeting,
+                  instructions: template.instructions,
+                } : undefined}
+                voice={voice}
+                onVoiceChange={setVoice}
+                template={template}
+                onTemplateSelect={handleTemplateSelect}
+              />
+            ) : (
+              <OtherFormFields typeConfig={typeConfig} />
+            )}
+            <DialogFooter className="pt-2 flex-col-reverse sm:flex-row gap-2">
+              <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>Cancel</Button>
+              <Button type="submit" disabled={createAssistant.isPending}>
+                {createAssistant.isPending ? "Creating…" : `Create ${typeConfig.label}`}
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function Assistants() {
   const { data: assistants = [], isLoading } = useListAssistants();
-  const createAssistant = useCreateAssistant();
   const updateAssistant = useUpdateAssistant();
   const deleteAssistant = useDeleteAssistant();
   const queryClient = useQueryClient();
@@ -811,58 +1192,24 @@ export default function Assistants() {
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [createVoice, setCreateVoice] = useState<AssistantInputVoice>("alloy");
-  const [createTemplate, setCreateTemplate] = useState<TradeTemplate | null>(null);
-  const [formKey, setFormKey] = useState(0);
-
-  const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    createAssistant.mutate(
-      {
-        data: {
-          name: fd.get("name") as string,
-          voice: fd.get("voice") as AssistantInputVoice,
-          personality: fd.get("personality") as AssistantInputPersonality,
-          greeting: fd.get("greeting") as string,
-          instructions: fd.get("instructions") as string,
-          active: true,
-        },
-      },
-      {
-        onSuccess: () => {
-          setIsCreateOpen(false);
-          setCreateVoice("alloy");
-          queryClient.invalidateQueries({ queryKey: ["/api/assistants"] });
-          toast({ title: "Assistant created successfully" });
-        },
-      }
-    );
-  };
 
   const toggleActive = (id: number, active: boolean) => {
-    updateAssistant.mutate(
-      { id, data: { active: !active } },
-      {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: ["/api/assistants"] });
-          toast({ title: `Assistant turned ${!active ? "ON" : "OFF"}` });
-        },
-      }
-    );
+    updateAssistant.mutate({ id, data: { active: !active } }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["/api/assistants"] });
+        toast({ title: `Assistant turned ${!active ? "ON" : "OFF"}` });
+      },
+    });
   };
 
   const handleDelete = (id: number) => {
     if (confirm("Delete this assistant?")) {
-      deleteAssistant.mutate(
-        { id },
-        {
-          onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["/api/assistants"] });
-            toast({ title: "Assistant deleted" });
-          },
-        }
-      );
+      deleteAssistant.mutate({ id }, {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: ["/api/assistants"] });
+          toast({ title: "Assistant deleted" });
+        },
+      });
     }
   };
 
@@ -872,174 +1219,59 @@ export default function Assistants() {
         <div className="flex items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-secondary">AI Assistants</h1>
-            <p className="text-muted-foreground text-sm">Configure your virtual receptionists and dispatchers.</p>
+            <p className="text-muted-foreground text-sm">
+              Your virtual office team — phone operators, email responders, chat agents, and more.
+            </p>
           </div>
-
-          <Dialog
-            open={isCreateOpen}
-            onOpenChange={(o) => {
-              setIsCreateOpen(o);
-              if (!o) {
-                setCreateVoice("alloy");
-                setCreateTemplate(null);
-                setFormKey((k) => k + 1);
-              }
-            }}
-          >
-            <DialogTrigger asChild>
-              <Button className="gap-2 shrink-0">
-                <Plus size={16} /> New Assistant
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Configure AI Assistant</DialogTitle>
-              </DialogHeader>
-              <form key={formKey} onSubmit={handleCreate} className="space-y-4 pt-2">
-                <TradeTemplatePicker
-                  selected={createTemplate?.label ?? null}
-                  onSelect={(t) => {
-                    setCreateTemplate(t);
-                    setCreateVoice(t.voice);
-                    setFormKey((k) => k + 1);
-                  }}
-                />
-                <div className="border-t pt-4">
-                  <AssistantFormFields
-                    defaults={createTemplate ? {
-                      personality: createTemplate.personality,
-                      greeting: createTemplate.greeting,
-                      instructions: createTemplate.instructions,
-                    } : undefined}
-                    voice={createVoice}
-                    onVoiceChange={setCreateVoice}
-                  />
-                </div>
-                <DialogFooter className="pt-2 flex-col-reverse sm:flex-row gap-2">
-                  <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={createAssistant.isPending}>
-                    {createAssistant.isPending ? "Creating…" : "Create Assistant"}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
+          <Button className="gap-2 shrink-0" onClick={() => setIsCreateOpen(true)}>
+            <Plus size={16} /> New Assistant
+          </Button>
         </div>
       </div>
 
       <div className="flex-1 overflow-auto p-4 sm:p-6">
-        <div className="max-w-6xl mx-auto grid sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
+        <div className="max-w-6xl mx-auto">
           {isLoading ? (
-            <div className="col-span-full text-center py-20 text-muted-foreground">
-              Loading assistants…
-            </div>
+            <div className="text-center py-20 text-muted-foreground">Loading assistants…</div>
           ) : assistants.length === 0 ? (
-            <div className="col-span-full flex flex-col items-center justify-center py-20 text-center space-y-4">
-              <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
-                <Bot size={32} className="text-muted-foreground" />
+            <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
+              <div className="grid grid-cols-5 gap-2 mb-2">
+                {ASSISTANT_TYPES.map((t) => {
+                  const Icon = t.icon;
+                  return (
+                    <div key={t.value} className={cn("w-10 h-10 rounded-xl flex items-center justify-center", t.colour)}>
+                      <Icon className={cn("h-5 w-5", t.textColour)} />
+                    </div>
+                  );
+                })}
               </div>
               <div>
                 <p className="font-semibold text-secondary">No Assistants Yet</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Create your first AI assistant to start handling calls automatically.
+                  Create your AI office team — phone, email, chat, marketing, and scheduling assistants.
                 </p>
               </div>
               <Button onClick={() => setIsCreateOpen(true)} className="gap-2">
-                <Plus size={16} /> Create Assistant
+                <Plus size={16} /> Create Your First Assistant
               </Button>
             </div>
           ) : (
-            assistants.map((assistant) => (
-              <Card
-                key={assistant.id}
-                className={cn(
-                  "flex flex-col border-2 transition-colors",
-                  assistant.active ? "border-primary/30" : "border-border opacity-70"
-                )}
-              >
-                <CardContent className="pt-5 pb-4 flex-1 space-y-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div
-                        className={cn(
-                          "w-10 h-10 rounded-full flex items-center justify-center shrink-0",
-                          assistant.active ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"
-                        )}
-                      >
-                        <Bot size={20} />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="font-bold text-secondary truncate">{assistant.name}</p>
-                        <p className="text-xs text-muted-foreground capitalize">
-                          {assistant.voice} · {assistant.personality}
-                        </p>
-                      </div>
-                    </div>
-                    <span
-                      className={cn(
-                        "text-[10px] font-bold uppercase px-2 py-0.5 rounded-full shrink-0",
-                        assistant.active
-                          ? "bg-green-100 text-green-700"
-                          : "bg-slate-100 text-slate-500"
-                      )}
-                    >
-                      {assistant.active ? "Live" : "Off"}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-muted/40 p-3 rounded-lg border text-center">
-                      <p className="text-2xl font-bold text-secondary">{assistant.callsHandled || 0}</p>
-                      <p className="text-[10px] uppercase font-bold text-muted-foreground mt-0.5">Calls</p>
-                    </div>
-                    <div className="bg-muted/40 p-3 rounded-lg border text-center">
-                      <p className="text-2xl font-bold text-secondary">{assistant.jobsBooked || 0}</p>
-                      <p className="text-[10px] uppercase font-bold text-muted-foreground mt-0.5">Booked</p>
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="text-xs font-bold text-muted-foreground uppercase mb-1">Greeting</p>
-                    <p className="text-sm italic text-secondary bg-white p-2.5 rounded border line-clamp-2">
-                      "{assistant.greeting}"
-                    </p>
-                  </div>
-                </CardContent>
-
-                <CardFooter className="pt-3 border-t bg-muted/10 gap-2">
-                  <Button
-                    variant={assistant.active ? "destructive" : "default"}
-                    className="flex-1 gap-2"
-                    size="sm"
-                    onClick={() => toggleActive(assistant.id, assistant.active)}
-                  >
-                    <Power size={15} />
-                    {assistant.active ? "Turn Off" : "Turn On"}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5"
-                    onClick={() => setEditingId(assistant.id)}
-                  >
-                    Edit
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="shrink-0"
-                    onClick={() => handleDelete(assistant.id)}
-                  >
-                    <Trash2 size={15} className="text-muted-foreground" />
-                  </Button>
-                </CardFooter>
-              </Card>
-            ))
+            <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
+              {assistants.map((assistant) => (
+                <AssistantCard
+                  key={assistant.id}
+                  assistant={assistant}
+                  onToggle={() => toggleActive(assistant.id, assistant.active)}
+                  onEdit={() => setEditingId(assistant.id)}
+                  onDelete={() => handleDelete(assistant.id)}
+                />
+              ))}
+            </div>
           )}
         </div>
       </div>
+
+      <CreateDialog open={isCreateOpen} onOpenChange={setIsCreateOpen} />
 
       {editingId && (
         <AssistantEditDialog

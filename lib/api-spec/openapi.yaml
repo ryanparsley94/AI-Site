@@ -1417,12 +1417,15 @@ components:
     # ── Assistants ──────────────────────────────────────────────────────────
     Assistant:
       type: object
-      required: [id, name, voice, personality, active, createdAt]
+      required: [id, name, type, voice, personality, active, createdAt]
       properties:
         id:
           type: number
         name:
           type: string
+        type:
+          type: string
+          enum: [phone, email, chat, marketing, scheduling]
         voice:
           type: string
           enum: [alloy, echo, fable, onyx, nova, shimmer]
@@ -1445,10 +1448,13 @@ components:
 
     AssistantInput:
       type: object
-      required: [name, voice, personality]
+      required: [name, type, voice, personality]
       properties:
         name:
           type: string
+        type:
+          type: string
+          enum: [phone, email, chat, marketing, scheduling]
         voice:
           type: string
           enum: [alloy, echo, fable, onyx, nova, shimmer]
@@ -1523,6 +1529,9 @@ components:
       properties:
         name:
           type: string
+        type:
+          type: string
+          enum: [phone, email, chat, marketing, scheduling]
         voice:
           type: string
           enum: [alloy, echo, fable, onyx, nova, shimmer]
