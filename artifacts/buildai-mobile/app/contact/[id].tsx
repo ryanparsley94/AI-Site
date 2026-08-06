@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
-import { useGetContact } from '@workspace/api-client-react';
+import { useGetContact, getGetContactQueryKey } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
@@ -33,7 +33,7 @@ export default function ContactDetailScreen() {
   const isOnline = useNetworkStatus();
 
   const { data: contact, isLoading, isError } = useGetContact(contactId, {
-    query: { enabled: !isNaN(contactId) },
+    query: { enabled: !isNaN(contactId), queryKey: getGetContactQueryKey(contactId) },
   });
 
   if (isLoading && !contact) {

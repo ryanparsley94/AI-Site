@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
-import { useGetCertificate } from '@workspace/api-client-react';
+import { useGetCertificate, getGetCertificateQueryKey } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
@@ -30,7 +30,7 @@ export default function CertificateDetailScreen() {
   const isOnline = useNetworkStatus();
 
   const { data: cert, isLoading, isError } = useGetCertificate(certId, {
-    query: { enabled: !isNaN(certId) },
+    query: { enabled: !isNaN(certId), queryKey: getGetCertificateQueryKey(certId) },
   });
 
   if (isLoading && !cert) {
