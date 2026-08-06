@@ -1776,6 +1776,25 @@ components:
         createdAt:
           type: string
           format: date-time
+        emailThreads:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContactEmailThread"
+
+    ContactEmailThread:
+      type: object
+      required: [id, subject, status, createdAt]
+      properties:
+        id:
+          type: number
+        subject:
+          type: string
+        status:
+          type: string
+          enum: [pending, sent, dismissed]
+        createdAt:
+          type: string
+          format: date-time
 
     ContactInput:
       type: object

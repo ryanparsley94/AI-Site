@@ -40,6 +40,8 @@ export * from './certificateUpdate';
 export * from './company';
 export * from './companyInput';
 export * from './contact';
+export * from './contactEmailThread';
+export * from './contactEmailThreadStatus';
 export * from './contactInput';
 export * from './contactInputType';
 export * from './contactType';

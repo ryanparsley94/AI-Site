@@ -460,6 +460,22 @@ export const ContactType = {
   customer: 'customer',
 } as const;
 
+export type ContactEmailThreadStatus = typeof ContactEmailThreadStatus[keyof typeof ContactEmailThreadStatus];
+
+
+export const ContactEmailThreadStatus = {
+  pending: 'pending',
+  sent: 'sent',
+  dismissed: 'dismissed',
+} as const;
+
+export interface ContactEmailThread {
+  id: number;
+  subject: string;
+  status: ContactEmailThreadStatus;
+  createdAt: string;
+}
+
 export interface Contact {
   id: number;
   name: string;
@@ -474,6 +490,7 @@ export interface Contact {
   totalJobs?: number;
   totalSpent?: number;
   createdAt: string;
+  emailThreads?: ContactEmailThread[];
 }
 
 export type ContactInputType = typeof ContactInputType[keyof typeof ContactInputType];

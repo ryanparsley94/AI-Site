@@ -656,7 +656,13 @@ export const ListContactsResponseItem = zod.object({
   "notes": zod.string().nullish(),
   "totalJobs": zod.number().optional(),
   "totalSpent": zod.number().optional(),
+  "createdAt": zod.coerce.date(),
+  "emailThreads": zod.array(zod.object({
+  "id": zod.number(),
+  "subject": zod.string(),
+  "status": zod.enum(['pending', 'sent', 'dismissed']),
   "createdAt": zod.coerce.date()
+})).optional()
 })
 export const ListContactsResponse = zod.array(ListContactsResponseItem)
 
@@ -683,7 +689,13 @@ export const CreateContactResponse = zod.object({
   "notes": zod.string().nullish(),
   "totalJobs": zod.number().optional(),
   "totalSpent": zod.number().optional(),
+  "createdAt": zod.coerce.date(),
+  "emailThreads": zod.array(zod.object({
+  "id": zod.number(),
+  "subject": zod.string(),
+  "status": zod.enum(['pending', 'sent', 'dismissed']),
   "createdAt": zod.coerce.date()
+})).optional()
 })
 
 
@@ -704,7 +716,13 @@ export const GetContactResponse = zod.object({
   "notes": zod.string().nullish(),
   "totalJobs": zod.number().optional(),
   "totalSpent": zod.number().optional(),
+  "createdAt": zod.coerce.date(),
+  "emailThreads": zod.array(zod.object({
+  "id": zod.number(),
+  "subject": zod.string(),
+  "status": zod.enum(['pending', 'sent', 'dismissed']),
   "createdAt": zod.coerce.date()
+})).optional()
 })
 
 
@@ -734,7 +752,13 @@ export const UpdateContactResponse = zod.object({
   "notes": zod.string().nullish(),
   "totalJobs": zod.number().optional(),
   "totalSpent": zod.number().optional(),
+  "createdAt": zod.coerce.date(),
+  "emailThreads": zod.array(zod.object({
+  "id": zod.number(),
+  "subject": zod.string(),
+  "status": zod.enum(['pending', 'sent', 'dismissed']),
   "createdAt": zod.coerce.date()
+})).optional()
 })
 
 
