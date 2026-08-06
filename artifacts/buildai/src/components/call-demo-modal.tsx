@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Bot, Play, Phone, Zap, X } from "lucide-react";
+import { Bot, Play, Phone, Zap, X, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -84,6 +84,24 @@ function CallTimer({ running }: { running: boolean }) {
   return <span className="font-mono text-sm tabular-nums text-white/80">{m}:{s}</span>;
 }
 
+// ─── Audio helpers ────────────────────────────────────────────────────────────
+
+async function fetchAudioBlob(text: string): Promise<string | null> {
+  try {
+    const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
+    const resp = await fetch(`${base}/api/assistants/voice-preview`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ voice: "onyx", text }),
+    });
+    if (!resp.ok) return null;
+    const blob = await resp.blob();
+    return URL.createObjectURL(blob);
+  } catch {
+    return null;
+  }
+}
+
 // ─── Modal ────────────────────────────────────────────────────────────────────
 
 export function CallDemoModal({
@@ -93,33 +111,53 @@ export function CallDemoModal({
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  /** If true, the demo starts playing as soon as the modal opens */
   autoPlay?: boolean;
 }) {
   const [visibleCount, setVisibleCount] = useState(0);
   const [typingFrom, setTypingFrom] = useState<"caller" | "oliver" | null>(null);
   const [started, setStarted] = useState(false);
   const [finished, setFinished] = useState(false);
+  const [muted, setMuted] = useState(false);
+  const [audioReady, setAudioReady] = useState(false);
+
   const bottomRef = useRef<HTMLDivElement>(null);
   const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  // Map from script index → blob URL (for Oliver lines only)
+  const audioCacheRef = useRef<Map<number, string>>(new Map());
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
+  const mutedRef = useRef(false);
 
-  const clearAll = () => timeoutsRef.current.forEach(clearTimeout);
+  const clearAll = () => {
+    timeoutsRef.current.forEach(clearTimeout);
+    timeoutsRef.current = [];
+    currentAudioRef.current?.pause();
+    currentAudioRef.current = null;
+  };
 
   const reset = () => {
     clearAll();
+    // revoke old blob URLs
+    audioCacheRef.current.forEach((url) => URL.revokeObjectURL(url));
+    audioCacheRef.current.clear();
     setVisibleCount(0);
     setTypingFrom(null);
     setStarted(false);
     setFinished(false);
+    setAudioReady(false);
   };
 
   useEffect(() => {
-    if (!open) { reset(); return; }
+    mutedRef.current = muted;
+    if (muted) currentAudioRef.current?.pause();
+  }, [muted]);
+
+  useEffect(() => {
+    if (!open) { reset(); return undefined; }
     if (autoPlay) {
-      // small delay so the modal finishes animating in first
       const t = setTimeout(startDemo, 350);
       return () => clearTimeout(t);
     }
+    return undefined;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -127,8 +165,36 @@ export function CallDemoModal({
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [visibleCount, typingFrom]);
 
+  function playAudio(index: number) {
+    if (mutedRef.current) return;
+    const url = audioCacheRef.current.get(index);
+    if (!url) return;
+    currentAudioRef.current?.pause();
+    const audio = new Audio(url);
+    currentAudioRef.current = audio;
+    audio.play().catch(() => {});
+  }
+
+  async function prefetchAllOliverAudio() {
+    const oliverLines = DEMO_CALL_SCRIPT
+      .map((item, i) => ({ item, i }))
+      .filter(({ item }) => item.from === "oliver");
+
+    // Fetch all in parallel
+    await Promise.all(
+      oliverLines.map(async ({ item, i }) => {
+        const url = await fetchAudioBlob(item.text);
+        if (url) audioCacheRef.current.set(i, url);
+      })
+    );
+    setAudioReady(true);
+  }
+
   function startDemo() {
     setStarted(true);
+    // kick off audio pre-fetch in background (don't await — let it load while text plays)
+    prefetchAllOliverAudio();
+
     let cursor = 0;
 
     const schedule = (index: number) => {
@@ -143,6 +209,7 @@ export function CallDemoModal({
       const t2 = setTimeout(() => {
         setTypingFrom(null);
         setVisibleCount(index + 1);
+        if (item.from === "oliver") playAudio(index);
         schedule(index + 1);
       }, cursor);
       cursor += 400;
@@ -158,28 +225,28 @@ export function CallDemoModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg p-0 overflow-hidden gap-0 rounded-2xl">
+      <DialogContent className="max-w-lg w-[calc(100vw-2rem)] p-0 overflow-hidden gap-0 rounded-2xl translate-y-[-50%]">
         {/* ── Phone call header ── */}
-        <div className="relative bg-gradient-to-b from-[#0d1117] to-[#1a2332] px-6 pt-6 pb-5">
+        <div className="relative bg-gradient-to-b from-[#0d1117] to-[#1a2332] px-5 pt-5 pb-4">
           <button
             onClick={() => onOpenChange(false)}
-            className="absolute top-4 right-4 text-white/50 hover:text-white transition-colors"
+            className="absolute top-3 right-3 text-white/50 hover:text-white transition-colors p-1"
           >
             <X size={16} />
           </button>
 
-          <div className="flex items-center gap-3 mb-4">
-            <div className="relative w-12 h-12 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center">
-              <Bot size={22} className="text-primary" />
+          <div className="flex items-center gap-3 mb-3">
+            <div className="relative w-11 h-11 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center shrink-0">
+              <Bot size={20} className="text-primary" />
               {started && !finished && (
                 <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-500 border-2 border-[#0d1117] animate-pulse" />
               )}
             </div>
-            <div>
+            <div className="flex-1 min-w-0">
               <p className="text-white font-semibold leading-none">Oliver</p>
               <p className="text-white/50 text-xs mt-1">AI Phone Operator · Parsley Electrical</p>
             </div>
-            <div className="ml-auto">
+            <div className="flex items-center gap-2 shrink-0">
               {started && !finished ? (
                 <span className="text-[10px] font-bold uppercase tracking-widest text-green-400 bg-green-400/10 px-2 py-0.5 rounded-full border border-green-400/30">
                   Live
@@ -189,30 +256,37 @@ export function CallDemoModal({
                   Ended
                 </span>
               ) : null}
+              {started && (
+                <button
+                  onClick={() => setMuted((m) => !m)}
+                  className="text-white/50 hover:text-white transition-colors p-1"
+                  title={muted ? "Unmute Oliver" : "Mute Oliver"}
+                >
+                  {muted ? <VolumeX size={15} /> : <Volume2 size={15} />}
+                </button>
+              )}
             </div>
           </div>
 
-          <div className="flex items-center gap-3 bg-white/5 rounded-xl px-4 py-2.5 border border-white/10">
-            <div className="flex items-center gap-2 flex-1 min-w-0">
-              <Phone size={13} className="text-white/50 shrink-0" />
-              <span className="text-white/70 text-xs truncate">Inbound · Kitchen socket fault · Manchester M14</span>
-            </div>
-            <Waveform active={started && !finished && activeOliver} />
+          <div className="flex items-center gap-2 bg-white/5 rounded-xl px-3 py-2 border border-white/10">
+            <Phone size={12} className="text-white/50 shrink-0" />
+            <span className="text-white/70 text-xs truncate flex-1">Inbound · Kitchen socket fault · Manchester M14</span>
+            <Waveform active={started && !finished && activeOliver && !muted} />
             <CallTimer running={started && !finished} />
           </div>
         </div>
 
         {/* ── Transcript ── */}
-        <div className="bg-[#f8f9fa] h-[340px] overflow-y-auto px-4 py-4 space-y-3 scroll-smooth">
+        <div className="bg-[#f8f9fa] h-[42vh] max-h-[340px] min-h-[200px] overflow-y-auto px-4 py-4 space-y-3">
           {!started && (
             <div className="flex flex-col items-center justify-center h-full text-center gap-3">
-              <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
-                <Zap size={24} className="text-primary" />
+              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                <Zap size={22} className="text-primary" />
               </div>
               <div>
                 <p className="font-semibold text-secondary text-sm">Electrical Enquiry · Live Demo</p>
                 <p className="text-xs text-muted-foreground mt-1 max-w-[220px]">
-                  Watch Oliver handle a real kitchen socket fault call, qualify the lead, and book the job.
+                  Watch Oliver handle a real kitchen socket fault call, qualify the lead, and book the job — with voice.
                 </p>
               </div>
               <Button size="sm" className="gap-2 mt-1" onClick={startDemo}>
@@ -302,20 +376,24 @@ export function CallDemoModal({
         </div>
 
         {/* ── Footer ── */}
-        <div className="bg-white border-t px-5 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Bot size={12} className="text-primary" />
-            <span>Oliver · <span className="font-medium text-secondary">onyx</span> voice · Deep, confident</span>
+        <div className="bg-white border-t px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground min-w-0">
+            <Bot size={12} className="text-primary shrink-0" />
+            <span className="truncate">Oliver · <span className="font-medium text-secondary">onyx</span> voice
+              {started && !audioReady && !finished && (
+                <span className="text-muted-foreground/60"> · loading audio…</span>
+              )}
+            </span>
           </div>
           {finished ? (
-            <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5" onClick={reset}>
+            <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 shrink-0 ml-2" onClick={reset}>
               <Play size={11} /> Replay
             </Button>
-          ) : started ? null : (
-            <Button size="sm" className="h-7 text-xs gap-1.5" onClick={startDemo}>
+          ) : !started ? (
+            <Button size="sm" className="h-7 text-xs gap-1.5 shrink-0 ml-2" onClick={startDemo}>
               <Play size={11} /> Play
             </Button>
-          )}
+          ) : null}
         </div>
       </DialogContent>
     </Dialog>

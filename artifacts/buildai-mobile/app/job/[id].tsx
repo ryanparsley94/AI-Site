@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
-import { useGetJob } from '@workspace/api-client-react';
+import { useGetJob, getGetJobQueryKey } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
@@ -72,7 +72,7 @@ export default function JobDetailScreen() {
   const isOnline = useNetworkStatus();
 
   const { data: job, isLoading, isError } = useGetJob(jobId, {
-    query: { enabled: !isNaN(jobId) },
+    query: { enabled: !isNaN(jobId), queryKey: getGetJobQueryKey(jobId) },
   });
 
   if (isLoading && !job) {
