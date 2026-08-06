@@ -15,6 +15,7 @@ import Quotes from '@/pages/quotes';
 import Invoices from '@/pages/invoices';
 import Certificates from '@/pages/certificates';
 import EmailInbox from '@/pages/email-inbox';
+import Tasks from '@/pages/tasks';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -76,6 +77,9 @@ function Router() {
       </Route>
       <Route path="/settings">
         <AppLayout><Settings /></AppLayout>
+      </Route>
+      <Route path="/tasks">
+        <AppLayout><Tasks /></AppLayout>
       </Route>
 
       <Route component={NotFound} />

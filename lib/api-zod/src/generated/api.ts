@@ -1472,6 +1472,93 @@ export const UpdateEmailSettingsResponse = zod.object({
 
 
 /**
+ * @summary List all tasks
+ */
+export const ListTasksResponse = zod.array(zod.object({
+  "id": zod.number().int(),
+  "title": zod.string(),
+  "priority": zod.enum(["high", "medium", "low"]),
+  "status": zod.enum(["pending", "completed", "dismissed"]),
+  "source": zod.enum(["ai", "manual"]),
+  "dueDate": zod.string().nullable(),
+  "companyId": zod.number().int().nullable(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+}))
+
+/**
+ * @summary Create a new task
+ */
+export const CreateTaskBody = zod.object({
+  "title": zod.string(),
+  "priority": zod.enum(["high", "medium", "low"]).optional(),
+  "status": zod.enum(["pending", "completed", "dismissed"]).optional(),
+  "source": zod.enum(["ai", "manual"]).optional(),
+  "dueDate": zod.string().nullable().optional(),
+})
+
+export const CreateTaskResponse = zod.object({
+  "id": zod.number().int(),
+  "title": zod.string(),
+  "priority": zod.enum(["high", "medium", "low"]),
+  "status": zod.enum(["pending", "completed", "dismissed"]),
+  "source": zod.enum(["ai", "manual"]),
+  "dueDate": zod.string().nullable(),
+  "companyId": zod.number().int().nullable(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+})
+
+/**
+ * @summary Update a task
+ */
+export const UpdateTaskParams = zod.object({
+  "id": zod.number().int(),
+})
+
+export const UpdateTaskBody = zod.object({
+  "title": zod.string().optional(),
+  "priority": zod.enum(["high", "medium", "low"]).optional(),
+  "status": zod.enum(["pending", "completed", "dismissed"]).optional(),
+  "dueDate": zod.string().nullable().optional(),
+})
+
+export const UpdateTaskResponse = zod.object({
+  "id": zod.number().int(),
+  "title": zod.string(),
+  "priority": zod.enum(["high", "medium", "low"]),
+  "status": zod.enum(["pending", "completed", "dismissed"]),
+  "source": zod.enum(["ai", "manual"]),
+  "dueDate": zod.string().nullable(),
+  "companyId": zod.number().int().nullable(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+})
+
+/**
+ * @summary Delete a task
+ */
+export const DeleteTaskParams = zod.object({
+  "id": zod.number().int(),
+})
+
+/**
+ * @summary AI-generate tasks from recent calls, emails, and jobs
+ */
+export const GenerateTasksResponse = zod.array(zod.object({
+  "id": zod.number().int(),
+  "title": zod.string(),
+  "priority": zod.enum(["high", "medium", "low"]),
+  "status": zod.enum(["pending", "completed", "dismissed"]),
+  "source": zod.enum(["ai", "manual"]),
+  "dueDate": zod.string().nullable(),
+  "companyId": zod.number().int().nullable(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+}))
+
+
+/**
  * @summary Get high-level metrics for the dashboard
  */
 export const GetDashboardSummaryResponse = zod.object({

@@ -11,6 +11,7 @@ import {
   Award,
   Inbox,
   Receipt,
+  ClipboardList,
   X
 } from "lucide-react";
 
@@ -24,6 +25,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
 
   const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/tasks", label: "Daily Tasks", icon: ClipboardList },
     { href: "/calls", label: "Call Log", icon: Phone },
     { href: "/jobs", label: "Job Schedule", icon: CalendarDays },
     { href: "/quotes", label: "Quote Builder", icon: Calculator },

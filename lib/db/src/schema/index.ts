@@ -10,3 +10,4 @@ export * from "./conversations";
 export * from "./messages";
 export * from "./email_threads";
 export * from "./integrations";
+export * from "./tasks";

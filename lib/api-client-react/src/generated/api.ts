@@ -69,6 +69,9 @@ import type {
   Quote,
   QuoteInput,
   QuoteUpdate,
+  Task,
+  TaskInput,
+  TaskUpdate,
   TestAssistantInput,
   TestAssistantResult,
   WidgetBookInput,
@@ -4917,6 +4920,162 @@ export const getGetDashboardSummaryQueryKey = () => {
     ] as const;
     }
 
+
+// ─── Tasks ────────────────────────────────────────────────────────────────────
+
+export const getListTasksUrl = () => `/api/tasks`;
+
+/**
+ * @summary List all tasks
+ */
+export const listTasks = async (options?: Parameters<typeof customFetch>[1]): Promise<Task[]> => {
+  return customFetch<Task[]>(getListTasksUrl(), { ...options, method: 'GET' });
+};
+
+export const getListTasksQueryKey = () => [`/api/tasks`] as const;
+
+export const getListTasksQueryOptions = <TData = Awaited<ReturnType<typeof listTasks>>, TError = ErrorType<unknown>>(
+  options?: { query?: UseQueryOptions<Awaited<ReturnType<typeof listTasks>>, TError, TData>, request?: SecondParameter<typeof customFetch> }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+  const queryKey = queryOptions?.queryKey ?? getListTasksQueryKey();
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listTasks>>> = ({ signal }) => listTasks({ signal, ...requestOptions });
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof listTasks>>, TError, TData> & { queryKey: QueryKey };
+};
+
+export type ListTasksQueryResult = NonNullable<Awaited<ReturnType<typeof listTasks>>>;
+export type ListTasksQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all tasks
+ */
+export function useListTasks<TData = Awaited<ReturnType<typeof listTasks>>, TError = ErrorType<unknown>>(
+  options?: { query?: UseQueryOptions<Awaited<ReturnType<typeof listTasks>>, TError, TData>, request?: SecondParameter<typeof customFetch> }
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListTasksQueryOptions(options);
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+export const getCreateTaskUrl = () => `/api/tasks`;
+
+/**
+ * @summary Create a new task
+ */
+export const createTask = async (taskInput: BodyType<TaskInput>, options?: SecondParameter<typeof customFetch>): Promise<Task> => {
+  return customFetch<Task>(getCreateTaskUrl(), {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(taskInput),
+  });
+};
+
+export type CreateTaskMutationResult = NonNullable<Awaited<ReturnType<typeof createTask>>>;
+export type CreateTaskMutationBody = BodyType<TaskInput>;
+export type CreateTaskMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a new task
+ */
+export function useCreateTask<TError = ErrorType<unknown>, TContext = unknown>(
+  options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof createTask>>, TError, { data: BodyType<TaskInput> }, TContext>, request?: SecondParameter<typeof customFetch> }
+): UseMutationResult<Awaited<ReturnType<typeof createTask>>, TError, { data: BodyType<TaskInput> }, TContext> {
+  const { mutation: mutationOptions, request: requestOptions } = options ?? {};
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof createTask>>, { data: BodyType<TaskInput> }> = (props) => {
+    const { data } = props ?? {};
+    return createTask(data, requestOptions);
+  };
+  return useMutation<Awaited<ReturnType<typeof createTask>>, TError, { data: BodyType<TaskInput> }, TContext>({ mutationFn, ...mutationOptions });
+}
+
+
+export const getUpdateTaskUrl = (id: number) => `/api/tasks/${id}`;
+
+/**
+ * @summary Update a task
+ */
+export const updateTask = async (id: number, taskUpdate: BodyType<TaskUpdate>, options?: SecondParameter<typeof customFetch>): Promise<Task> => {
+  return customFetch<Task>(getUpdateTaskUrl(id), {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(taskUpdate),
+  });
+};
+
+export type UpdateTaskMutationResult = NonNullable<Awaited<ReturnType<typeof updateTask>>>;
+export type UpdateTaskMutationBody = BodyType<TaskUpdate>;
+export type UpdateTaskMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a task
+ */
+export function useUpdateTask<TError = ErrorType<unknown>, TContext = unknown>(
+  options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof updateTask>>, TError, { id: number; data: BodyType<TaskUpdate> }, TContext>, request?: SecondParameter<typeof customFetch> }
+): UseMutationResult<Awaited<ReturnType<typeof updateTask>>, TError, { id: number; data: BodyType<TaskUpdate> }, TContext> {
+  const { mutation: mutationOptions, request: requestOptions } = options ?? {};
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateTask>>, { id: number; data: BodyType<TaskUpdate> }> = (props) => {
+    const { id, data } = props ?? {};
+    return updateTask(id, data, requestOptions);
+  };
+  return useMutation<Awaited<ReturnType<typeof updateTask>>, TError, { id: number; data: BodyType<TaskUpdate> }, TContext>({ mutationFn, ...mutationOptions });
+}
+
+
+export const getDeleteTaskUrl = (id: number) => `/api/tasks/${id}`;
+
+/**
+ * @summary Delete a task
+ */
+export const deleteTask = async (id: number, options?: SecondParameter<typeof customFetch>): Promise<void> => {
+  return customFetch<void>(getDeleteTaskUrl(id), { ...options, method: 'DELETE' });
+};
+
+export type DeleteTaskMutationResult = NonNullable<Awaited<ReturnType<typeof deleteTask>>>;
+export type DeleteTaskMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a task
+ */
+export function useDeleteTask<TError = ErrorType<unknown>, TContext = unknown>(
+  options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof deleteTask>>, TError, { id: number }, TContext>, request?: SecondParameter<typeof customFetch> }
+): UseMutationResult<Awaited<ReturnType<typeof deleteTask>>, TError, { id: number }, TContext> {
+  const { mutation: mutationOptions, request: requestOptions } = options ?? {};
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteTask>>, { id: number }> = (props) => {
+    const { id } = props ?? {};
+    return deleteTask(id, requestOptions);
+  };
+  return useMutation<Awaited<ReturnType<typeof deleteTask>>, TError, { id: number }, TContext>({ mutationFn, ...mutationOptions });
+}
+
+
+export const getGenerateTasksUrl = () => `/api/tasks/generate`;
+
+/**
+ * @summary AI-generate tasks from recent calls, emails, and jobs
+ */
+export const generateTasks = async (options?: SecondParameter<typeof customFetch>): Promise<Task[]> => {
+  return customFetch<Task[]>(getGenerateTasksUrl(), { ...options, method: 'POST' });
+};
+
+export type GenerateTasksMutationResult = NonNullable<Awaited<ReturnType<typeof generateTasks>>>;
+export type GenerateTasksMutationError = ErrorType<unknown>;
+
+/**
+ * @summary AI-generate tasks from recent calls, emails, and jobs
+ */
+export function useGenerateTasks<TError = ErrorType<unknown>, TContext = unknown>(
+  options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof generateTasks>>, TError, void, TContext>, request?: SecondParameter<typeof customFetch> }
+): UseMutationResult<Awaited<ReturnType<typeof generateTasks>>, TError, void, TContext> {
+  const { mutation: mutationOptions, request: requestOptions } = options ?? {};
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof generateTasks>>, void> = () => generateTasks(requestOptions);
+  return useMutation<Awaited<ReturnType<typeof generateTasks>>, TError, void, TContext>({ mutationFn, ...mutationOptions });
+}
+
+
+// ─── Dashboard ────────────────────────────────────────────────────────────────
 
 export const getGetDashboardSummaryQueryOptions = <TData = Awaited<ReturnType<typeof getDashboardSummary>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDashboardSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {

@@ -15,6 +15,7 @@ import widgetRouter from "./widget";
 import emailInboundRouter from "./email-threads-inbound";
 import emailThreadsRouter from "./email-threads";
 import integrationsRouter from "./integrations";
+import tasksRouter from "./tasks";
 
 const router: IRouter = Router();
 
@@ -41,5 +42,7 @@ router.use(certificatesRouter);
 router.use(dashboardRouter);
 router.use(emailThreadsRouter);
 router.use(integrationsRouter);
+// Tasks route is protected by adminOnly to guard contractor data and AI generation
+router.use(adminOnly, tasksRouter);
 
 export default router;

@@ -1031,3 +1031,57 @@ export const ListEmailThreadsStatus = {
   dismissed: 'dismissed',
 } as const;
 
+export type TaskPriority = typeof TaskPriority[keyof typeof TaskPriority];
+
+export const TaskPriority = {
+  high: 'high',
+  medium: 'medium',
+  low: 'low',
+} as const;
+
+export type TaskStatus = typeof TaskStatus[keyof typeof TaskStatus];
+
+export const TaskStatus = {
+  pending: 'pending',
+  completed: 'completed',
+  dismissed: 'dismissed',
+} as const;
+
+export type TaskSource = typeof TaskSource[keyof typeof TaskSource];
+
+export const TaskSource = {
+  ai: 'ai',
+  manual: 'manual',
+} as const;
+
+export interface Task {
+  id: number;
+  title: string;
+  priority: TaskPriority;
+  status: TaskStatus;
+  source: TaskSource;
+  /** @nullable */
+  dueDate: string | null;
+  /** @nullable */
+  companyId: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TaskInput {
+  title: string;
+  priority?: TaskPriority;
+  status?: TaskStatus;
+  source?: TaskSource;
+  /** @nullable */
+  dueDate?: string | null;
+}
+
+export interface TaskUpdate {
+  title?: string;
+  priority?: TaskPriority;
+  status?: TaskStatus;
+  /** @nullable */
+  dueDate?: string | null;
+}
+

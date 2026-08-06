@@ -9,6 +9,18 @@ import { pool } from "@workspace/db";
 const MIGRATIONS = [
   // 003: Add company_id to jobs for per-company tenant scoping
   `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS company_id integer`,
+  // 004: Create tasks table for AI-generated and manual to-do items
+  `CREATE TABLE IF NOT EXISTS tasks (
+    id serial PRIMARY KEY,
+    title text NOT NULL,
+    priority text NOT NULL DEFAULT 'medium',
+    status text NOT NULL DEFAULT 'pending',
+    source text NOT NULL DEFAULT 'manual',
+    due_date timestamptz,
+    company_id integer,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+  )`,
 ];
 
 async function runMigrations(): Promise<void> {
