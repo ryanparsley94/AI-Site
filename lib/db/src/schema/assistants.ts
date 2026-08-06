@@ -5,6 +5,7 @@ import { z } from "zod/v4";
 export const assistantsTable = pgTable("assistants", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
+  type: text("type").notNull().default("phone"),
   voice: text("voice").notNull().default("alloy"),
   personality: text("personality").notNull().default("professional"),
   greeting: text("greeting").notNull().default("Thank you for calling. How can I help you today?"),
