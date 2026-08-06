@@ -11,6 +11,8 @@ import { useColors } from '@/hooks/useColors';
 import { useGetCertificate } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
+import { OfflineBanner } from '@/components/OfflineBanner';
 
 const CERT_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
   completion: { label: 'Completion Certificate', color: '#22c55e' },
@@ -25,12 +27,13 @@ export default function CertificateDetailScreen() {
   const certId = parseInt(id ?? '', 10);
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const isOnline = useNetworkStatus();
 
   const { data: cert, isLoading, isError } = useGetCertificate(certId, {
     query: { enabled: !isNaN(certId) },
   });
 
-  if (isLoading) {
+  if (isLoading && !cert) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
         <ActivityIndicator color={colors.primary} size="large" />
@@ -38,9 +41,10 @@ export default function CertificateDetailScreen() {
     );
   }
 
-  if (isError || !cert) {
+  if (!cert) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
+        {!isOnline && <OfflineBanner />}
         <Feather name="alert-circle" size={32} color={colors.mutedForeground} />
         <Text style={[styles.centerText, { color: colors.mutedForeground }]}>
           Certificate not found
@@ -57,6 +61,7 @@ export default function CertificateDetailScreen() {
       contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
       showsVerticalScrollIndicator={false}
     >
+      {!isOnline && <OfflineBanner stale />}
       {/* Header card */}
       <View
         style={[

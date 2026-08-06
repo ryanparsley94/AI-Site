@@ -13,6 +13,8 @@ import { useColors } from '@/hooks/useColors';
 import { useGetContact } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
+import { OfflineBanner } from '@/components/OfflineBanner';
 
 function getInitials(name: string): string {
   return name
@@ -28,12 +30,13 @@ export default function ContactDetailScreen() {
   const contactId = parseInt(id ?? '', 10);
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const isOnline = useNetworkStatus();
 
   const { data: contact, isLoading, isError } = useGetContact(contactId, {
     query: { enabled: !isNaN(contactId) },
   });
 
-  if (isLoading) {
+  if (isLoading && !contact) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
         <ActivityIndicator color={colors.primary} size="large" />
@@ -41,9 +44,10 @@ export default function ContactDetailScreen() {
     );
   }
 
-  if (isError || !contact) {
+  if (!contact) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
+        {!isOnline && <OfflineBanner />}
         <Feather name="alert-circle" size={32} color={colors.mutedForeground} />
         <Text style={[styles.centerText, { color: colors.mutedForeground }]}>
           Contact not found
@@ -60,6 +64,7 @@ export default function ContactDetailScreen() {
       contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
       showsVerticalScrollIndicator={false}
     >
+      {!isOnline && <OfflineBanner stale />}
       {/* Hero */}
       <View
         style={[
