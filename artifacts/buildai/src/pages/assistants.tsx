@@ -15,6 +15,12 @@ import {
   AssistantUpdateVoice,
   AssistantUpdatePersonality,
   AssistantInputType,
+  useListMarketingDrafts,
+  useApproveMarketingDraft,
+  useDismissMarketingDraft,
+  useUpdateMarketingDraft,
+  useDeleteMarketingDraft,
+  type MarketingDraft,
 } from "@workspace/api-client-react";
 import type { AssistantTrainingCategory, AssistantTraining, Assistant } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -22,7 +28,7 @@ import {
   Bot, Plus, Trash2, Power, Play, Loader2, Volume2,
   BookOpen, ChevronDown, ChevronUp, Pencil, Send, Sparkles, X,
   PhoneCall, Mail, MessageSquare, TrendingUp, Calendar, ArrowLeft,
-  Phone, Zap,
+  Phone, Zap, CheckCircle2, Star, RefreshCw, InboxIcon,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -1183,6 +1189,263 @@ function CreateDialog({
   );
 }
 
+// ─── Marketing Queue ──────────────────────────────────────────────────────────
+
+function DraftTypeLabel({ type }: { type: string }) {
+  if (type === "review_request") {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+        <Star size={9} /> Review Request
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+      <RefreshCw size={9} /> Follow-up
+    </span>
+  );
+}
+
+function MarketingDraftCard({ draft }: { draft: MarketingDraft }) {
+  const { toast } = useToast();
+  const approve = useApproveMarketingDraft();
+  const dismiss = useDismissMarketingDraft();
+  const update = useUpdateMarketingDraft();
+  const deleteDraft = useDeleteMarketingDraft();
+
+  const [editing, setEditing] = useState(false);
+  const [editText, setEditText] = useState(draft.editedMessage ?? draft.draftMessage ?? "");
+
+  const message = draft.editedMessage ?? draft.draftMessage;
+  const isLoading = !draft.draftMessage && draft.status === "pending";
+
+  const handleApprove = () => {
+    approve.mutate({ id: draft.id }, {
+      onSuccess: () => toast({ title: "Message approved ✓" }),
+      onError: () => toast({ title: "Failed to approve", variant: "destructive" }),
+    });
+  };
+
+  const handleDismiss = () => {
+    dismiss.mutate({ id: draft.id }, {
+      onSuccess: () => toast({ title: "Message dismissed" }),
+      onError: () => toast({ title: "Failed to dismiss", variant: "destructive" }),
+    });
+  };
+
+  const handleSaveEdit = () => {
+    update.mutate({ id: draft.id, data: { editedMessage: editText } }, {
+      onSuccess: () => { setEditing(false); toast({ title: "Message updated" }); },
+      onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+    });
+  };
+
+  const handleDelete = () => {
+    deleteDraft.mutate({ id: draft.id }, {
+      onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
+    });
+  };
+
+  if (draft.status === "approved") {
+    return (
+      <div className="border rounded-xl p-4 bg-green-50/60 border-green-200 flex items-start gap-3">
+        <CheckCircle2 size={16} className="text-green-600 mt-0.5 shrink-0" />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-semibold text-secondary">{draft.clientName}</span>
+            <DraftTypeLabel type={draft.type} />
+            <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-green-100 text-green-700">Approved</span>
+          </div>
+          <p className="text-xs text-secondary/80 mt-1 leading-relaxed">{message}</p>
+        </div>
+        <button type="button" onClick={handleDelete} className="shrink-0 text-muted-foreground hover:text-destructive transition-colors p-1">
+          <X size={13} />
+        </button>
+      </div>
+    );
+  }
+
+  if (draft.status === "dismissed") {
+    return (
+      <div className="border rounded-xl p-4 bg-muted/40 opacity-60 flex items-start gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-semibold text-secondary">{draft.clientName}</span>
+            <DraftTypeLabel type={draft.type} />
+            <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-muted text-muted-foreground">Dismissed</span>
+          </div>
+        </div>
+        <button type="button" onClick={handleDelete} className="shrink-0 text-muted-foreground hover:text-destructive transition-colors p-1">
+          <X size={13} />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="border rounded-xl p-4 bg-white space-y-3">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-semibold text-secondary">{draft.clientName}</span>
+            <DraftTypeLabel type={draft.type} />
+          </div>
+          {draft.jobTitle && (
+            <p className="text-xs text-muted-foreground mt-0.5">Job: {draft.jobTitle}</p>
+          )}
+        </div>
+        <button type="button" onClick={handleDelete} className="shrink-0 text-muted-foreground hover:text-destructive transition-colors p-1">
+          <X size={13} />
+        </button>
+      </div>
+
+      {/* Draft message */}
+      {isLoading ? (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/30 rounded-lg p-3">
+          <Loader2 size={12} className="animate-spin" />
+          AI is drafting the message…
+        </div>
+      ) : draft.draftMessage === "__FAILED__" && !draft.editedMessage ? (
+        <div className="flex items-center gap-2 text-xs text-destructive bg-destructive/5 border border-destructive/20 rounded-lg p-3">
+          <X size={12} />
+          Draft generation failed. Edit manually to write your own message.
+        </div>
+      ) : editing ? (
+        <div className="space-y-2">
+          <Textarea
+            value={editText}
+            onChange={(e) => setEditText(e.target.value)}
+            className="h-24 resize-none text-sm"
+          />
+          <div className="flex gap-2">
+            <Button size="sm" className="gap-1.5" onClick={handleSaveEdit} disabled={update.isPending}>
+              {update.isPending ? <Loader2 size={12} className="animate-spin" /> : null}
+              Save
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setEditing(false)}>Cancel</Button>
+          </div>
+        </div>
+      ) : (
+        <div className="relative bg-muted/30 rounded-lg p-3 text-sm text-secondary leading-relaxed border">
+          {message ?? ""}
+          {draft.editedMessage && (
+            <span className="absolute top-1.5 right-1.5 text-[9px] text-muted-foreground font-semibold uppercase">edited</span>
+          )}
+        </div>
+      )}
+
+      {/* Actions */}
+      {!editing && (
+        <div className="flex gap-2 pt-1">
+          <Button
+            size="sm"
+            className="flex-1 gap-1.5 bg-green-600 hover:bg-green-700 text-white"
+            onClick={handleApprove}
+            disabled={approve.isPending || isLoading}
+          >
+            {approve.isPending ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={13} />}
+            Approve
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5"
+            onClick={() => { setEditText(draft.editedMessage ?? draft.draftMessage ?? ""); setEditing(true); }}
+            disabled={isLoading}
+          >
+            <Pencil size={13} /> Edit
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="text-muted-foreground hover:text-destructive"
+            onClick={handleDismiss}
+            disabled={dismiss.isPending}
+          >
+            Dismiss
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MarketingQueueSection() {
+  const [filter, setFilter] = useState<"pending" | "approved" | "dismissed" | "all">("pending");
+  const { data: drafts = [], isLoading } = useListMarketingDrafts(filter !== "all" ? { status: filter } : undefined);
+
+  const pendingCount = drafts.filter((d) => d.status === "pending").length;
+
+  return (
+    <div className="mt-8 border rounded-2xl bg-white overflow-hidden">
+      {/* Section header */}
+      <div className="px-5 py-4 border-b bg-rose-50/60 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="p-2 rounded-lg bg-rose-100 shrink-0">
+            <TrendingUp className="h-4 w-4 text-rose-600" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <p className="font-bold text-secondary">Marketing Queue</p>
+              {pendingCount > 0 && filter === "pending" && (
+                <span className="inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full bg-rose-600 text-white text-[10px] font-bold">
+                  {pendingCount}
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground leading-snug">
+              AI-drafted review requests and follow-up messages — approve or edit before sending.
+            </p>
+          </div>
+        </div>
+
+        {/* Filter tabs */}
+        <div className="flex gap-1 shrink-0">
+          {(["pending", "approved", "all"] as const).map((f) => (
+            <button
+              key={f}
+              type="button"
+              onClick={() => setFilter(f)}
+              className={cn(
+                "text-xs px-2.5 py-1 rounded-full font-medium capitalize transition-all",
+                filter === f
+                  ? "bg-secondary text-white"
+                  : "text-muted-foreground hover:text-secondary hover:bg-muted/60"
+              )}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Draft list */}
+      <div className="p-4 space-y-3">
+        {isLoading ? (
+          <div className="text-center py-8 text-muted-foreground text-sm">Loading…</div>
+        ) : drafts.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-10 text-center">
+            <InboxIcon size={28} className="text-muted-foreground/50" />
+            <p className="text-sm font-medium text-secondary">
+              {filter === "pending" ? "No pending messages" : "No messages yet"}
+            </p>
+            <p className="text-xs text-muted-foreground max-w-xs">
+              {filter === "pending"
+                ? "When a job is marked complete, AI will draft a review request and follow-up message for you to approve here."
+                : "Mark a job as completed to trigger automatic message drafting."}
+            </p>
+          </div>
+        ) : (
+          drafts.map((draft) => (
+            <MarketingDraftCard key={draft.id} draft={draft} />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function Assistants() {
@@ -1276,6 +1539,9 @@ export default function Assistants() {
               ))}
             </div>
           )}
+
+          {/* Marketing message queue — always visible below assistants */}
+          <MarketingQueueSection />
         </div>
       </div>
 

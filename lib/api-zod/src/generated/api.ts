@@ -1491,3 +1491,236 @@ export const GetDashboardSummaryResponse = zod.object({
 })
 
 
+/**
+ * @summary Count of unreviewed widget chat leads
+ */
+export const GetUnreviewedWidgetCountResponse = zod.object({
+  "count": zod.number().int()
+})
+
+
+/**
+ * @summary List all tasks
+ */
+export const ListTasksResponseItem = zod.object({
+  "id": zod.number().int(),
+  "title": zod.string(),
+  "priority": zod.enum(['high', 'medium', 'low']),
+  "status": zod.enum(['pending', 'completed', 'dismissed']),
+  "source": zod.enum(['ai', 'manual']),
+  "dueDate": zod.string().nullish(),
+  "companyId": zod.number().int().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListTasksResponse = zod.array(ListTasksResponseItem)
+
+
+/**
+ * @summary Create a task
+ */
+export const CreateTaskBody = zod.object({
+  "title": zod.string(),
+  "priority": zod.enum(['high', 'medium', 'low']).optional(),
+  "status": zod.enum(['pending', 'completed', 'dismissed']).optional(),
+  "source": zod.enum(['ai', 'manual']).optional(),
+  "dueDate": zod.string().nullish()
+})
+
+export const CreateTaskResponse = zod.object({
+  "id": zod.number().int(),
+  "title": zod.string(),
+  "priority": zod.enum(['high', 'medium', 'low']),
+  "status": zod.enum(['pending', 'completed', 'dismissed']),
+  "source": zod.enum(['ai', 'manual']),
+  "dueDate": zod.string().nullish(),
+  "companyId": zod.number().int().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary AI-generate tasks from recent calls, emails and jobs
+ */
+export const GenerateTasksResponseItem = zod.object({
+  "id": zod.number().int(),
+  "title": zod.string(),
+  "priority": zod.enum(['high', 'medium', 'low']),
+  "status": zod.enum(['pending', 'completed', 'dismissed']),
+  "source": zod.enum(['ai', 'manual']),
+  "dueDate": zod.string().nullish(),
+  "companyId": zod.number().int().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const GenerateTasksResponse = zod.array(GenerateTasksResponseItem)
+
+
+/**
+ * @summary Update a task
+ */
+export const UpdateTaskParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const UpdateTaskBody = zod.object({
+  "title": zod.string().optional(),
+  "priority": zod.enum(['high', 'medium', 'low']).optional(),
+  "status": zod.enum(['pending', 'completed', 'dismissed']).optional(),
+  "dueDate": zod.string().nullish()
+})
+
+export const UpdateTaskResponse = zod.object({
+  "id": zod.number().int(),
+  "title": zod.string(),
+  "priority": zod.enum(['high', 'medium', 'low']),
+  "status": zod.enum(['pending', 'completed', 'dismissed']),
+  "source": zod.enum(['ai', 'manual']),
+  "dueDate": zod.string().nullish(),
+  "companyId": zod.number().int().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Delete a task
+ */
+export const DeleteTaskParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const DeleteTaskResponse = zod.void()
+
+
+/**
+ * @summary List marketing drafts
+ */
+export const ListMarketingDraftsQueryParams = zod.object({
+  "status": zod.enum(['pending', 'approved', 'dismissed', 'all']).optional()
+})
+
+export const ListMarketingDraftsResponseItem = zod.object({
+  "id": zod.number().int(),
+  "jobId": zod.number().int().nullish(),
+  "jobTitle": zod.string(),
+  "clientName": zod.string(),
+  "clientPhone": zod.string().nullish(),
+  "companyName": zod.string(),
+  "type": zod.enum(['review_request', 'followup']),
+  "status": zod.enum(['pending', 'approved', 'dismissed']),
+  "draftMessage": zod.string().nullish(),
+  "editedMessage": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+export const ListMarketingDraftsResponse = zod.array(ListMarketingDraftsResponseItem)
+
+
+/**
+ * @summary Generate marketing drafts for a completed job
+ */
+export const GenerateMarketingDraftsBody = zod.object({
+  "jobId": zod.number().int(),
+  "jobTitle": zod.string(),
+  "clientName": zod.string(),
+  "clientPhone": zod.string().optional(),
+  "companyName": zod.string()
+})
+
+export const GenerateMarketingDraftsResponseItem = zod.object({
+  "id": zod.number().int(),
+  "jobId": zod.number().int().nullish(),
+  "jobTitle": zod.string(),
+  "clientName": zod.string(),
+  "clientPhone": zod.string().nullish(),
+  "companyName": zod.string(),
+  "type": zod.enum(['review_request', 'followup']),
+  "status": zod.enum(['pending', 'approved', 'dismissed']),
+  "draftMessage": zod.string().nullish(),
+  "editedMessage": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+export const GenerateMarketingDraftsResponse = zod.array(GenerateMarketingDraftsResponseItem)
+
+
+/**
+ * @summary Edit the message on a draft
+ */
+export const UpdateMarketingDraftParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const UpdateMarketingDraftBody = zod.object({
+  "editedMessage": zod.string().optional()
+})
+
+export const UpdateMarketingDraftResponse = zod.object({
+  "id": zod.number().int(),
+  "jobId": zod.number().int().nullish(),
+  "jobTitle": zod.string(),
+  "clientName": zod.string(),
+  "clientPhone": zod.string().nullish(),
+  "companyName": zod.string(),
+  "type": zod.enum(['review_request', 'followup']),
+  "status": zod.enum(['pending', 'approved', 'dismissed']),
+  "draftMessage": zod.string().nullish(),
+  "editedMessage": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Delete a marketing draft
+ */
+export const DeleteMarketingDraftParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const DeleteMarketingDraftResponse = zod.void()
+
+
+/**
+ * @summary Approve a marketing draft
+ */
+export const ApproveMarketingDraftParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const ApproveMarketingDraftResponse = zod.object({
+  "id": zod.number().int(),
+  "jobId": zod.number().int().nullish(),
+  "jobTitle": zod.string(),
+  "clientName": zod.string(),
+  "clientPhone": zod.string().nullish(),
+  "companyName": zod.string(),
+  "type": zod.enum(['review_request', 'followup']),
+  "status": zod.enum(['pending', 'approved', 'dismissed']),
+  "draftMessage": zod.string().nullish(),
+  "editedMessage": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Dismiss a marketing draft
+ */
+export const DismissMarketingDraftParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const DismissMarketingDraftResponse = zod.object({
+  "id": zod.number().int(),
+  "jobId": zod.number().int().nullish(),
+  "jobTitle": zod.string(),
+  "clientName": zod.string(),
+  "clientPhone": zod.string().nullish(),
+  "companyName": zod.string(),
+  "type": zod.enum(['review_request', 'followup']),
+  "status": zod.enum(['pending', 'approved', 'dismissed']),
+  "draftMessage": zod.string().nullish(),
+  "editedMessage": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+

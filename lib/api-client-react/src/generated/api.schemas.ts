@@ -941,6 +941,150 @@ export interface DashboardSummary {
   invoiceStats: InvoiceStats;
 }
 
+export interface UnreviewedWidgetCount {
+  count: number;
+}
+
+export type TaskPriority = typeof TaskPriority[keyof typeof TaskPriority];
+
+
+export const TaskPriority = {
+  high: 'high',
+  medium: 'medium',
+  low: 'low',
+} as const;
+
+export type TaskStatus = typeof TaskStatus[keyof typeof TaskStatus];
+
+
+export const TaskStatus = {
+  pending: 'pending',
+  completed: 'completed',
+  dismissed: 'dismissed',
+} as const;
+
+export type TaskSource = typeof TaskSource[keyof typeof TaskSource];
+
+
+export const TaskSource = {
+  ai: 'ai',
+  manual: 'manual',
+} as const;
+
+export interface Task {
+  id: number;
+  title: string;
+  priority: TaskPriority;
+  status: TaskStatus;
+  source: TaskSource;
+  dueDate?: string | null;
+  companyId?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ListTasksResponse = Task[];
+
+export type CreateTaskBodyStatus = typeof CreateTaskBodyStatus[keyof typeof CreateTaskBodyStatus];
+
+
+export const CreateTaskBodyStatus = {
+  pending: 'pending',
+  completed: 'completed',
+  dismissed: 'dismissed',
+} as const;
+
+export type CreateTaskBodySource = typeof CreateTaskBodySource[keyof typeof CreateTaskBodySource];
+
+
+export const CreateTaskBodySource = {
+  ai: 'ai',
+  manual: 'manual',
+} as const;
+
+export interface CreateTaskBody {
+  title: string;
+  priority?: TaskPriority;
+  status?: CreateTaskBodyStatus;
+  source?: CreateTaskBodySource;
+  dueDate?: string | null;
+}
+
+export type CreateTaskResponse = Task;
+
+export type UpdateTaskBodyStatus = typeof UpdateTaskBodyStatus[keyof typeof UpdateTaskBodyStatus];
+
+
+export const UpdateTaskBodyStatus = {
+  pending: 'pending',
+  completed: 'completed',
+  dismissed: 'dismissed',
+} as const;
+
+export interface UpdateTaskBody {
+  title?: string;
+  priority?: TaskPriority;
+  status?: UpdateTaskBodyStatus;
+  dueDate?: string | null;
+}
+
+export type UpdateTaskResponse = Task;
+
+export type GenerateTasksResponse = Task[];
+
+export type MarketingDraftType = typeof MarketingDraftType[keyof typeof MarketingDraftType];
+
+
+export const MarketingDraftType = {
+  review_request: 'review_request',
+  followup: 'followup',
+} as const;
+
+export type MarketingDraftStatus = typeof MarketingDraftStatus[keyof typeof MarketingDraftStatus];
+
+
+export const MarketingDraftStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  dismissed: 'dismissed',
+} as const;
+
+export interface MarketingDraft {
+  id: number;
+  jobId?: number | null;
+  jobTitle: string;
+  clientName: string;
+  clientPhone?: string | null;
+  companyName: string;
+  type: MarketingDraftType;
+  status: MarketingDraftStatus;
+  draftMessage?: string | null;
+  editedMessage?: string | null;
+  createdAt: string;
+}
+
+export type ListMarketingDraftsResponse = MarketingDraft[];
+
+export interface GenerateMarketingDraftsBody {
+  jobId: number;
+  jobTitle: string;
+  clientName: string;
+  clientPhone?: string;
+  companyName: string;
+}
+
+export type GenerateMarketingDraftsResponse = MarketingDraft[];
+
+export interface UpdateMarketingDraftBody {
+  editedMessage?: string;
+}
+
+export type UpdateMarketingDraftResponse = MarketingDraft;
+
+export type ApproveMarketingDraftResponse = MarketingDraft;
+
+export type DismissMarketingDraftResponse = MarketingDraft;
+
 export type GetWidgetScriptParams = {
 key: string;
 };
@@ -1029,5 +1173,19 @@ export const ListEmailThreadsStatus = {
   pending: 'pending',
   sent: 'sent',
   dismissed: 'dismissed',
+} as const;
+
+export type ListMarketingDraftsParams = {
+status?: ListMarketingDraftsStatus;
+};
+
+export type ListMarketingDraftsStatus = typeof ListMarketingDraftsStatus[keyof typeof ListMarketingDraftsStatus];
+
+
+export const ListMarketingDraftsStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  dismissed: 'dismissed',
+  all: 'all',
 } as const;
 
