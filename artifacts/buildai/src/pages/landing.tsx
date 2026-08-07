@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { PhoneCall, CalendarDays, Bot, ArrowRight, CheckCircle2, Star, MapPin, Zap, Play, ChevronDown } from "lucide-react";
+import { PhoneCall, CalendarDays, Bot, ArrowRight, CheckCircle2, Star, MapPin, Zap, Play, ChevronDown, Send } from "lucide-react";
 import { CallDemoModal } from "@/components/call-demo-modal";
 
 const FAQ_ITEMS = [
@@ -39,10 +39,38 @@ const FAQ_ITEMS = [
   },
 ];
 
+type SupportFormState = "idle" | "submitting" | "success" | "error";
+
 export default function Landing() {
   const [demoOpen, setDemoOpen] = useState(false);
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+
+  // Support question form
+  const [supportName, setSupportName] = useState("");
+  const [supportQuestion, setSupportQuestion] = useState("");
+  const [supportState, setSupportState] = useState<SupportFormState>("idle");
+  const [supportFormOpen, setSupportFormOpen] = useState(false);
+
+  async function handleSupportSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!supportName.trim() || !supportQuestion.trim()) return;
+    setSupportState("submitting");
+    try {
+      const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
+      const res = await fetch(`${base}/api/support-questions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: supportName.trim(), question: supportQuestion.trim() }),
+      });
+      if (!res.ok) throw new Error("Request failed");
+      setSupportState("success");
+      setSupportName("");
+      setSupportQuestion("");
+    } catch {
+      setSupportState("error");
+    }
+  }
 
   return (
     <div className="min-h-screen bg-[#0d1117] text-white flex flex-col font-sans">
@@ -463,6 +491,90 @@ export default function Landing() {
                   </div>
                 );
               })}
+            </div>
+
+            {/* Support CTA */}
+            <div className="mt-12 rounded-2xl border border-white/10 bg-[#0d1117]/60 p-8 text-center">
+              <p className="text-white/70 text-base mb-1">Still have a question?</p>
+              <h3 className="text-white font-bold text-xl mb-2">We'd love to hear from you.</h3>
+              <p className="text-white/40 text-sm mb-6">
+                Drop us a message and we'll get back to you within one business day.
+              </p>
+
+              {supportState === "success" ? (
+                <div className="flex flex-col items-center gap-3 py-4">
+                  <div className="w-12 h-12 rounded-full bg-green-500/15 flex items-center justify-center">
+                    <CheckCircle2 size={24} className="text-green-400" />
+                  </div>
+                  <p className="text-white font-semibold">Message sent!</p>
+                  <p className="text-white/50 text-sm">We'll be in touch soon.</p>
+                  <button
+                    onClick={() => { setSupportState("idle"); setSupportFormOpen(false); }}
+                    className="mt-1 text-sm text-[#F97316] hover:underline"
+                  >
+                    Send another
+                  </button>
+                </div>
+              ) : !supportFormOpen ? (
+                <button
+                  onClick={() => setSupportFormOpen(true)}
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-white/8 border border-white/15 text-white font-semibold text-sm hover:bg-white/12 hover:border-white/25 transition-all"
+                >
+                  Drop us a line <ArrowRight size={16} />
+                </button>
+              ) : (
+                <form onSubmit={handleSupportSubmit} className="mt-2 space-y-4 text-left max-w-md mx-auto">
+                  <div>
+                    <label className="block text-xs font-semibold text-white/50 uppercase tracking-wide mb-1.5">
+                      Your name
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={supportName}
+                      onChange={(e) => setSupportName(e.target.value)}
+                      placeholder="e.g. James Thornton"
+                      className="w-full bg-white/5 border border-white/15 rounded-xl px-4 py-3 text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#F97316]/60 focus:bg-white/8 transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-white/50 uppercase tracking-wide mb-1.5">
+                      Your question
+                    </label>
+                    <textarea
+                      required
+                      rows={4}
+                      value={supportQuestion}
+                      onChange={(e) => setSupportQuestion(e.target.value)}
+                      placeholder="What would you like to know?"
+                      className="w-full bg-white/5 border border-white/15 rounded-xl px-4 py-3 text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#F97316]/60 focus:bg-white/8 transition-colors resize-none"
+                    />
+                  </div>
+                  {supportState === "error" && (
+                    <p className="text-red-400 text-sm text-center">Something went wrong — please try again.</p>
+                  )}
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => { setSupportFormOpen(false); setSupportState("idle"); }}
+                      className="flex-1 px-4 py-3 rounded-xl border border-white/15 text-white/60 text-sm font-semibold hover:text-white hover:border-white/25 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={supportState === "submitting"}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[#F97316] hover:bg-[#ea6c0a] text-white text-sm font-bold transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {supportState === "submitting" ? (
+                        <>Sending…</>
+                      ) : (
+                        <><Send size={15} /> Send Message</>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
           </div>
         </section>

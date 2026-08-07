@@ -17,6 +17,7 @@ import emailThreadsRouter from "./email-threads";
 import integrationsRouter from "./integrations";
 import tasksRouter from "./tasks";
 import marketingRouter from "./marketing";
+import supportQuestionsRouter from "./support-questions";
 
 const router: IRouter = Router();
 
@@ -26,10 +27,12 @@ const router: IRouter = Router();
 // so they can be loaded from any third-party website.
 // Email inbound webhook (/email-threads/inbound) is public so Resend can POST to it;
 // it is protected by svix webhook signature verification instead of the session cookie.
+// Support questions (/support-questions) is public so landing-page visitors can submit.
 router.use(healthRouter);
 router.use(authRouter);
 router.use(widgetRouter);
 router.use(emailInboundRouter);
+router.use(supportQuestionsRouter);
 
 // ── Dashboard routes ──────────────────────────────────────────────────────────
 router.use(companyRouter);
