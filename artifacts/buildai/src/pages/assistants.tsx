@@ -1234,7 +1234,7 @@ function MarketingDraftCard({ draft }: { draft: MarketingDraft }) {
   };
 
   const handleSaveEdit = () => {
-    update.mutate({ id: draft.id, editedMessage: editText }, {
+    update.mutate({ id: draft.id, data: { editedMessage: editText } }, {
       onSuccess: () => { setEditing(false); toast({ title: "Message updated" }); },
       onError: () => toast({ title: "Failed to save", variant: "destructive" }),
     });
@@ -1373,7 +1373,7 @@ function MarketingDraftCard({ draft }: { draft: MarketingDraft }) {
 
 function MarketingQueueSection() {
   const [filter, setFilter] = useState<"pending" | "approved" | "dismissed" | "all">("pending");
-  const { data: drafts = [], isLoading } = useListMarketingDrafts(filter);
+  const { data: drafts = [], isLoading } = useListMarketingDrafts(filter !== "all" ? { status: filter } : undefined);
 
   const pendingCount = drafts.filter((d) => d.status === "pending").length;
 

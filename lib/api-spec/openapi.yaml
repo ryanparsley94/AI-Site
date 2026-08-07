@@ -1268,6 +1268,229 @@ paths:
               schema:
                 $ref: "#/components/schemas/DashboardSummary"
 
+  # ── Widget unreviewed count ───────────────────────────────────────────────
+  /widget/unreviewed-count:
+    get:
+      operationId: getUnreviewedWidgetCount
+      tags: [widget]
+      summary: Count of unreviewed widget chat leads
+      responses:
+        "200":
+          description: Count
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnreviewedWidgetCount"
+
+  # ── Tasks ─────────────────────────────────────────────────────────────────
+  /tasks:
+    get:
+      operationId: listTasks
+      tags: [tasks]
+      summary: List all tasks
+      responses:
+        "200":
+          description: Array of tasks
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListTasksResponse"
+    post:
+      operationId: createTask
+      tags: [tasks]
+      summary: Create a task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTaskBody"
+      responses:
+        "201":
+          description: Created task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+
+  /tasks/generate:
+    post:
+      operationId: generateTasks
+      tags: [tasks]
+      summary: AI-generate tasks from recent calls, emails and jobs
+      responses:
+        "200":
+          description: Newly inserted tasks
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerateTasksResponse"
+
+  /tasks/{id}:
+    patch:
+      operationId: updateTask
+      tags: [tasks]
+      summary: Update a task
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTaskBody"
+      responses:
+        "200":
+          description: Updated task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteTask
+      tags: [tasks]
+      summary: Delete a task
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Marketing Drafts ──────────────────────────────────────────────────────
+  /marketing-drafts:
+    get:
+      operationId: listMarketingDrafts
+      tags: [marketing]
+      summary: List marketing drafts
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, approved, dismissed, all]
+      responses:
+        "200":
+          description: Array of drafts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListMarketingDraftsResponse"
+
+  /marketing-drafts/generate:
+    post:
+      operationId: generateMarketingDrafts
+      tags: [marketing]
+      summary: Generate marketing drafts for a completed job
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateMarketingDraftsBody"
+      responses:
+        "200":
+          description: Generated drafts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerateMarketingDraftsResponse"
+
+  /marketing-drafts/{id}:
+    patch:
+      operationId: updateMarketingDraft
+      tags: [marketing]
+      summary: Edit the message on a draft
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMarketingDraftBody"
+      responses:
+        "200":
+          description: Updated draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketingDraft"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteMarketingDraft
+      tags: [marketing]
+      summary: Delete a marketing draft
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /marketing-drafts/{id}/approve:
+    post:
+      operationId: approveMarketingDraft
+      tags: [marketing]
+      summary: Approve a marketing draft
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Approved draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketingDraft"
+        "404":
+          description: Not found
+        "409":
+          description: Already approved or dismissed
+
+  /marketing-drafts/{id}/dismiss:
+    post:
+      operationId: dismissMarketingDraft
+      tags: [marketing]
+      summary: Dismiss a marketing draft
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Dismissed draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketingDraft"
+        "404":
+          description: Not found
+        "409":
+          description: Already approved or dismissed
+
 components:
   schemas:
     # ── Widget ───────────────────────────────────────────────────────────────
@@ -2368,3 +2591,165 @@ components:
           type: number
         invoiceStats:
           $ref: "#/components/schemas/InvoiceStats"
+
+    # ── Widget unreviewed count ───────────────────────────────────────────────
+    UnreviewedWidgetCount:
+      type: object
+      required: [count]
+      properties:
+        count:
+          type: integer
+
+    # ── Tasks ─────────────────────────────────────────────────────────────────
+    TaskPriority:
+      type: string
+      enum: [high, medium, low]
+
+    Task:
+      type: object
+      required: [id, title, priority, status, source, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        priority:
+          $ref: "#/components/schemas/TaskPriority"
+        status:
+          type: string
+          enum: [pending, completed, dismissed]
+        source:
+          type: string
+          enum: [ai, manual]
+        dueDate:
+          type: string
+          nullable: true
+        companyId:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    ListTasksResponse:
+      type: array
+      items:
+        $ref: "#/components/schemas/Task"
+
+    CreateTaskBody:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+        priority:
+          $ref: "#/components/schemas/TaskPriority"
+        status:
+          type: string
+          enum: [pending, completed, dismissed]
+        source:
+          type: string
+          enum: [ai, manual]
+        dueDate:
+          type: string
+          nullable: true
+
+    CreateTaskResponse:
+      $ref: "#/components/schemas/Task"
+
+    UpdateTaskBody:
+      type: object
+      properties:
+        title:
+          type: string
+        priority:
+          $ref: "#/components/schemas/TaskPriority"
+        status:
+          type: string
+          enum: [pending, completed, dismissed]
+        dueDate:
+          type: string
+          nullable: true
+
+    UpdateTaskResponse:
+      $ref: "#/components/schemas/Task"
+
+    GenerateTasksResponse:
+      type: array
+      items:
+        $ref: "#/components/schemas/Task"
+
+    # ── Marketing Drafts ──────────────────────────────────────────────────────
+    MarketingDraft:
+      type: object
+      required: [id, jobTitle, clientName, companyName, type, status, createdAt]
+      properties:
+        id:
+          type: integer
+        jobId:
+          type: integer
+          nullable: true
+        jobTitle:
+          type: string
+        clientName:
+          type: string
+        clientPhone:
+          type: string
+          nullable: true
+        companyName:
+          type: string
+        type:
+          type: string
+          enum: [review_request, followup]
+        status:
+          type: string
+          enum: [pending, approved, dismissed]
+        draftMessage:
+          type: string
+          nullable: true
+        editedMessage:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+
+    ListMarketingDraftsResponse:
+      type: array
+      items:
+        $ref: "#/components/schemas/MarketingDraft"
+
+    GenerateMarketingDraftsBody:
+      type: object
+      required: [jobId, jobTitle, clientName, companyName]
+      properties:
+        jobId:
+          type: integer
+        jobTitle:
+          type: string
+        clientName:
+          type: string
+        clientPhone:
+          type: string
+        companyName:
+          type: string
+
+    GenerateMarketingDraftsResponse:
+      type: array
+      items:
+        $ref: "#/components/schemas/MarketingDraft"
+
+    UpdateMarketingDraftBody:
+      type: object
+      properties:
+        editedMessage:
+          type: string
+
+    UpdateMarketingDraftResponse:
+      $ref: "#/components/schemas/MarketingDraft"
+
+    ApproveMarketingDraftResponse:
+      $ref: "#/components/schemas/MarketingDraft"
+
+    DismissMarketingDraftResponse:
+      $ref: "#/components/schemas/MarketingDraft"

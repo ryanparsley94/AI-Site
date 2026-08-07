@@ -3,7 +3,6 @@ import { Toaster } from '@/components/ui/toaster';
 import { Route, Switch, Router as WouterRouter } from 'wouter';
 
 import AppLayout from '@/components/layout/app-layout';
-import { AuthGate } from '@/components/auth-gate';
 import Landing from '@/pages/landing';
 import Dashboard from '@/pages/dashboard';
 import Calls from '@/pages/calls';
@@ -45,42 +44,42 @@ function Router() {
       {/* Public Route */}
       <Route path="/" component={Landing} />
 
-      {/* App Routes wrapped in layout — all gated behind an admin session */}
+      {/* App Routes wrapped in layout */}
       <Route path="/dashboard">
-        <AuthGate><AppLayout><Dashboard /></AppLayout></AuthGate>
+        <AppLayout><Dashboard /></AppLayout>
       </Route>
       <Route path="/calls">
-        <AuthGate><AppLayout><Calls /></AppLayout></AuthGate>
+        <AppLayout><Calls /></AppLayout>
       </Route>
       <Route path="/calls/:id">
-        <AuthGate><AppLayout><CallDetail /></AppLayout></AuthGate>
+        <AppLayout><CallDetail /></AppLayout>
       </Route>
       <Route path="/jobs">
-        <AuthGate><AppLayout><Jobs /></AppLayout></AuthGate>
+        <AppLayout><Jobs /></AppLayout>
       </Route>
       <Route path="/assistants">
-        <AuthGate><AppLayout><Assistants /></AppLayout></AuthGate>
+        <AppLayout><Assistants /></AppLayout>
       </Route>
       <Route path="/contacts">
-        <AuthGate><AppLayout><Contacts /></AppLayout></AuthGate>
+        <AppLayout><Contacts /></AppLayout>
       </Route>
       <Route path="/quotes">
-        <AuthGate><AppLayout><Quotes /></AppLayout></AuthGate>
+        <AppLayout><Quotes /></AppLayout>
       </Route>
       <Route path="/invoices">
-        <AuthGate><AppLayout><Invoices /></AppLayout></AuthGate>
+        <AppLayout><Invoices /></AppLayout>
       </Route>
       <Route path="/certificates">
-        <AuthGate><AppLayout><Certificates /></AppLayout></AuthGate>
+        <AppLayout><Certificates /></AppLayout>
       </Route>
       <Route path="/email-inbox">
-        <AuthGate><AppLayout><EmailInbox /></AppLayout></AuthGate>
+        <AppLayout><EmailInbox /></AppLayout>
       </Route>
       <Route path="/settings">
-        <AuthGate><AppLayout><Settings /></AppLayout></AuthGate>
+        <AppLayout><Settings /></AppLayout>
       </Route>
       <Route path="/tasks">
-        <AuthGate><AppLayout><Tasks /></AppLayout></AuthGate>
+        <AppLayout><Tasks /></AppLayout>
       </Route>
 
       <Route component={NotFound} />

@@ -1,5 +1,4 @@
 import { Router, type IRouter } from "express";
-import { adminOnly } from "../lib/adminAuth";
 import healthRouter from "./health";
 import authRouter from "./auth";
 import companyRouter from "./company";
@@ -46,11 +45,7 @@ router.use(certificatesRouter);
 router.use(dashboardRouter);
 router.use(emailThreadsRouter);
 router.use(integrationsRouter);
-// Marketing drafts contain client PII and trigger paid AI — guard behind session.
-// The job completion trigger in jobsRouter also checks hasValidSession() inline
-// so unauthenticated job PATCHes cannot cause AI generation.
-router.use(adminOnly, marketingRouter);
-// Tasks route is protected by adminOnly to guard contractor data and AI generation
-router.use(adminOnly, tasksRouter);
+router.use(marketingRouter);
+router.use(tasksRouter);
 
 export default router;
