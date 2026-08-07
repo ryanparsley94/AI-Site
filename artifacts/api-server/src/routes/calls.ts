@@ -45,6 +45,19 @@ router.get("/calls/stats", async (req, res): Promise<void> => {
   }));
 });
 
+router.get("/calls/unreviewed-widget-count", async (req, res): Promise<void> => {
+  const rows = await db
+    .select({ id: callsTable.id })
+    .from(callsTable)
+    .where(
+      and(
+        eq(callsTable.assistantName, "Website Widget"),
+        eq(callsTable.reviewed, false)
+      )
+    );
+  res.json({ count: rows.length });
+});
+
 router.get("/calls", async (req, res): Promise<void> => {
   // Build predicates and combine with and() so both conditions apply together
   const conditions: Parameters<typeof and> = [];

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRoute, Link, useLocation } from "wouter";
-import { useGetCall, useUpdateCall, CallUpdateStatus } from "@workspace/api-client-react";
+import { useGetCall, useUpdateCall, CallUpdateStatus, UNREVIEWED_WIDGET_COUNT_KEY } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { 
   ArrowLeft, 
@@ -38,6 +39,7 @@ export default function CallDetail() {
   const [, params] = useRoute("/calls/:id");
   const callId = Number(params?.id);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const [, navigate] = useLocation();
   const { data: call, isLoading } = useGetCall(callId, {
@@ -50,12 +52,26 @@ export default function CallDetail() {
   const [status, setStatus] = useState<CallUpdateStatus | "">("");
   const [isExtractingQuote, setIsExtractingQuote] = useState(false);
   const initialized = useRef(false);
+  const markedReviewed = useRef(false);
 
   useEffect(() => {
     if (call && !initialized.current) {
       setNotes(call.notes || "");
       setStatus(call.status);
       initialized.current = true;
+    }
+    // Auto-mark widget chat leads as reviewed when the detail page is opened
+    if (call && !call.reviewed && !markedReviewed.current && call.assistantName === "Website Widget") {
+      markedReviewed.current = true;
+      updateCall.mutate(
+        { id: callId, data: { reviewed: true } },
+        {
+          onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: UNREVIEWED_WIDGET_COUNT_KEY });
+            queryClient.invalidateQueries({ queryKey: ["/api/calls", callId] });
+          },
+        }
+      );
     }
   }, [call]);
 
