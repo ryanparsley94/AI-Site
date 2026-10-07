@@ -105,7 +105,10 @@ export default function CallDetail() {
     try {
       const base = import.meta.env.BASE_URL.replace(/\/$/, "");
       const resp = await fetch(`${base}/api/calls/${callId}/extract-quote`, { method: "POST" });
-      if (!resp.ok) throw new Error("Extraction failed");
+      if (!resp.ok) {
+        const error = await resp.json().catch(() => ({}));
+        throw new Error(typeof error.error === "string" ? error.error : "Could not draft a quote from this call.");
+      }
       const data = await resp.json();
       sessionStorage.setItem("buildai_prefill_quote", JSON.stringify({
         title: data.suggestedTitle ?? "",
@@ -113,8 +116,8 @@ export default function CallDetail() {
         callerName: call?.callerName ?? "",
       }));
       navigate("/quotes");
-    } catch {
-      toast({ title: "Could not extract quote from call", variant: "destructive" });
+    } catch (error) {
+      toast({ title: error instanceof Error ? error.message : "Could not draft a quote from this call.", variant: "destructive" });
     } finally {
       setIsExtractingQuote(false);
     }
@@ -273,7 +276,7 @@ export default function CallDetail() {
                 )}
               </Button>
               <p className="text-xs text-muted-foreground mt-2">
-                AI reads this call's transcript and pre-fills the quote builder with suggested materials.
+                AI drafts a title and adds only materials with clear quantities in the call. Review the quote before sending.
               </p>
             </div>
 
