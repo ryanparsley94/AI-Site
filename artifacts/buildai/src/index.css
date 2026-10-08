@@ -5,6 +5,7 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  --color-white: #F7FAF9;
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
   --color-border: hsl(var(--border));
@@ -76,53 +77,53 @@
   --elevate-1: rgba(255, 255, 255, 0.03);
   --elevate-2: rgba(255, 255, 255, 0.06);
 
-  /* #0d1117 — landing page background */
-  --background: 220 28% 7%;
-  --foreground: 210 40% 98%;
+  /* CREWON deep graphite #0D171C */
+  --background: 200 36.5854% 8.0392%;
+  --foreground: 160 23.0769% 97.4510%;
 
   --border: 215 13% 16%;
   --input: 215 16% 13%;
-  --ring: 32 98% 52%;
+  --ring: 185.6604 65.4321% 52.3529%;
 
-  /* #161b22 — card surfaces */
-  --card: 215 16% 10%;
-  --card-foreground: 210 40% 98%;
+  /* CREWON structure #203038 */
+  --card: 200 27.2727% 17.2549%;
+  --card-foreground: 160 23.0769% 97.4510%;
   --card-border: 215 13% 16%;
 
-  /* #161b22 — popovers / dropdowns */
-  --popover: 215 16% 10%;
-  --popover-foreground: 210 40% 98%;
+  /* Structure popovers / dropdowns */
+  --popover: 200 27.2727% 17.2549%;
+  --popover-foreground: 160 23.0769% 97.4510%;
   --popover-border: 215 13% 16%;
 
-  /* Construction Amber */
-  --primary: 32 98% 52%;
-  --primary-foreground: 0 0% 100%;
+  /* Active cyan #36C6D5 with graphite for readable contrast */
+  --primary: 185.6604 65.4321% 52.3529%;
+  --primary-foreground: 200 36.5854% 8.0392%;
 
   /* Near-white so text-secondary reads as bright headings on dark bg */
-  --secondary: 210 40% 98%;
+  --secondary: 160 23.0769% 97.4510%;
   --secondary-foreground: 222 47% 11%;
 
-  /* #21262d — muted surfaces and disabled states */
-  --muted: 215 13% 16%;
+  /* Structure surfaces and disabled states */
+  --muted: 200 27.2727% 17.2549%;
   --muted-foreground: 215 16% 55%;
 
-  --accent: 215 16% 13%;
-  --accent-foreground: 210 40% 98%;
+  --accent: 200 27.2727% 17.2549%;
+  --accent-foreground: 160 23.0769% 97.4510%;
 
   --destructive: 0 84.2% 60.2%;
   --destructive-foreground: 210 40% 98%;
 
-  /* Even darker sidebar — #080d12 */
-  --sidebar: 220 35% 5%;
-  --sidebar-foreground: 210 40% 98%;
+  /* Graphite sidebar */
+  --sidebar: 200 36.5854% 8.0392%;
+  --sidebar-foreground: 160 23.0769% 97.4510%;
   --sidebar-border: 215 16% 12%;
-  --sidebar-primary: 32 98% 52%;
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 215 16% 10%;
-  --sidebar-accent-foreground: 210 40% 98%;
-  --sidebar-ring: 32 98% 52%;
+  --sidebar-primary: 185.6604 65.4321% 52.3529%;
+  --sidebar-primary-foreground: 200 36.5854% 8.0392%;
+  --sidebar-accent: 200 27.2727% 17.2549%;
+  --sidebar-accent-foreground: 160 23.0769% 97.4510%;
+  --sidebar-ring: 185.6604 65.4321% 52.3529%;
 
-  --chart-1: 32 98% 52%;
+  --chart-1: 185.6604 65.4321% 52.3529%;
   --chart-2: 210 70% 60%;
   --chart-3: 215 16% 55%;
   --chart-4: 142 71% 45%;
@@ -140,7 +141,7 @@
   
   --border: 215 28% 17%;
   --input: 215 28% 17%;
-  --ring: 32 98% 52%;
+  --ring: 187 64% 52%;
 
   --card: 215 28% 17%;
   --card-foreground: 210 40% 98%;
@@ -150,8 +151,8 @@
   --popover-foreground: 210 40% 98%;
   --popover-border: 222 47% 11%;
 
-  --primary: 32 98% 52%;
-  --primary-foreground: 0 0% 100%;
+  --primary: 187 64% 52%;
+  --primary-foreground: 197 41% 8%;
 
   --secondary: 215 28% 17%;
   --secondary-foreground: 210 40% 98%;
@@ -168,11 +169,11 @@
   --sidebar: 222 47% 11%;
   --sidebar-foreground: 210 40% 98%;
   --sidebar-border: 215 28% 17%;
-  --sidebar-primary: 32 98% 52%;
-  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-primary: 187 64% 52%;
+  --sidebar-primary-foreground: 197 41% 8%;
   --sidebar-accent: 215 28% 17%;
   --sidebar-accent-foreground: 210 40% 98%;
-  --sidebar-ring: 32 98% 52%;
+  --sidebar-ring: 187 64% 52%;
 }
 
 @layer base {

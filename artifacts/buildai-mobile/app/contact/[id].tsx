@@ -93,11 +93,11 @@ export default function ContactDetailScreen() {
         <View
           style={[
             styles.typeBadge,
-            { backgroundColor: isCustomer ? '#22c55e25' : '#fb8c0425' },
+            { backgroundColor: isCustomer ? '#22c55e25' : '#36C6D525' },
           ]}
         >
           <Text
-            style={[styles.typeText, { color: isCustomer ? '#22c55e' : '#fb8c04' }]}
+            style={[styles.typeText, { color: isCustomer ? '#22c55e' : '#36C6D5' }]}
           >
             {isCustomer ? 'Customer' : 'Lead'}
           </Text>

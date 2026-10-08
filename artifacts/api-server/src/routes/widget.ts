@@ -225,7 +225,7 @@ router.get("/widget/config", async (req, res): Promise<void> => {
 
   res.json({
     companyName: company.name,
-    color: company.widgetColor ?? "#f97316",
+    color: company.widgetColor ?? "#36C6D5",
     greeting: company.widgetGreeting ?? "Hi! How can I help you today?",
   });
 });
@@ -674,7 +674,7 @@ function buildWidgetScript(): string {
   var src = scriptEl.getAttribute("src") || "";
   var apiBase = src.replace(/\\/widget\\.js.*$/, "");
 
-  var COLORS = { primary: "#f97316" };
+  var COLORS = { primary: "#36C6D5" };
   var config = { companyName: "Us", color: COLORS.primary, greeting: "Hi! How can I help you today?" };
   var sessionId = (function () {
     var key2 = "bai_sid_" + key;

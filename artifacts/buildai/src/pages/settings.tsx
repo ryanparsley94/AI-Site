@@ -249,14 +249,14 @@ export default function Settings() {
   const [brandingData, setBrandingData] = useState({
     logoUrl: "",
     quoteTemplate: "classic" as "classic" | "modern" | "minimal",
-    quoteAccentColor: "#f97316",
+    quoteAccentColor: "#36C6D5",
     quoteTagline: "",
     paymentTerms: "Payment is due within 30 days of invoice date. We accept bank transfer and card payments.",
     quoteFooterText: "",
   });
 
   const [widgetSettings, setWidgetSettings] = useState({
-    color: "#f97316",
+    color: "#36C6D5",
     greeting: "Hi! How can I help you today?",
     widgetLeadNotify: true,
   });
@@ -281,7 +281,7 @@ export default function Settings() {
       setBrandingData({
         logoUrl: company.logoUrl || "",
         quoteTemplate: (company.quoteTemplate as "classic" | "modern" | "minimal") || "classic",
-        quoteAccentColor: company.quoteAccentColor || "#f97316",
+        quoteAccentColor: company.quoteAccentColor || "#36C6D5",
         quoteTagline: company.quoteTagline || "",
         paymentTerms: company.paymentTerms || "Payment is due within 30 days of invoice date. We accept bank transfer and card payments.",
         quoteFooterText: company.quoteFooterText || "",
@@ -292,7 +292,7 @@ export default function Settings() {
   useEffect(() => {
     if (widgetKeyInfo) {
       setWidgetSettings({
-        color: widgetKeyInfo.color || "#f97316",
+        color: widgetKeyInfo.color || "#36C6D5",
         greeting: widgetKeyInfo.greeting || "Hi! How can I help you today?",
         widgetLeadNotify: widgetKeyInfo.widgetLeadNotify ?? true,
       });
@@ -633,7 +633,7 @@ export default function Settings() {
                                 value={widgetSettings.color}
                                 onChange={e => setWidgetSettings(prev => ({ ...prev, color: e.target.value }))}
                                 className="font-mono text-sm"
-                                placeholder="#f97316"
+                                placeholder="#36C6D5"
                               />
                             </div>
                             <p className="text-[10px] text-muted-foreground">Used for the chat button and header.</p>
@@ -841,10 +841,10 @@ export default function Settings() {
                       value={brandingData.quoteAccentColor}
                       onChange={e => setBrandingData(prev => ({ ...prev, quoteAccentColor: e.target.value }))}
                       className="font-mono text-sm w-36"
-                      placeholder="#f97316"
+                      placeholder="#36C6D5"
                     />
                     <div className="flex gap-2">
-                      {["#f97316", "#2563eb", "#16a34a", "#7c3aed", "#dc2626", "#0891b2"].map(c => (
+                      {["#36C6D5", "#2563eb", "#16a34a", "#7c3aed", "#dc2626", "#0891b2"].map(c => (
                         <button
                           key={c}
                           type="button"

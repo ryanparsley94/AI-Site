@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 100" role="img" aria-label="CREWON monochrome icon">
+  <title>CREWON — single-colour icon</title>
+  <g transform="translate(-144)" fill="#F7FAF9">
+    <path fill-rule="evenodd" d="M182 55H202L209 62V88L202 95H182L175 88V62ZM185 64V86H199V64Z"/>
+    <path d="M179 43C179 36 184 32 192 32C200 32 205 36 205 43V45H179Z"/>
+    <rect x="190" y="30" width="4" height="12" rx="1"/>
+    <rect x="176" y="45" width="32" height="4" rx="1"/>
+    <circle cx="192" cy="24" r="2.3"/>
+    <g fill="none" stroke="#F7FAF9" stroke-width="3" stroke-linecap="round">
+      <path d="M179 10Q192 -1 205 10"/>
+      <path d="M185 17Q192 11 199 17"/>
+    </g>
+  </g>
+</svg>

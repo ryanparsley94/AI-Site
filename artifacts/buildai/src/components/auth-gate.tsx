@@ -13,6 +13,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Loader2, Lock, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { BrandLogo } from "@/components/brand-logo";
 import { Label } from "@/components/ui/label";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -64,16 +65,15 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0d1117]">
+    <div className="min-h-screen flex items-center justify-center bg-[#0D171C]">
       <div className="w-full max-w-sm space-y-6 p-8">
         {/* Logo */}
         <div className="flex flex-col items-center gap-3 text-center">
-          <img src="/logo-mark.png" alt="CREWON" className="w-12 h-12 object-contain" />
+          <BrandLogo className="h-14 w-auto" />
           <div>
-            <h1 className="text-2xl font-bold text-white">
-              CREW<span className="text-[#F97316]">ON</span>
-            </h1>
-            <p className="text-sm text-white/50 mt-1">Sign in to your dashboard</p>
+            <h1 className="sr-only">CREWON</h1>
+            <p className="text-sm text-white/60 mt-1">Sign in to your dashboard</p>
+            <p className="text-xs font-bold tracking-widest text-[#36C6D5] mt-2">YOUR CREW. SWITCHED ON.</p>
           </div>
         </div>
 
@@ -92,7 +92,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your password"
                 required
-                className="pl-9 pr-9 bg-white/10 border-white/20 text-white placeholder:text-white/30 focus-visible:ring-[#F97316]"
+                className="pl-9 pr-9 bg-white/10 border-white/20 text-white placeholder:text-white/30 focus-visible:ring-[#36C6D5]"
               />
               <button
                 type="button"
@@ -113,7 +113,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
           <Button
             type="submit"
             disabled={loading || !password.trim()}
-            className="w-full bg-[#F97316] hover:bg-[#ea6c0a] text-white border-0 font-semibold"
+            className="w-full bg-[#36C6D5] hover:bg-[#2fb3c1] text-[#0D171C] border-0 font-semibold"
           >
             {loading ? <Loader2 size={16} className="animate-spin mr-2" /> : null}
             {loading ? "Signing in…" : "Sign In"}
@@ -144,8 +144,8 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
   if (authState === "checking") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0d1117]">
-        <Loader2 size={28} className="animate-spin text-[#F97316]" />
+      <div className="min-h-screen flex items-center justify-center bg-[#0D171C]">
+        <Loader2 size={28} className="animate-spin text-[#36C6D5]" />
       </div>
     );
   }

@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   View,
+  Image,
   Text,
   ScrollView,
   StyleSheet,
@@ -18,7 +19,7 @@ import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { OfflineBanner } from '@/components/OfflineBanner';
 
 const JOB_STATUS_COLORS: Record<string, string> = {
-  scheduled: '#fb8c04',
+  scheduled: '#36C6D5',
   in_progress: '#3b82f6',
   completed: '#22c55e',
   cancelled: '#94a3b8',
@@ -115,9 +116,17 @@ export default function DashboardScreen() {
         <View style={[styles.header, { paddingTop: topPadding + 20 }]}>
           <View>
             <Text style={[styles.greeting, { color: colors.mutedForeground }]}>
-              {getGreeting()}
+              {getGreeting()} · FIELD
             </Text>
-            <Text style={[styles.headerTitle, { color: colors.foreground }]}>CREWON Field</Text>
+            <Image
+              source={require('../../assets/images/crewon-wordmark.png')}
+              accessibilityLabel="CREWON"
+              resizeMode="contain"
+              style={{ width: 164, height: 67 }}
+            />
+            <Text style={{ color: colors.mutedForeground, fontSize: 9, letterSpacing: 1.2, marginTop: 4 }}>
+              YOUR CREW. SWITCHED ON.
+            </Text>
           </View>
           <View style={[styles.amberDot, { backgroundColor: colors.primary }]} />
         </View>
