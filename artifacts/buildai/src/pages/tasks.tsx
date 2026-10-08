@@ -25,6 +25,8 @@ import {
   ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { overdueDays, sortTasks, taskDueDate } from "@/lib/task-dates";
+import { useLocalDay } from "@/hooks/use-local-day";
 
 const PRIORITY_COLORS: Record<TaskPriority, string> = {
   high: "bg-red-100 text-red-700 border-red-200",
@@ -32,24 +34,12 @@ const PRIORITY_COLORS: Record<TaskPriority, string> = {
   low: "bg-blue-100 text-blue-700 border-blue-200",
 };
 
-const PRIORITY_ORDER: Record<TaskPriority, number> = { high: 0, medium: 1, low: 2 };
-
-function sortTasks(tasks: Task[]) {
-  return [...tasks].sort((a, b) => {
-    if (a.status !== b.status) {
-      // pending first, then completed/dismissed
-      if (a.status === "pending") return -1;
-      if (b.status === "pending") return 1;
-    }
-    return PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
-  });
-}
-
 export default function Tasks() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [showCompleted, setShowCompleted] = useState(false);
   const [newTitle, setNewTitle] = useState("");
+  const today = useLocalDay();
 
   const { data: tasks = [], isLoading } = useListTasks();
   const createTask = useCreateTask();
@@ -59,9 +49,10 @@ export default function Tasks() {
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
 
-  const pendingTasks = sortTasks(tasks.filter((t) => t.status === "pending"));
+  const pendingTasks = sortTasks(tasks.filter((t) => t.status === "pending"), today);
+  const overdueCount = pendingTasks.filter((task) => overdueDays(task, today) > 0).length;
   const completedTasks = sortTasks(
-    tasks.filter((t) => t.status === "completed" || t.status === "dismissed")
+    tasks.filter((t) => t.status === "completed" || t.status === "dismissed"), today
   );
 
   const handleAdd = async () => {
@@ -138,6 +129,7 @@ export default function Tasks() {
             <h1 className="text-2xl font-bold text-foreground">Daily Tasks</h1>
             <p className="text-sm text-muted-foreground">
               {pendingTasks.length} pending task{pendingTasks.length !== 1 ? "s" : ""}
+              {overdueCount > 0 && ` · ${overdueCount} overdue`}
             </p>
           </div>
         </div>
@@ -194,6 +186,12 @@ export default function Tasks() {
         </div>
       )}
 
+      {!isLoading && overdueCount > 0 && (
+        <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
+          Unfinished tasks from previous days are carried forward below, overdue tasks first.
+        </p>
+      )}
+
       {/* Pending tasks */}
       {!isLoading && pendingTasks.length > 0 && (
         <div className="space-y-2">
@@ -201,6 +199,7 @@ export default function Tasks() {
             <TaskRow
               key={task.id}
               task={task}
+              today={today}
               onToggle={handleToggle}
               onDismiss={handleDismiss}
               onDelete={handleDelete}
@@ -227,6 +226,7 @@ export default function Tasks() {
                 <TaskRow
                   key={task.id}
                   task={task}
+                  today={today}
                   onToggle={handleToggle}
                   onDismiss={handleDismiss}
                   onDelete={handleDelete}
@@ -243,19 +243,24 @@ export default function Tasks() {
 
 interface TaskRowProps {
   task: Task;
+  today: string;
   onToggle: (t: Task) => void;
   onDismiss: (t: Task) => void;
   onDelete: (t: Task) => void;
   onCyclePriority: (t: Task) => void;
 }
 
-function TaskRow({ task, onToggle, onDismiss, onDelete, onCyclePriority }: TaskRowProps) {
+function TaskRow({ task, today, onToggle, onDismiss, onDelete, onCyclePriority }: TaskRowProps) {
   const isDone = task.status !== "pending";
+  const daysOverdue = overdueDays(task, today);
+  const dueDate = taskDueDate(task);
 
   return (
     <div
+      data-testid={`task-row-${task.id}`}
       className={cn(
         "flex items-center gap-3 p-3 rounded-lg border bg-card transition-colors group",
+        daysOverdue > 0 && "border-amber-300 bg-amber-50/50",
         isDone && "bg-muted/30"
       )}
     >
@@ -273,14 +278,21 @@ function TaskRow({ task, onToggle, onDismiss, onDelete, onCyclePriority }: TaskR
       </button>
 
       {/* Title */}
-      <span
+      <div
         className={cn(
           "flex-1 text-sm leading-snug",
           isDone && "line-through text-muted-foreground"
         )}
       >
-        {task.title}
-      </span>
+        <span>{task.title}</span>
+        {daysOverdue > 0 && (
+          <div className="mt-1">
+            <Badge variant="outline" className="text-amber-800 bg-amber-100 border-amber-300">
+              {daysOverdue === 1 ? "Overdue · from yesterday" : `Overdue · ${daysOverdue} days`}
+            </Badge>
+          </div>
+        )}
+      </div>
 
       {/* Source badge (AI only) */}
       {task.source === "ai" && (
@@ -291,9 +303,9 @@ function TaskRow({ task, onToggle, onDismiss, onDelete, onCyclePriority }: TaskR
       )}
 
       {/* Due date */}
-      {task.dueDate && (
+      {dueDate && (
         <span className="hidden sm:block text-xs text-muted-foreground shrink-0">
-          {new Date(task.dueDate).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+          {new Date(`${dueDate}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
         </span>
       )}
 
