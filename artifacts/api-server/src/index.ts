@@ -7,6 +7,12 @@ import { pool } from "@workspace/db";
 // fail due to missing columns or tables. All migration SQL must use
 // IF NOT EXISTS / IF EXISTS guards.
 const MIGRATIONS = [
+  `ALTER TABLE quotes
+    ADD COLUMN IF NOT EXISTS acceptance_token_hash text,
+    ADD COLUMN IF NOT EXISTS shared_at timestamptz,
+    ADD COLUMN IF NOT EXISTS responded_at timestamptz,
+    ADD COLUMN IF NOT EXISTS change_request text`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS quotes_acceptance_token_hash_unique ON quotes (acceptance_token_hash)`,
   // Additive quote workflow: existing prices, customer records and links are untouched.
   `ALTER TABLE quotes
     ADD COLUMN IF NOT EXISTS contact_id integer,

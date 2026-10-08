@@ -7,6 +7,7 @@ import contactsRouter from "./contacts";
 import jobsRouter from "./jobs";
 import callsRouter from "./calls";
 import quotesRouter from "./quotes";
+import { publicQuoteRouter, quoteSharingRouter } from "./quote-acceptance";
 import invoicesRouter from "./invoices";
 import certificatesRouter from "./certificates";
 import dashboardRouter from "./dashboard";
@@ -36,6 +37,7 @@ router.use(widgetRouter);
 router.use(emailInboundRouter);
 router.use(supportQuestionsRouter);
 router.use(phoneRouter);
+router.use(publicQuoteRouter);
 
 // ── Dashboard routes ──────────────────────────────────────────────────────────
 router.use(adminOnly);
@@ -45,6 +47,7 @@ router.use(contactsRouter);
 router.use(jobsRouter);
 router.use(callsRouter);
 router.use(quotesRouter);
+router.use(quoteSharingRouter);
 router.use(invoicesRouter);
 router.use(certificatesRouter);
 router.use(dashboardRouter);

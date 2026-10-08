@@ -9,6 +9,130 @@ import * as zod from 'zod';
 
 
 /**
+ * @summary Generate a public link for a reviewed quote; replaces any older link
+ */
+export const CreateQuoteAcceptanceLinkParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const CreateQuoteAcceptanceLinkResponse = zod.object({
+  "path": zod.string()
+})
+
+
+export const getPublicQuotePathTokenRegExp = new RegExp('^[a-f0-9]{64}$');
+
+
+export const GetPublicQuoteParams = zod.object({
+  "token": zod.coerce.string().regex(getPublicQuotePathTokenRegExp)
+})
+
+export const GetPublicQuoteResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "revision": zod.number(),
+  "status": zod.enum(['reviewed', 'accepted', 'changes_requested']),
+  "customerName": zod.string(),
+  "siteAddress": zod.string(),
+  "scope": zod.string(),
+  "assumptions": zod.string(),
+  "exclusions": zod.string(),
+  "paymentTerms": zod.string(),
+  "validUntil": zod.string(),
+  "vatNumber": zod.string(),
+  "expired": zod.boolean(),
+  "changeRequest": zod.string().nullable(),
+  "subtotal": zod.number(),
+  "vatPercent": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "depositAmount": zod.number(),
+  "balance": zod.number(),
+  "company": zod.object({
+  "name": zod.string(),
+  "address": zod.string().nullish(),
+  "phone": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "logoUrl": zod.string().nullish(),
+  "quoteAccentColor": zod.string().nullish(),
+  "quoteTagline": zod.string().nullish(),
+  "quoteFooterText": zod.string().nullish()
+}),
+  "sections": zod.array(zod.object({
+  "title": zod.string(),
+  "items": zod.array(zod.object({
+  "description": zod.string(),
+  "quantity": zod.number(),
+  "unit": zod.string(),
+  "unitPrice": zod.number(),
+  "total": zod.number()
+}))
+}))
+})
+
+
+export const respondToPublicQuotePathTokenRegExp = new RegExp('^[a-f0-9]{64}$');
+
+
+export const RespondToPublicQuoteParams = zod.object({
+  "token": zod.coerce.string().regex(respondToPublicQuotePathTokenRegExp)
+})
+
+export const respondToPublicQuoteBodyMessageMax = 5000;
+
+
+
+export const RespondToPublicQuoteBody = zod.object({
+  "action": zod.enum(['accept', 'request_changes']),
+  "revision": zod.number(),
+  "message": zod.string().max(respondToPublicQuoteBodyMessageMax).optional()
+})
+
+export const RespondToPublicQuoteResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "revision": zod.number(),
+  "status": zod.enum(['reviewed', 'accepted', 'changes_requested']),
+  "customerName": zod.string(),
+  "siteAddress": zod.string(),
+  "scope": zod.string(),
+  "assumptions": zod.string(),
+  "exclusions": zod.string(),
+  "paymentTerms": zod.string(),
+  "validUntil": zod.string(),
+  "vatNumber": zod.string(),
+  "expired": zod.boolean(),
+  "changeRequest": zod.string().nullable(),
+  "subtotal": zod.number(),
+  "vatPercent": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "depositAmount": zod.number(),
+  "balance": zod.number(),
+  "company": zod.object({
+  "name": zod.string(),
+  "address": zod.string().nullish(),
+  "phone": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "logoUrl": zod.string().nullish(),
+  "quoteAccentColor": zod.string().nullish(),
+  "quoteTagline": zod.string().nullish(),
+  "quoteFooterText": zod.string().nullish()
+}),
+  "sections": zod.array(zod.object({
+  "title": zod.string(),
+  "items": zod.array(zod.object({
+  "description": zod.string(),
+  "quantity": zod.number(),
+  "unit": zod.string(),
+  "unitPrice": zod.number(),
+  "total": zod.number()
+}))
+}))
+})
+
+
+/**
  * @summary Email a draft invoice to its uniquely resolved client contact
  */
 export const SendInvoiceParams = zod.object({
@@ -978,7 +1102,10 @@ export const duplicateQuoteResponseWorkflowOneSectionsMax = 100;
 export const DuplicateQuoteResponse = zod.object({
   "contactId": zod.number().nullish(),
   "callId": zod.number().nullish(),
-  "status": zod.enum(['draft', 'reviewed', 'accepted']).optional(),
+  "status": zod.enum(['draft', 'reviewed', 'accepted', 'changes_requested']).optional(),
+  "sharedAt": zod.string().nullish(),
+  "respondedAt": zod.string().nullish(),
+  "changeRequest": zod.string().nullish(),
   "revision": zod.number().optional(),
   "reviewedAt": zod.string().nullish(),
   "acceptedAt": zod.string().nullish(),
@@ -1173,7 +1300,10 @@ export const listQuotesResponseWorkflowOneSectionsMax = 100;
 export const ListQuotesResponseItem = zod.object({
   "contactId": zod.number().nullish(),
   "callId": zod.number().nullish(),
-  "status": zod.enum(['draft', 'reviewed', 'accepted']).optional(),
+  "status": zod.enum(['draft', 'reviewed', 'accepted', 'changes_requested']).optional(),
+  "sharedAt": zod.string().nullish(),
+  "respondedAt": zod.string().nullish(),
+  "changeRequest": zod.string().nullish(),
   "revision": zod.number().optional(),
   "reviewedAt": zod.string().nullish(),
   "acceptedAt": zod.string().nullish(),
@@ -1408,7 +1538,10 @@ export const createQuoteResponseWorkflowOneSectionsMax = 100;
 export const CreateQuoteResponse = zod.object({
   "contactId": zod.number().nullish(),
   "callId": zod.number().nullish(),
-  "status": zod.enum(['draft', 'reviewed', 'accepted']).optional(),
+  "status": zod.enum(['draft', 'reviewed', 'accepted', 'changes_requested']).optional(),
+  "sharedAt": zod.string().nullish(),
+  "respondedAt": zod.string().nullish(),
+  "changeRequest": zod.string().nullish(),
   "revision": zod.number().optional(),
   "reviewedAt": zod.string().nullish(),
   "acceptedAt": zod.string().nullish(),
@@ -1542,7 +1675,10 @@ export const getQuoteResponseWorkflowOneSectionsMax = 100;
 export const GetQuoteResponse = zod.object({
   "contactId": zod.number().nullish(),
   "callId": zod.number().nullish(),
-  "status": zod.enum(['draft', 'reviewed', 'accepted']).optional(),
+  "status": zod.enum(['draft', 'reviewed', 'accepted', 'changes_requested']).optional(),
+  "sharedAt": zod.string().nullish(),
+  "respondedAt": zod.string().nullish(),
+  "changeRequest": zod.string().nullish(),
   "revision": zod.number().optional(),
   "reviewedAt": zod.string().nullish(),
   "acceptedAt": zod.string().nullish(),
@@ -1781,7 +1917,10 @@ export const updateQuoteResponseWorkflowOneSectionsMax = 100;
 export const UpdateQuoteResponse = zod.object({
   "contactId": zod.number().nullish(),
   "callId": zod.number().nullish(),
-  "status": zod.enum(['draft', 'reviewed', 'accepted']).optional(),
+  "status": zod.enum(['draft', 'reviewed', 'accepted', 'changes_requested']).optional(),
+  "sharedAt": zod.string().nullish(),
+  "respondedAt": zod.string().nullish(),
+  "changeRequest": zod.string().nullish(),
   "revision": zod.number().optional(),
   "reviewedAt": zod.string().nullish(),
   "acceptedAt": zod.string().nullish(),

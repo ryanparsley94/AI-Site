@@ -16,6 +16,8 @@ import Invoices from '@/pages/invoices';
 import Certificates from '@/pages/certificates';
 import EmailInbox from '@/pages/email-inbox';
 import Tasks from '@/pages/tasks';
+import PublicQuotePage from '@/pages/public-quote';
+import { useRoute } from 'wouter';
 import VoiceAssistant from '@/components/layout/voice-assistant';
 import { VoiceProvider } from '@/lib/voice-context';
 
@@ -45,6 +47,7 @@ function Router() {
     <Switch>
       {/* Public Route */}
       <Route path="/" component={Landing} />
+      <Route path="/quote/accept/:token" component={PublicQuotePage} />
 
       {/* App Routes wrapped in layout */}
       <Route path="/dashboard">
@@ -89,13 +92,17 @@ function Router() {
   );
 }
 
+function Shell() {
+  const [isPublic] = useRoute('/quote/accept/:token');
+  return (<><Router />{!isPublic && <VoiceAssistant />}</>);
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
         <VoiceProvider>
-          <Router />
-          <VoiceAssistant />
+          <Shell />
         </VoiceProvider>
       </WouterRouter>
       <Toaster />

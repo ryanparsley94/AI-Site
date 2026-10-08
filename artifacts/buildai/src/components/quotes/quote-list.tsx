@@ -1,4 +1,5 @@
 import type { Quote } from "@workspace/api-client-react";
+import { ShareQuote } from "./share-quote";
 import { Copy, Eye, FileText, Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,10 +33,12 @@ export function QuoteList({ quotes, loading, error, onRetry, onOpen, onDuplicate
             </button>
             <div className="flex items-center gap-2">
               {!q.workflow && <Badge variant="outline">Legacy</Badge>}
-              <Badge variant="outline" data-testid={`badge-status-${q.id}`}>{statusLabel(q.status)}</Badge>
+              <Badge variant="outline" data-testid={`badge-status-${q.id}`}>{statusLabel(q.status, q.sharedAt)}</Badge>
               <span className="w-24 text-right font-semibold tabular-nums" data-testid={`text-total-${q.id}`}>{formatCurrency(quoteTotal(q))}</span>
             </div>
+            {q.status === "changes_requested" && q.changeRequest && <p className="w-full rounded-md border border-amber-400/40 bg-amber-400/10 p-2 text-sm" data-testid={`text-change-request-${q.id}`}>Client asked: {q.changeRequest}</p>}
             <div className="flex">
+              {q.status === "reviewed" && <ShareQuote quote={q} />}
               <Button variant="ghost" size="icon" className="h-11 w-11" onClick={() => onOpen(q)} aria-label={accepted ? "View" : "Edit"} data-testid={`button-open-${q.id}`}>{accepted ? <Eye className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}</Button>
               <Button variant="ghost" size="icon" className="h-11 w-11" onClick={() => onDuplicate(q)} aria-label="Duplicate" data-testid={`button-dup-${q.id}`}><Copy className="h-4 w-4" /></Button>
               <Button variant="ghost" size="icon" className="h-11 w-11 hover:text-destructive" onClick={() => onDelete(q)} aria-label="Delete" data-testid={`button-delete-${q.id}`}><Trash2 className="h-4 w-4" /></Button>
