@@ -5,6 +5,36 @@
  * BuildAI – Construction Company AI Assistant Platform API
  * OpenAPI spec version: 0.1.0
  */
+export type VoiceCommandResultAction = typeof VoiceCommandResultAction[keyof typeof VoiceCommandResultAction];
+
+
+export const VoiceCommandResultAction = {
+  none: 'none',
+  send_invoice: 'send_invoice',
+  complete_job: 'complete_job',
+  create_job: 'create_job',
+  add_quote_items: 'add_quote_items',
+  schedule: 'schedule',
+  outstanding_invoices: 'outstanding_invoices',
+  quote_draft: 'quote_draft',
+} as const;
+
+export type VoiceCommandResultQuoteDraftItem = {
+  name: string;
+  quantity: number;
+  unit: string;
+};
+
+export interface VoiceCommandResult {
+  action: VoiceCommandResultAction;
+  spokenResponse: string;
+  /** Base64 WAV audio */
+  audio?: string;
+  audioError?: string;
+  quoteDraft?: VoiceCommandResultQuoteDraftItem[];
+  navigateTo?: string;
+}
+
 export interface WidgetConfig {
   companyName: string;
   color: string;
@@ -1232,6 +1262,33 @@ export type UpdateMarketingDraftResponse = MarketingDraft;
 export type ApproveMarketingDraftResponse = MarketingDraft;
 
 export type DismissMarketingDraftResponse = MarketingDraft;
+
+export type VoiceCommandBodyVoice = typeof VoiceCommandBodyVoice[keyof typeof VoiceCommandBodyVoice];
+
+
+export const VoiceCommandBodyVoice = {
+  alloy: 'alloy',
+  echo: 'echo',
+  shimmer: 'shimmer',
+} as const;
+
+export type VoiceCommandBody = {
+  /** @maxLength 4000 */
+  transcript?: string;
+  /** JPEG, PNG or WebP data URL, maximum 5 MB */
+  image?: string;
+  timeZone?: string;
+  voice?: VoiceCommandBodyVoice;
+};
+
+export type VoiceTranscribeBody = {
+  /** Base64 audio, maximum 10 MB */
+  audio: string;
+};
+
+export type VoiceTranscribe200 = {
+  transcript: string;
+};
 
 export type GetWidgetScriptParams = {
 key: string;

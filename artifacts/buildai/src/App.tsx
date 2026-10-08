@@ -16,6 +16,8 @@ import Invoices from '@/pages/invoices';
 import Certificates from '@/pages/certificates';
 import EmailInbox from '@/pages/email-inbox';
 import Tasks from '@/pages/tasks';
+import VoiceAssistant from '@/components/layout/voice-assistant';
+import { VoiceProvider } from '@/lib/voice-context';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -91,7 +93,10 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
-        <Router />
+        <VoiceProvider>
+          <Router />
+          <VoiceAssistant />
+        </VoiceProvider>
       </WouterRouter>
       <Toaster />
     </QueryClientProvider>

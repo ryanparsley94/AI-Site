@@ -1,5 +1,7 @@
+- [Codegen Zod v3 patch](codegen-zod-patch.md) — use the package codegen command; keep compatibility cleanup aligned with the current generator configuration.
 - [OpenAI max_completion_tokens](openai-model-params.md) — gpt-5.6-luna requires `max_completion_tokens` not `max_tokens`; using `max_tokens` returns a 400 unsupported_parameter error.
 - [Call-to-quote safety](call-quote-safety.md) — enquiries must not produce guessed materials or quantities; contractor review is required before client delivery.
 - [CREWON branding](crewon-branding.md) — CREWON is the agreed platform name; preserve legacy technical identifiers when updating visible branding.
 - [V1 pilot release gate](v1-pilot-release-gate.md) — Parsley Electrical receptionist, email and unified enquiries must be real and verified before Pro modules or parity claims.
 - [Quote workflow safety](quote-workflow-decisions.md) — private costs stay internal; deposits are part of totals; accepted quotes and legacy records must be preserved.
+- [Workflow ownership](workflow-ownership.md) — a responsive preview can be stale; workspace restarts may leave orphan listeners while managed workflows fail.

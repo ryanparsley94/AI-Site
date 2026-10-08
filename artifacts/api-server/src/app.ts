@@ -37,6 +37,8 @@ app.use(
 );
 app.use(cors({ credentials: true, origin: true }));
 app.use(cookieParser());
+// Voice uploads are transient, authenticated and bounded separately from ordinary JSON.
+app.use("/api/voice", express.json({ limit: "15mb" }));
 
 // Capture raw body buffer before JSON parsing so webhook handlers can verify
 // Resend (svix) signatures against the unmodified payload.
