@@ -4,7 +4,7 @@ test.beforeEach(async ({ page }) => {
   await page.route("**/api/**", async route => {
     const path = new URL(route.request().url()).pathname;
     if (path.startsWith("/api/voice/")) return route.fallback();
-    await route.fulfill({ json: path === "/api/company" ? { name: "Test contractor" } : path.includes("count") ? { count: 0 } : [] });
+    await route.fulfill({ json: path === "/api/auth/check" ? { authenticated: true } : path === "/api/company" ? { name: "Test contractor" } : path.includes("count") ? { count: 0 } : [] });
   });
   await page.addInitScript(() => {
     window.speechSynthesis.speak = () => {};

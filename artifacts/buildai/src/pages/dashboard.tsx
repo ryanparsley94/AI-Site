@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import PilotReleaseGate from "@/components/pilot-release-gate";
 import {
   useGetDashboardSummary,
@@ -184,6 +184,18 @@ function ActivityRow({ item }: { item: ActivityItem }) {
 
 export default function Dashboard() {
   const [, navigate] = useLocation();
+  const [pilot, setPilot] = useState<{
+    phoneConfigured: boolean; emailInboundConfigured: boolean; emailOutboundConfigured: boolean;
+    ownerEmailConfigured: boolean; completedCalls: number; ownerSummariesSent: number;
+    inboundEmails: number; emailRepliesSent: number;
+  } | null>(null);
+
+  useEffect(() => {
+    fetch(`${import.meta.env.BASE_URL.replace(/\/$/, "")}/api/dashboard/pilot-readiness`, { credentials: "include" })
+      .then(r => r.ok ? r.json() : Promise.reject(new Error("Readiness unavailable")))
+      .then(setPilot)
+      .catch(() => setPilot(null));
+  }, []);
 
   const { data: summary, isLoading: isLoadingSummary } = useGetDashboardSummary();
   const { data: callStats } = useGetCallStats();
@@ -287,6 +299,26 @@ export default function Dashboard() {
             <QuickAction label="Call Log" icon={PhoneCall} href="/calls" />
           </div>
         </div>
+
+        <Card className="border-primary/30">
+          <CardContent className="p-5">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <p className="text-sm font-bold">Integration setup & recorded activity</p>
+                <p className="text-xs text-muted-foreground">Counts can include tests. Provider acceptance is not confirmed delivery; real Twilio and Resend checks remain outstanding.</p>
+              </div>
+              <Badge variant="outline">Phone & email unverified · not live</Badge>
+            </div>
+            {pilot ? (
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 mt-4 text-xs">
+                <div><StatusDot active={pilot.phoneConfigured} /> Phone connection {pilot.phoneConfigured ? "configured" : "needs setup"}</div>
+                <div><StatusDot active={pilot.phoneConfigured} /> Recorded call / summary acceptance {pilot.completedCalls}/{pilot.ownerSummariesSent}</div>
+                <div><StatusDot active={pilot.emailInboundConfigured && pilot.inboundEmails > 0} /> Inbound email {pilot.inboundEmails}</div>
+                <div><StatusDot active={pilot.emailOutboundConfigured && pilot.emailRepliesSent > 0} /> Approved reply {pilot.emailRepliesSent}</div>
+              </div>
+            ) : <p className="text-xs text-muted-foreground mt-3">Pilot status is unavailable; check the server before testing.</p>}
+          </CardContent>
+        </Card>
 
         {/* ── Stat cards ──────────────────────────────────────────────────── */}
         <PilotReleaseGate />

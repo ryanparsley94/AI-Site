@@ -847,6 +847,75 @@ paths:
         "204":
           description: Deleted
 
+  /dashboard/pilot-readiness:
+    get:
+      operationId: getPilotActivity
+      tags: [pilot]
+      summary: Configuration and recorded activity, not verified live-pilot evidence
+      responses:
+        "200":
+          description: Configured services and activity counts
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [phoneConfigured, emailInboundConfigured, emailOutboundConfigured, ownerEmailConfigured, completedCalls, ownerSummariesSent, inboundEmails, emailRepliesSent]
+                properties:
+                  phoneConfigured: { type: boolean }
+                  emailInboundConfigured: { type: boolean }
+                  emailOutboundConfigured: { type: boolean }
+                  ownerEmailConfigured: { type: boolean }
+                  completedCalls: { type: integer }
+                  ownerSummariesSent: { type: integer, description: Provider acceptance, not delivery confirmation }
+                  inboundEmails: { type: integer }
+                  emailRepliesSent: { type: integer }
+
+  /calls/{id}/voice-delivery:
+    get:
+      operationId: getCallVoiceDelivery
+      tags: [calls]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Owner and caller notification state; sent means provider acceptance only
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [owner, caller, retryable]
+                properties:
+                  owner: { type: string }
+                  caller: { type: string }
+                  retryable: { type: boolean }
+        "404":
+          description: No telephone delivery record exists for this call
+
+  /calls/{id}/retry-notification:
+    post:
+      operationId: retryCallOwnerNotification
+      tags: [calls]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Owner-summary retry result; not proof of delivery
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [owner]
+                properties:
+                  owner: { type: string }
+        "409":
+          description: Already accepted or currently sending
+
   /pilot/readiness:
     get:
       operationId: getPilotReadiness

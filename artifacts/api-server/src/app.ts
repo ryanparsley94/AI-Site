@@ -35,7 +35,19 @@ app.use(
     },
   }),
 );
-app.use(cors({ credentials: true, origin: true }));
+app.use(cors((req, callback) => {
+  const publicEmbed = /^\/api\/widget(?:\/|\.|$)/.test(req.path);
+  if (publicEmbed) { callback(null, { origin: true, credentials: false }); return; }
+  const origin = req.get("origin");
+  // Dashboard cookies are only readable by this app's own origin. Embedded
+  // widgets have their separate, cookie-free public route above.
+  let sameOrigin = false;
+  try { sameOrigin = !!origin && new URL(origin).host === req.get("host"); } catch { /* reject malformed Origin */ }
+  const mobileOrigin = process.env.REPLIT_EXPO_DEV_DOMAIN
+    ? `https://${process.env.REPLIT_EXPO_DEV_DOMAIN}` : undefined;
+  const allowed = sameOrigin || (Boolean(mobileOrigin) && origin === mobileOrigin);
+  callback(null, { origin: allowed ? origin : false, credentials: allowed });
+}));
 app.use(cookieParser());
 // Voice uploads are transient, authenticated and bounded separately from ordinary JSON.
 app.use("/api/voice", express.json({ limit: "15mb" }));

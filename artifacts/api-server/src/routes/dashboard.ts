@@ -1,9 +1,33 @@
 import { Router } from "express";
 import { eq, gte, and, lte } from "drizzle-orm";
-import { db, callsTable, jobsTable, assistantsTable, contactsTable, invoicesTable } from "@workspace/db";
+import { db, pool, callsTable, jobsTable, assistantsTable, contactsTable, invoicesTable, companiesTable } from "@workspace/db";
 import { GetDashboardSummaryResponse } from "@workspace/api-zod";
 
 const router = Router();
+
+// Configuration and observed activity are separate: secrets alone do not prove
+// that a real customer call or email was received and handled successfully.
+router.get("/dashboard/pilot-readiness", async (_req, res): Promise<void> => {
+  const [voice, email, companies] = await Promise.all([
+    pool.query<{ completed: string; delivered: string }>(
+      "SELECT count(*) FILTER (WHERE completed)::text AS completed, count(*) FILTER (WHERE notification_status='sent')::text AS delivered FROM voice_call_sessions"
+    ),
+    pool.query<{ received: string; replied: string }>(
+      "SELECT count(*)::text AS received, count(*) FILTER (WHERE status='sent')::text AS replied FROM email_threads WHERE message_id IS NOT NULL"
+    ),
+    db.select().from(companiesTable).limit(1),
+  ]);
+  res.json({
+    phoneConfigured: Boolean(process.env.TWILIO_AUTH_TOKEN && process.env.VOICE_PUBLIC_BASE_URL && process.env.TWILIO_ACCOUNT_SID),
+    emailInboundConfigured: Boolean(process.env.RESEND_WEBHOOK_SECRET && process.env.RESEND_API_KEY),
+    emailOutboundConfigured: Boolean(process.env.RESEND_API_KEY && process.env.RESEND_FROM_EMAIL),
+    ownerEmailConfigured: Boolean(companies[0]?.email),
+    completedCalls: Number(voice.rows[0]?.completed ?? 0),
+    ownerSummariesSent: Number(voice.rows[0]?.delivered ?? 0),
+    inboundEmails: Number(email.rows[0]?.received ?? 0),
+    emailRepliesSent: Number(email.rows[0]?.replied ?? 0),
+  });
+});
 
 router.get("/dashboard/summary", async (req, res): Promise<void> => {
   const now = new Date();

@@ -2,8 +2,9 @@ import { useState } from "react";
 import { Menu } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import Sidebar from "@/components/layout/sidebar";
+import { AuthGate } from "@/components/auth-gate";
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
@@ -31,4 +32,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </div>
     </div>
   );
+}
+
+export default function AppLayout({ children }: { children: React.ReactNode }) {
+  return <AuthGate><AuthenticatedLayout>{children}</AuthenticatedLayout></AuthGate>;
 }

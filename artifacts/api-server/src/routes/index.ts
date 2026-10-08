@@ -18,7 +18,8 @@ import tasksRouter from "./tasks";
 import marketingRouter from "./marketing";
 import supportQuestionsRouter from "./support-questions";
 import pilotRouter from "./pilot";
-import voiceRouter from "./voice";
+import voiceRouter, { phoneRouter } from "./voice";
+import { adminOnly } from "../lib/adminAuth";
 
 const router: IRouter = Router();
 
@@ -34,8 +35,10 @@ router.use(authRouter);
 router.use(widgetRouter);
 router.use(emailInboundRouter);
 router.use(supportQuestionsRouter);
+router.use(phoneRouter);
 
 // ── Dashboard routes ──────────────────────────────────────────────────────────
+router.use(adminOnly);
 router.use(companyRouter);
 router.use(assistantsRouter);
 router.use(contactsRouter);
