@@ -20,6 +20,10 @@ function NativeTabLayout() {
         <Icon sf={{ default: 'briefcase', selected: 'briefcase.fill' }} />
         <Label>Jobs</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="tasks">
+        <Icon sf={{ default: 'checklist', selected: 'checklist.checked' }} />
+        <Label>Tasks</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="contacts">
         <Icon sf={{ default: 'person.2', selected: 'person.2.fill' }} />
         <Label>Contacts</Label>
@@ -90,6 +94,18 @@ function ClassicTabLayout() {
               <SymbolView name="briefcase" tintColor={color} size={22} />
             ) : (
               <Feather name="briefcase" size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="tasks"
+        options={{
+          title: 'Tasks',
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="checklist" tintColor={color} size={22} />
+            ) : (
+              <Feather name="check-square" size={22} color={color} />
             ),
         }}
       />
