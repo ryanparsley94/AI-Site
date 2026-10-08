@@ -9,9 +9,8 @@
  *
  * The cookie is:
  *   – HttpOnly   → inaccessible to embedded JavaScript on third-party sites
- *   – SameSite=Strict → never sent with cross-origin requests; the embedded
- *     widget (running on the contractor's own website) can never reach
- *     management endpoints even if it somehow obtained the URL
+ *   – SameSite=Lax → allows the top-level OAuth callback redirect while
+ *     preventing third-party subrequests from carrying the dashboard cookie
  *   – Secure in production → only sent over HTTPS
  *   – Signed with SESSION_SECRET via HMAC-SHA256 → cannot be forged without
  *     knowledge of the server-side secret
@@ -79,7 +78,7 @@ export function issueSessionIfValid(
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
+    sameSite: "lax",
     maxAge: MAX_AGE_MS,
     path: "/api",
   });

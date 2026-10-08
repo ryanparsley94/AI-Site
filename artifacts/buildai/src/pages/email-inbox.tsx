@@ -260,8 +260,7 @@ function SettingsPanel({ onClose }: { onClose: () => void }) {
               <div>
                 <p className="text-sm font-medium text-green-800">Email delivery active</p>
                 <p className="text-xs text-green-700 mt-0.5">
-                  Approved replies are sent via Resend. Set{" "}
-                  <code className="bg-green-100 px-1 rounded">RESEND_FROM_EMAIL</code> to customise the sender address.
+                  Approved replies are sent via the connected business address.
                 </p>
               </div>
             </div>
@@ -272,7 +271,7 @@ function SettingsPanel({ onClose }: { onClose: () => void }) {
                 <p className="text-sm font-medium text-amber-800">Email delivery not configured</p>
                 <p className="text-xs text-amber-700 mt-0.5">
                   Add <code className="bg-amber-100 px-1 rounded">RESEND_API_KEY</code> and{" "}
-                  <code className="bg-amber-100 px-1 rounded">RESEND_FROM_EMAIL</code> as Replit Secrets to enable outbound sending. Until then, approved replies are recorded but not delivered.
+                  <code className="bg-amber-100 px-1 rounded">RESEND_FROM_EMAIL</code> as Replit Secrets to enable outbound sending. Until then, drafts stay pending and sending is unavailable.
                 </p>
               </div>
             </div>

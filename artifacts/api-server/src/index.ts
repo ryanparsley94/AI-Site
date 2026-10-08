@@ -42,6 +42,23 @@ const MIGRATIONS = [
   `CREATE UNIQUE INDEX IF NOT EXISTS marketing_drafts_job_type_unique
      ON marketing_drafts (job_id, type)
      WHERE job_id IS NOT NULL`,
+  // 007: Durable state for Twilio's multi-step voice webhook. The unique SID
+  // makes retried webhook requests safe to acknowledge without a second lead.
+  `CREATE TABLE IF NOT EXISTS voice_call_sessions (
+    call_sid text PRIMARY KEY,
+    caller_phone text NOT NULL,
+    called_phone text NOT NULL DEFAULT '',
+    call_id integer,
+    step integer NOT NULL DEFAULT 0,
+    retries integer NOT NULL DEFAULT 0,
+    answers jsonb NOT NULL DEFAULT '{}'::jsonb,
+    completed boolean NOT NULL DEFAULT false,
+    notification_status text NOT NULL DEFAULT 'pending',
+    customer_confirmation_status text NOT NULL DEFAULT 'pending',
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+  )`,
+  `ALTER TABLE voice_call_sessions ADD COLUMN IF NOT EXISTS customer_confirmation_status text NOT NULL DEFAULT 'pending'`,
 ];
 
 async function runMigrations(): Promise<void> {

@@ -51,8 +51,31 @@ export default function CallDetail() {
   const [notes, setNotes] = useState("");
   const [status, setStatus] = useState<CallUpdateStatus | "">("");
   const [isExtractingQuote, setIsExtractingQuote] = useState(false);
+  const [delivery, setDelivery] = useState<{ owner: string; caller: string } | null>(null);
+  const [retrying, setRetrying] = useState(false);
   const initialized = useRef(false);
   const markedReviewed = useRef(false);
+
+  useEffect(() => {
+    if (!callId) return;
+    fetch(`/api/calls/${callId}/voice-delivery`, { credentials: "include" })
+      .then(r => r.ok ? r.json() : null)
+      .then(setDelivery)
+      .catch(() => setDelivery(null));
+  }, [callId]);
+
+  const retryOwnerSummary = async () => {
+    setRetrying(true);
+    try {
+      const response = await fetch(`/api/calls/${callId}/retry-notification`, { method: "POST", credentials: "include" });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error ?? "Retry failed");
+      setDelivery(current => current ? { ...current, owner: result.owner } : null);
+      toast({ title: result.owner === "sent" ? "Owner summary accepted" : `Owner summary: ${result.owner}` });
+    } catch (error) {
+      toast({ title: error instanceof Error ? error.message : "Retry failed", variant: "destructive" });
+    } finally { setRetrying(false); }
+  };
 
   useEffect(() => {
     if (call && !initialized.current) {
@@ -177,6 +200,17 @@ export default function CallDetail() {
         </div>
       </div>
 
+      {delivery && (
+        <div className="px-4 py-2 border-b bg-card text-xs flex flex-wrap items-center gap-3">
+          <span>Owner summary: <strong>{delivery.owner}</strong></span>
+          <span>Caller confirmation: <strong>{delivery.caller}</strong></span>
+          {(["failed", "unconfigured"].includes(delivery.owner)) && (
+            <Button size="sm" variant="outline" disabled={retrying} onClick={retryOwnerSummary}>
+              {retrying ? "Retrying…" : "Retry owner summary"}
+            </Button>
+          )}
+        </div>
+      )}
       <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
         {/* Transcript Area */}
         <div className="flex-1 border-r flex flex-col bg-slate-50/50">

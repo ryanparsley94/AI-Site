@@ -45,7 +45,7 @@ async function getOrCreateCompany() {
   if (rows.length > 0) return rows[0];
   const [created] = await db
     .insert(companiesTable)
-    .values({ name: "Apex Construction Co.", phone: "(555) 800-1234" })
+    .values({ name: "Parsley Electrical Ltd", phone: "", timezone: "Europe/London" })
     .returning();
   return created;
 }
@@ -148,10 +148,10 @@ export async function sendEmailReply(
   body: string
 ): Promise<boolean> {
   const resend = getResendClient();
-  if (!resend) return false;
+  if (!resend || !process.env.RESEND_FROM_EMAIL) return false;
   try {
     const company = await getOrCreateCompany();
-    const fromAddress = process.env.RESEND_FROM_EMAIL ?? "noreply@buildai.app";
+    const fromAddress = process.env.RESEND_FROM_EMAIL;
     const result = await resend.emails.send({
       from: `${company.name} <${fromAddress}>`,
       to: [toName ? `${toName} <${toEmail}>` : toEmail],
@@ -347,6 +347,16 @@ router.post("/email-threads/inbound", async (req, res): Promise<void> => {
           "Could not fetch inbound email body from Resend receiving API — proceeding with available content"
         );
       }
+    }
+
+    // Never invent a reply from metadata alone if the provider body is missing.
+    // Keep the enquiry visible for manual review and preserve the dedup claim.
+    if (!bodyText.trim() && !bodyHtml?.trim()) {
+      await db.update(emailThreadsTable)
+        .set({ status: "pending", bodyText: "[Email body unavailable — check the original message]" })
+        .where(eq(emailThreadsTable.id, claimedRowId));
+      res.json({ ok: true, needsReview: true });
+      return;
     }
 
     // Step 5: Upsert contact — match existing leads by email address

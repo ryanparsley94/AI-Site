@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { and, eq, desc, sql, ne } from "drizzle-orm";
-import { db, callsTable } from "@workspace/db";
+import { db, pool, callsTable } from "@workspace/db";
+import { notifyOwner } from "./voice";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import {
   ListCallsResponse,
@@ -91,6 +92,30 @@ router.get("/calls/:id", async (req, res): Promise<void> => {
   const [row] = await db.select().from(callsTable).where(eq(callsTable.id, params.data.id));
   if (!row) { res.status(404).json({ error: "Not found" }); return; }
   res.json(GetCallResponse.parse(mapCall(row)));
+});
+
+router.get("/calls/:id/voice-delivery", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) { res.status(400).json({ error: "Invalid id" }); return; }
+  const result = await pool.query<{ notification_status: string; customer_confirmation_status: string }>(
+    "SELECT notification_status,customer_confirmation_status FROM voice_call_sessions WHERE call_id=$1 LIMIT 1", [id],
+  );
+  if (!result.rows[0]) { res.status(404).json({ error: "No phone delivery record" }); return; }
+  res.json({ owner: result.rows[0].notification_status, caller: result.rows[0].customer_confirmation_status });
+});
+
+router.post("/calls/:id/retry-notification", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) { res.status(400).json({ error: "Invalid id" }); return; }
+  const claimed = await pool.query<{ call_sid: string }>(
+    "UPDATE voice_call_sessions SET notification_status='pending' WHERE call_id=$1 AND completed=true AND notification_status IN ('failed','unconfigured') RETURNING call_sid", [id],
+  );
+  if (!claimed.rows[0]) { res.status(409).json({ error: "No failed owner notification to retry" }); return; }
+  await notifyOwner(claimed.rows[0].call_sid);
+  const state = await pool.query<{ notification_status: string }>(
+    "SELECT notification_status FROM voice_call_sessions WHERE call_sid=$1", [claimed.rows[0].call_sid],
+  );
+  res.json({ owner: state.rows[0]?.notification_status ?? "unknown" });
 });
 
 router.patch("/calls/:id", async (req, res): Promise<void> => {

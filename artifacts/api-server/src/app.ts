@@ -35,7 +35,16 @@ app.use(
     },
   }),
 );
-app.use(cors({ credentials: true, origin: true }));
+app.use(cors((req, callback) => {
+  const publicEmbed = /^\/api\/widget(?:\/|\.|$)/.test(req.path);
+  if (publicEmbed) { callback(null, { origin: true, credentials: false }); return; }
+  const origin = req.get("origin");
+  // Dashboard cookies are only readable by this app's own origin. Embedded
+  // widgets have their separate, cookie-free public route above.
+  let sameOrigin = false;
+  try { sameOrigin = !!origin && new URL(origin).host === req.get("host"); } catch { /* reject malformed Origin */ }
+  callback(null, { origin: sameOrigin ? origin : false, credentials: sameOrigin });
+}));
 app.use(cookieParser());
 
 // Capture raw body buffer before JSON parsing so webhook handlers can verify

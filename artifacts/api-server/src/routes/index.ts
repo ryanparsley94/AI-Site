@@ -17,6 +17,8 @@ import integrationsRouter from "./integrations";
 import tasksRouter from "./tasks";
 import marketingRouter from "./marketing";
 import supportQuestionsRouter from "./support-questions";
+import voiceRouter from "./voice";
+import { adminOnly } from "../lib/adminAuth";
 
 const router: IRouter = Router();
 
@@ -32,8 +34,10 @@ router.use(authRouter);
 router.use(widgetRouter);
 router.use(emailInboundRouter);
 router.use(supportQuestionsRouter);
+router.use(voiceRouter);
 
 // ── Dashboard routes ──────────────────────────────────────────────────────────
+router.use(adminOnly);
 router.use(companyRouter);
 router.use(assistantsRouter);
 router.use(contactsRouter);

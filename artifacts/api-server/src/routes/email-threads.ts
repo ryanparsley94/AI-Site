@@ -40,7 +40,7 @@ async function getOrCreateCompany() {
   if (rows.length > 0) return rows[0];
   const [created] = await db
     .insert(companiesTable)
-    .values({ name: "Apex Construction Co.", phone: "(555) 800-1234" })
+    .values({ name: "Parsley Electrical Ltd", phone: "", timezone: "Europe/London" })
     .returning();
   return created;
 }
@@ -57,7 +57,7 @@ router.get("/email-threads/settings", async (req, res): Promise<void> => {
     GetEmailSettingsResponse.parse({
       autoSend: company.emailAutoSend,
       forwardingAddress: inboundUrl,
-      resendConfigured: Boolean(process.env.RESEND_API_KEY),
+      resendConfigured: Boolean(process.env.RESEND_API_KEY && process.env.RESEND_FROM_EMAIL),
     })
   );
 });
@@ -84,7 +84,7 @@ router.patch("/email-threads/settings", async (req, res): Promise<void> => {
     UpdateEmailSettingsResponse.parse({
       autoSend: updated.emailAutoSend,
       forwardingAddress: inboundUrl,
-      resendConfigured: Boolean(process.env.RESEND_API_KEY),
+      resendConfigured: Boolean(process.env.RESEND_API_KEY && process.env.RESEND_FROM_EMAIL),
     })
   );
 });
