@@ -97,11 +97,11 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       <div className="p-4 border-t border-sidebar-border mt-auto">
         <div className="bg-sidebar-accent/50 p-4 rounded-lg">
           <div className="flex items-center gap-2 mb-2">
-            <div className="h-2 w-2 rounded-full bg-green-500"></div>
-            <span className="text-xs font-medium">All systems operational</span>
+            <div className="h-2 w-2 rounded-full bg-amber-500"></div>
+            <span className="text-xs font-medium">Pilot verification required</span>
           </div>
           <p className="text-xs text-sidebar-foreground/60 leading-relaxed">
-            Your AI assistants are currently active and handling calls.
+            Demo activity is not proof of a live receptionist. Phone and email setup must be verified.
           </p>
         </div>
       </div>

@@ -17,6 +17,7 @@ import integrationsRouter from "./integrations";
 import tasksRouter from "./tasks";
 import marketingRouter from "./marketing";
 import supportQuestionsRouter from "./support-questions";
+import pilotRouter from "./pilot";
 
 const router: IRouter = Router();
 
@@ -47,5 +48,6 @@ router.use(emailThreadsRouter);
 router.use(integrationsRouter);
 router.use(marketingRouter);
 router.use(tasksRouter);
+router.use(pilotRouter);
 
 export default router;

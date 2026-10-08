@@ -41,6 +41,7 @@ import type {
   Contact,
   ContactInput,
   ContactUpdate,
+  ConvertQuoteToJobBody,
   CreateTaskBody,
   DashboardSummary,
   EmailInboundPayload,
@@ -52,6 +53,7 @@ import type {
   GenerateMarketingDraftsBody,
   GenerateMarketingDraftsResponse,
   GenerateTasksResponse,
+  GetPilotReadiness200,
   GetWidgetConfigParams,
   GetWidgetScriptParams,
   GetWidgetSlotsParams,
@@ -2899,6 +2901,297 @@ export const useDeleteContact = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getDeleteContactMutationOptions(options));
+    }
+
+export const getGetPilotReadinessUrl = () => {
+
+
+
+
+  return `/api/pilot/readiness`
+}
+
+/**
+ * @summary Honest V1 release gate; demos never count as verified live evidence
+ */
+export const getPilotReadiness = async ( options?: Parameters<typeof customFetch>[1]): Promise<GetPilotReadiness200> => {
+
+  return customFetch<GetPilotReadiness200>(getGetPilotReadinessUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPilotReadinessQueryKey = () => {
+    return [
+    `/api/pilot/readiness`
+    ] as const;
+    }
+
+
+export const getGetPilotReadinessQueryOptions = <TData = Awaited<ReturnType<typeof getPilotReadiness>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPilotReadiness>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPilotReadinessQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPilotReadiness>>> = ({ signal }) => getPilotReadiness({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPilotReadiness>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPilotReadinessQueryResult = NonNullable<Awaited<ReturnType<typeof getPilotReadiness>>>
+export type GetPilotReadinessQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Honest V1 release gate; demos never count as verified live evidence
+ */
+
+export function useGetPilotReadiness<TData = Awaited<ReturnType<typeof getPilotReadiness>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPilotReadiness>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPilotReadinessQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDuplicateQuoteUrl = (id: number,) => {
+
+
+
+
+  return `/api/quotes/${id}/duplicate`
+}
+
+/**
+ * @summary Duplicate a quote as an editable draft
+ */
+export const duplicateQuote = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<Quote> => {
+
+  return customFetch<Quote>(getDuplicateQuoteUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getDuplicateQuoteMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof duplicateQuote>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof duplicateQuote>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['duplicateQuote'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof duplicateQuote>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  duplicateQuote(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DuplicateQuoteMutationResult = NonNullable<Awaited<ReturnType<typeof duplicateQuote>>>
+
+    export type DuplicateQuoteMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Duplicate a quote as an editable draft
+ */
+export const useDuplicateQuote = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof duplicateQuote>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof duplicateQuote>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDuplicateQuoteMutationOptions(options));
+    }
+
+export const getConvertQuoteToInvoiceUrl = (id: number,) => {
+
+
+
+
+  return `/api/quotes/${id}/convert-invoice`
+}
+
+/**
+ * @summary Convert an accepted quote, returning the existing invoice on retry
+ */
+export const convertQuoteToInvoice = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<Invoice> => {
+
+  return customFetch<Invoice>(getConvertQuoteToInvoiceUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getConvertQuoteToInvoiceMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof convertQuoteToInvoice>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof convertQuoteToInvoice>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['convertQuoteToInvoice'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof convertQuoteToInvoice>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  convertQuoteToInvoice(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConvertQuoteToInvoiceMutationResult = NonNullable<Awaited<ReturnType<typeof convertQuoteToInvoice>>>
+
+    export type ConvertQuoteToInvoiceMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Convert an accepted quote, returning the existing invoice on retry
+ */
+export const useConvertQuoteToInvoice = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof convertQuoteToInvoice>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof convertQuoteToInvoice>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getConvertQuoteToInvoiceMutationOptions(options));
+    }
+
+export const getConvertQuoteToJobUrl = (id: number,) => {
+
+
+
+
+  return `/api/quotes/${id}/convert-job`
+}
+
+/**
+ * @summary Create or return the job linked to an accepted quote
+ */
+export const convertQuoteToJob = async (id: number,
+    convertQuoteToJobBody: ConvertQuoteToJobBody, options?: Parameters<typeof customFetch>[1]): Promise<Job> => {
+
+  return customFetch<Job>(getConvertQuoteToJobUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(convertQuoteToJobBody)
+  }
+);}
+
+
+
+
+
+export const getConvertQuoteToJobMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof convertQuoteToJob>>, TError,{id: number;data: BodyType<ConvertQuoteToJobBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof convertQuoteToJob>>, TError,{id: number;data: BodyType<ConvertQuoteToJobBody>}, TContext> => {
+
+const mutationKey = ['convertQuoteToJob'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof convertQuoteToJob>>, {id: number;data: BodyType<ConvertQuoteToJobBody>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  convertQuoteToJob(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConvertQuoteToJobMutationResult = NonNullable<Awaited<ReturnType<typeof convertQuoteToJob>>>
+    export type ConvertQuoteToJobMutationBody = BodyType<ConvertQuoteToJobBody>
+    export type ConvertQuoteToJobMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create or return the job linked to an accepted quote
+ */
+export const useConvertQuoteToJob = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof convertQuoteToJob>>, TError,{id: number;data: BodyType<ConvertQuoteToJobBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof convertQuoteToJob>>,
+        TError,
+        {id: number;data: BodyType<ConvertQuoteToJobBody>},
+        TContext
+      > => {
+      return useMutation(getConvertQuoteToJobMutationOptions(options));
     }
 
 export const getListQuotesUrl = (params?: ListQuotesParams,) => {

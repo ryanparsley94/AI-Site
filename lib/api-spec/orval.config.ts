@@ -13,6 +13,21 @@ const titleTransformer: InputTransformerFn = (config) => {
   return config;
 };
 
+// Orval emits zod.int() (v4 only) for integer schemas, while this client uses v3.
+// ID/integer business rules are checked by route handlers; keep codegen reproducible.
+const zodTransformer: InputTransformerFn = (config) => {
+  const visit = (value: unknown): void => {
+    if (!value || typeof value !== "object") return;
+    const object = value as Record<string, unknown>;
+    if (object.type === "integer") object.type = "number";
+    if (Array.isArray(object.type)) object.type = object.type.map(type => type === "integer" ? "number" : type);
+    Object.values(object).forEach(visit);
+  };
+  const result = structuredClone(titleTransformer(config));
+  visit(result);
+  return result;
+};
+
 export default defineConfig({
   "api-client-react": {
     input: {
@@ -44,14 +59,13 @@ export default defineConfig({
     input: {
       target: "./openapi.yaml",
       override: {
-        transformer: titleTransformer,
+        transformer: zodTransformer,
       },
     },
     output: {
       workspace: apiZodSrc,
       client: "zod",
       target: "generated",
-      schemas: { path: "generated/types", type: "typescript" },
       mode: "split",
       clean: true,
       prettier: true,

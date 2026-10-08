@@ -595,6 +595,7 @@ export interface ContactUpdate {
 }
 
 export interface MaterialLineItem {
+  type?: string;
   name: string;
   quantity: number;
   unit: string;
@@ -608,7 +609,123 @@ export interface MaterialLineItem {
   total?: number | null;
 }
 
+export type QuoteStatus = typeof QuoteStatus[keyof typeof QuoteStatus];
+
+
+export const QuoteStatus = {
+  draft: 'draft',
+  reviewed: 'reviewed',
+  accepted: 'accepted',
+} as const;
+
+export type QuoteWorkflowDepositMode = typeof QuoteWorkflowDepositMode[keyof typeof QuoteWorkflowDepositMode];
+
+
+export const QuoteWorkflowDepositMode = {
+  none: 'none',
+  materials: 'materials',
+  fixed: 'fixed',
+  percentage: 'percentage',
+} as const;
+
+export type QuoteWorkflowItemType = typeof QuoteWorkflowItemType[keyof typeof QuoteWorkflowItemType];
+
+
+export const QuoteWorkflowItemType = {
+  materials: 'materials',
+  labour: 'labour',
+  subcontractor: 'subcontractor',
+  plant: 'plant',
+  other: 'other',
+} as const;
+
+export interface QuoteWorkflowItem {
+  id: string;
+  type: QuoteWorkflowItemType;
+  /** @maxLength 2000 */
+  description: string;
+  /**
+     * @minimum 0
+     * @maximum 1000000
+     */
+  quantity: number;
+  /** @maxLength 100 */
+  unit: string;
+  /**
+     * @minimum 0
+     * @maximum 10000000
+     */
+  costPrice: number;
+  /**
+     * @minimum 0
+     * @maximum 10000000
+     */
+  sellPrice: number;
+  source?: string;
+  sourceUrl?: string;
+  pricedAt?: string;
+  priceVerified?: boolean;
+}
+
+export type QuoteWorkflowDeposit = {
+  mode: QuoteWorkflowDepositMode;
+  /** @minimum 0 */
+  value: number;
+};
+
+export type QuoteWorkflowSectionsItem = {
+  id: string;
+  /** @maxLength 300 */
+  title: string;
+  /** @maxItems 500 */
+  items: QuoteWorkflowItem[];
+};
+
+export interface QuoteWorkflow {
+  /** @maxLength 300 */
+  customerName: string;
+  /** @maxLength 300 */
+  customerEmail: string;
+  /** @maxLength 100 */
+  customerPhone: string;
+  /** @maxLength 2000 */
+  billingAddress: string;
+  /** @maxLength 2000 */
+  siteAddress: string;
+  /** @maxLength 20000 */
+  scope: string;
+  /** @maxLength 10000 */
+  assumptions: string;
+  /** @maxLength 10000 */
+  exclusions: string;
+  /** @maxLength 10000 */
+  paymentTerms: string;
+  validUntil: string;
+  vatRegistered: boolean;
+  vatNumber: string;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  vatPercent: number;
+  deposit: QuoteWorkflowDeposit;
+  /** @maxItems 100 */
+  sections: QuoteWorkflowSectionsItem[];
+}
+
 export interface Quote {
+  /** @nullable */
+  contactId?: number | null;
+  /** @nullable */
+  callId?: number | null;
+  status?: QuoteStatus;
+  revision?: number;
+  /** @nullable */
+  reviewedAt?: string | null;
+  /** @nullable */
+  acceptedAt?: string | null;
+  workflow?: QuoteWorkflow | null;
+  companySnapshot?: Company | null;
   id: number;
   title: string;
   materials: MaterialLineItem[];
@@ -628,7 +745,21 @@ export interface Quote {
   createdAt: string;
 }
 
+export type QuoteInputStatus = typeof QuoteInputStatus[keyof typeof QuoteInputStatus];
+
+
+export const QuoteInputStatus = {
+  draft: 'draft',
+  reviewed: 'reviewed',
+} as const;
+
 export interface QuoteInput {
+  /** @nullable */
+  contactId?: number | null;
+  /** @nullable */
+  callId?: number | null;
+  status?: QuoteInputStatus;
+  workflow?: QuoteWorkflow;
   title: string;
   materials: MaterialLineItem[];
   grandTotal?: number;
@@ -640,7 +771,24 @@ export interface QuoteInput {
   totalIncVat?: number;
 }
 
+export type QuoteUpdateStatus = typeof QuoteUpdateStatus[keyof typeof QuoteUpdateStatus];
+
+
+export const QuoteUpdateStatus = {
+  draft: 'draft',
+  reviewed: 'reviewed',
+  accepted: 'accepted',
+} as const;
+
 export interface QuoteUpdate {
+  /** @nullable */
+  contactId?: number | null;
+  /** @nullable */
+  callId?: number | null;
+  status?: QuoteUpdateStatus;
+  /** Expected current revision for optimistic concurrency */
+  revision?: number;
+  workflow?: QuoteWorkflow;
   title?: string;
   materials?: MaterialLineItem[];
   grandTotal?: number;
@@ -1152,6 +1300,36 @@ export const ListContactsType = {
   lead: 'lead',
   customer: 'customer',
 } as const;
+
+export type GetPilotReadiness200ChecksItemStatus = typeof GetPilotReadiness200ChecksItemStatus[keyof typeof GetPilotReadiness200ChecksItemStatus];
+
+
+export const GetPilotReadiness200ChecksItemStatus = {
+  blocked: 'blocked',
+  not_verified: 'not_verified',
+  verified: 'verified',
+  failed: 'failed',
+} as const;
+
+export type GetPilotReadiness200ChecksItem = {
+  id: string;
+  title: string;
+  status: GetPilotReadiness200ChecksItemStatus;
+  detail: string;
+  path: string;
+};
+
+export type GetPilotReadiness200 = {
+  pilotName: string;
+  timezone: string;
+  live: boolean;
+  checks: GetPilotReadiness200ChecksItem[];
+  missingSetup: string[];
+};
+
+export type ConvertQuoteToJobBody = {
+  scheduledAt: string;
+};
 
 export type ListQuotesParams = {
 jobId?: number;
