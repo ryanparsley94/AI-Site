@@ -68,6 +68,41 @@ test("permission denied is visible and a rapid release never sends", async ({ pa
   expect(commands).toBe(0);
 });
 
+test("public demo speaks only after a tap and clearly stays a scripted sample", async ({ page }) => {
+  let serverTtsRequests = 0;
+  await page.route("**/api/assistants/voice-preview", async route => {
+    serverTtsRequests++;
+    await route.fulfill({ status: 401, json: { error: "Sign-in required" } });
+  });
+
+  await page.goto("/");
+  await page.evaluate(() => {
+    const spoken: string[] = [];
+    (window as any).__demoSpoken = spoken;
+    const speech = window.speechSynthesis as any;
+    speech.speak = (utterance: SpeechSynthesisUtterance) => {
+      spoken.push(utterance.text);
+      queueMicrotask(() => {
+        utterance.onstart?.(new Event("start") as SpeechSynthesisEvent);
+        utterance.onend?.(new Event("end") as SpeechSynthesisEvent);
+      });
+    };
+  });
+
+  await page.getByRole("button", { name: "Hear a Demo Call" }).click();
+  await expect(page.getByText("Scripted electrical enquiry")).toBeVisible();
+  await expect(page.getByText("no call, enquiry, or booking is created")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Play Demo Call" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Play Demo Call" }).click();
+  await page.waitForFunction(() => (window as any).__demoSpoken?.length === 20);
+  const spoken = await page.evaluate(() => (window as any).__demoSpoken as string[]);
+  expect(spoken[0]).toContain("electrical problem");
+  expect(spoken.at(-1)).toContain("The office will review");
+  expect(serverTtsRequests).toBe(0);
+  await expect(page.getByText("Demo ended · no enquiry or booking was created")).toBeVisible();
+});
+
 test("release before permission resolves stops tracks and does not submit", async ({ page }) => {
   await page.addInitScript(() => {
     (window as any).stopped = false;
