@@ -3,6 +3,7 @@ import { GetPilotReadinessResponse } from "@workspace/api-zod";
 
 const router = Router();
 router.get("/pilot/readiness", (_req, res) => {
+  const telephoneConfigured = Boolean(process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_PHONE_NUMBER && process.env.VOICE_PUBLIC_BASE_URL);
   const receivingConfigured = Boolean(process.env.RESEND_API_KEY && process.env.RESEND_WEBHOOK_SECRET);
   const sendingConfigured = Boolean(process.env.RESEND_API_KEY && process.env.RESEND_FROM_EMAIL);
   // These are verification gates, not feature toggles. Existing manual/demo records
@@ -15,8 +16,9 @@ router.get("/pilot/readiness", (_req, res) => {
     checks: [
       { id: "business", title: "Reviewed business & receptionist setup", status: "not_verified",
         detail: "Confirm the Parsley profile, website knowledge, receptionist name, greeting and instructions before use.", path: "/assistants" },
-      { id: "call", title: "Real incoming call", status: "blocked",
-        detail: "Incoming telephony is not connected. The browser voice assistant and demo call logs do not count.", path: "/calls" },
+      { id: "call", title: "Real incoming call", status: telephoneConfigured ? "not_verified" : "blocked",
+        detail: telephoneConfigured ? "Credentials are configured, but a real signed incoming call and saved enquiry still need verification."
+          : "Incoming telephony is not configured. The browser voice assistant and demo call logs do not count.", path: "/calls" },
       { id: "email", title: "Real incoming email & approved threaded reply", status: receivingConfigured ? "not_verified" : "blocked",
         detail: receivingConfigured ? "Credentials alone are not proof. Verify a real inbound message, contact match and approved reply."
           : "Connect the business mailbox or configure a verified receiving address and signed inbound events.", path: "/email-inbox" },
