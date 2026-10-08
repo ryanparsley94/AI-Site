@@ -6,7 +6,7 @@ import {
   type Company, type Quote,
 } from "@workspace/api-client-react";
 import type { QuoteWorkflow } from "@workspace/api-zod";
-import { AlertTriangle, ArrowLeft, CheckCircle2, Copy, Download, Lock, Receipt, Save, CalendarPlus } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Eye, EyeOff, CheckCircle2, Copy, Download, Lock, Receipt, Save, CalendarPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -17,7 +17,7 @@ import { DetailsForm } from "./details-form";
 import { SectionsEditor } from "./sections-editor";
 import { TotalsPanel } from "./totals-panel";
 import { AiPricing } from "./ai-pricing";
-import { CustomerPreview } from "./customer-preview";
+import { CustomerPreview, TemplateControls, type PreviewTemplate } from "./customer-preview";
 import { downloadQuotePdf } from "./pdf";
 import { normalizeWorkflow, reviewIssues, safeCalc, statusLabel, storedTotal } from "./helpers";
 
@@ -43,6 +43,8 @@ export function QuoteEditor({ init, company, onBack, onOpen }: {
   const [title, setTitle] = useState(init.title);
   const [saved, setSaved] = useState(() => JSON.stringify([init.workflow, init.title]));
   const [tab, setTab] = useState<"internal" | "customer">("internal");
+  const [showPreview, setShowPreview] = useState(false);
+  const [cmpTpl, setCmpTpl] = useState<PreviewTemplate | null>(null);
   const [jobOpen, setJobOpen] = useState(false);
   const [when, setWhen] = useState("");
   const create = useCreateQuote();
@@ -120,6 +122,13 @@ export function QuoteEditor({ init, company, onBack, onOpen }: {
   };
 
   const refText = quote ? `Q-${quote.id}` : "Unsaved";
+  const brandCo = locked && quote?.companySnapshot ? quote.companySnapshot : company;
+  const previewEl = (
+    <div className="space-y-3" data-testid="live-preview">
+      <TemplateControls saved={brandCo?.quoteTemplate} value={cmpTpl} onChange={setCmpTpl} locked={locked} />
+      <CustomerPreview w={w} calc={calc} error={error} company={brandCo} title={title} refText={refText} draft={effective === "draft"} createdAt={quote?.createdAt} template={locked ? null : cmpTpl} />
+    </div>
+  );
   return (
     <div className="space-y-4 p-4 pb-28 sm:p-6" data-testid="quote-editor">
       <div className="flex flex-wrap items-center gap-3">
@@ -139,33 +148,36 @@ export function QuoteEditor({ init, company, onBack, onOpen }: {
       {locked && <p className="rounded-md border border-primary/40 bg-primary/10 p-3 text-sm" data-testid="notice-locked">Accepted quotes are read-only. Duplicate it to make changes.</p>}
       {quote && status === "reviewed" && dirty && <p className="text-sm text-amber-300">Saving edits to a reviewed quote returns it to draft.</p>}
 
+      <div className="flex flex-wrap items-center gap-3">
       <div className="inline-flex rounded-md border border-border p-0.5">
         {(["internal", "customer"] as const).map(t => (
           <button key={t} type="button" onClick={() => setTab(t)} data-testid={`tab-${t}`} className={`h-10 rounded px-4 text-sm font-medium ${tab === t ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>{t === "internal" ? "Internal" : "Customer view"}</button>
         ))}
       </div>
+      {tab === "internal" && <Button type="button" variant="outline" className="h-10" onClick={() => setShowPreview(v => !v)} aria-pressed={showPreview} data-testid="button-toggle-live-preview">{showPreview ? <EyeOff className="mr-1.5 h-4 w-4" /> : <Eye className="mr-1.5 h-4 w-4" />}{showPreview ? "Hide live preview" : "Show live preview"}</Button>}
+      </div>
 
-      {tab === "customer" ? (
-        calc ? <CustomerPreview w={w} calc={calc} company={locked && quote?.companySnapshot ? quote.companySnapshot : company} title={title} refText={refText} draft={effective === "draft"} />
-          : <p className="text-sm text-destructive">{error}</p>
-      ) : (
-        <fieldset disabled={locked} className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
-          <div className="min-w-0 space-y-4">
-            <DetailsForm w={w} onChange={setW} title={title} onTitle={setTitle} />
-            <SectionsEditor w={w} onChange={setW} calc={calc} />
-            {!locked && <AiPricing w={w} onChange={setW} />}
-          </div>
-          <div className="space-y-4 lg:sticky lg:top-4 lg:self-start">
-            <TotalsPanel w={w} onChange={setW} calc={calc} error={error} />
-            {!locked && (
-              <div className="rounded-lg border border-border bg-card/60 p-4 text-sm" data-testid="review-checklist">
-                <p className="mb-2 font-semibold text-secondary">Before marking reviewed</p>
-                {issues.length === 0 ? <p className="flex items-center gap-2 text-primary"><CheckCircle2 className="h-4 w-4" />Ready to review</p>
-                  : <ul className="list-disc space-y-0.5 pl-5 text-muted-foreground">{issues.map(i => <li key={i}>{i}</li>)}</ul>}
-              </div>
-            )}
-          </div>
-        </fieldset>
+      {tab === "customer" ? previewEl : (
+        <div className={showPreview ? "grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,460px)]" : ""}>
+          <fieldset disabled={locked} className={`grid min-w-0 gap-4 ${showPreview ? "" : "lg:grid-cols-[minmax(0,1fr)_340px]"}`}>
+            <div className="min-w-0 space-y-4">
+              <DetailsForm w={w} onChange={setW} title={title} onTitle={setTitle} />
+              <SectionsEditor w={w} onChange={setW} calc={calc} />
+              {!locked && <AiPricing w={w} onChange={setW} />}
+            </div>
+            <div className="space-y-4 lg:sticky lg:top-4 lg:self-start">
+              <TotalsPanel w={w} onChange={setW} calc={calc} error={error} />
+              {!locked && (
+                <div className="rounded-lg border border-border bg-card/60 p-4 text-sm" data-testid="review-checklist">
+                  <p className="mb-2 font-semibold text-secondary">Before marking reviewed</p>
+                  {issues.length === 0 ? <p className="flex items-center gap-2 text-primary"><CheckCircle2 className="h-4 w-4" />Ready to review</p>
+                    : <ul className="list-disc space-y-0.5 pl-5 text-muted-foreground">{issues.map(i => <li key={i}>{i}</li>)}</ul>}
+                </div>
+              )}
+            </div>
+          </fieldset>
+          {showPreview && <aside className="min-w-0 xl:sticky xl:top-4 xl:max-h-[calc(100dvh-8rem)] xl:self-start xl:overflow-y-auto">{previewEl}</aside>}
+        </div>
       )}
 
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 p-3 backdrop-blur md:left-[var(--sidebar-width,0px)]">

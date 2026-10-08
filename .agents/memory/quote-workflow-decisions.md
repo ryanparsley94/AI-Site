@@ -18,3 +18,9 @@ For invoice downloads, absent optional branding is valid, but failure to fetch c
 **Why:** Contractors rely on consistent client-facing documents; a broken logo is different from choosing not to configure one.
 
 **How to apply:** Preserve saved contractor branding, allow genuinely empty optional settings, and make configured-asset failures visible without changing the invoice's commercial snapshot.
+
+Quote template switches in the builder are comparisons, not saved branding changes. PDF downloads continue to use saved company branding; accepted quotes use their commercial snapshot.
+
+**Why:** A visual comparison must not silently change the contractor's shared branding or make a previously accepted document look different.
+
+**How to apply:** Clearly distinguish the compared template from the PDF template. If adding a way to apply a comparison, require an explicit save action and preserve accepted snapshots.
