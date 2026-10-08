@@ -1,7 +1,9 @@
 import { Router } from "express";
 import { eq, desc } from "drizzle-orm";
-import { db, invoicesTable, quotesTable } from "@workspace/db";
+import { db, invoicesTable, quotesTable, jobsTable, contactsTable } from "@workspace/db";
 import { acceptedQuoteToInvoice, QuoteError } from "../lib/quote-workflow";
+import { adminOnly } from "../lib/adminAuth";
+import { sendEmailReply } from "./email-threads-inbound";
 import {
   ListInvoicesResponse,
   CreateInvoiceBody,
@@ -15,6 +17,47 @@ import {
 } from "@workspace/api-zod";
 
 const router = Router();
+const sendingInvoices = new Set<number>();
+
+router.post("/invoices/:id/send", adminOnly, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id < 1) { res.status(400).json({ error: "Invalid invoice number." }); return; }
+  if (sendingInvoices.has(id)) { res.status(409).json({ error: "This invoice is already being sent. Please check its status." }); return; }
+  sendingInvoices.add(id);
+  try {
+    const [invoice] = await db.select().from(invoicesTable).where(eq(invoicesTable.id, id));
+    if (!invoice) { res.status(404).json({ error: "Invoice not found." }); return; }
+    if (invoice.status !== "draft") { res.status(409).json({ error: "This invoice is already sent or paid. Nothing was sent again." }); return; }
+    const [job] = invoice.jobId ? await db.select().from(jobsTable).where(eq(jobsTable.id, invoice.jobId)) : [];
+    let contacts = job?.contactId
+      ? await db.select().from(contactsTable).where(eq(contactsTable.id, job.contactId))
+      : await db.select().from(contactsTable);
+    if (!job?.contactId) {
+      const name = (invoice.clientName || job?.contactName || "").trim().toLowerCase();
+      contacts = contacts.filter(c => c.name.trim().toLowerCase() === name);
+    }
+    if (contacts.length !== 1 || !contacts[0].email) {
+      res.status(400).json({ error: "I couldn't find one client email address. Add or link the client's contact email before sending." }); return;
+    }
+    const contact = contacts[0];
+    const money = (n: number) => new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(n);
+    const lines = Array.isArray(invoice.lineItems) ? invoice.lineItems as Array<{ name: string; quantity: number; unit: string; unitPrice: number }> : [];
+    const body = [
+      `Hello ${contact.name},`, "", `Please find invoice ${invoice.invoiceNumber}${job ? ` for ${job.title}` : ""}.`,
+      `Issue date: ${invoice.issueDate}`, `Payment due: ${invoice.dueDate}`, "",
+      ...lines.map(l => `${l.name}: ${l.quantity} ${l.unit} at ${money(Number(l.unitPrice))} — ${money(Number(l.quantity) * Number(l.unitPrice))}`),
+      "", `Subtotal: ${money(Number(invoice.subtotal))}`, `VAT (${invoice.vatPercent}%): ${money(Number(invoice.vatAmount))}`,
+      `Total due: ${money(Number(invoice.total))}`, "", invoice.notes || "", "Thank you for your business.",
+    ].join("\n");
+    if (!await sendEmailReply(contact.email!, contact.name, `Invoice ${invoice.invoiceNumber}`, body)) {
+      res.status(503).json({ error: "Email delivery isn't available or the provider rejected it. The invoice is still a draft; please check your email setup." }); return;
+    }
+    const [updated] = await db.update(invoicesTable).set({ status: "sent" }).where(eq(invoicesTable.id, id)).returning();
+    res.json(mapInvoice(updated));
+  } catch {
+    res.status(500).json({ error: "The send result couldn't be confirmed. Check the invoice and client email before attempting to send again." });
+  } finally { sendingInvoices.delete(id); }
+});
 
 function mapInvoice(inv: typeof invoicesTable.$inferSelect) {
   return {

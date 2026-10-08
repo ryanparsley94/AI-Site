@@ -9,6 +9,78 @@ import * as zod from 'zod';
 
 
 /**
+ * @summary Email a draft invoice to its uniquely resolved client contact
+ */
+export const SendInvoiceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const SendInvoiceResponse = zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.string(),
+  "quoteId": zod.number().nullish(),
+  "jobId": zod.number().nullish(),
+  "status": zod.enum(['draft', 'sent', 'paid']),
+  "issueDate": zod.string(),
+  "dueDate": zod.string(),
+  "lineItems": zod.array(zod.object({
+  "name": zod.string(),
+  "quantity": zod.number(),
+  "unit": zod.string(),
+  "unitPrice": zod.number(),
+  "total": zod.number()
+})),
+  "subtotal": zod.number(),
+  "vatPercent": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "notes": zod.string().nullish(),
+  "clientName": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Execute an ephemeral contractor command or extract quote materials
+ */
+export const voiceCommandBodyTranscriptMax = 4000;
+
+
+
+export const VoiceCommandBody = zod.object({
+  "transcript": zod.string().max(voiceCommandBodyTranscriptMax).optional(),
+  "image": zod.string().optional().describe('JPEG, PNG or WebP data URL, maximum 5 MB'),
+  "timeZone": zod.string().optional(),
+  "voice": zod.enum(['alloy', 'echo', 'shimmer']).optional()
+})
+
+export const VoiceCommandResponse = zod.object({
+  "action": zod.enum(['none', 'send_invoice', 'complete_job', 'create_job', 'add_quote_items', 'schedule', 'outstanding_invoices', 'quote_draft']),
+  "spokenResponse": zod.string(),
+  "audio": zod.string().optional().describe('Base64 WAV audio'),
+  "audioError": zod.string().optional(),
+  "quoteDraft": zod.array(zod.object({
+  "name": zod.string(),
+  "quantity": zod.number(),
+  "unit": zod.string()
+})).optional(),
+  "navigateTo": zod.string().optional()
+})
+
+
+/**
+ * @summary Transcribe ephemeral recorded audio
+ */
+export const VoiceTranscribeBody = zod.object({
+  "audio": zod.string().describe('Base64 audio, maximum 10 MB')
+})
+
+export const VoiceTranscribeResponse = zod.object({
+  "transcript": zod.string()
+})
+
+
+/**
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({

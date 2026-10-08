@@ -85,6 +85,10 @@ import type {
   UnreviewedWidgetCount,
   UpdateMarketingDraftBody,
   UpdateTaskBody,
+  VoiceCommandBody,
+  VoiceCommandResult,
+  VoiceTranscribe200,
+  VoiceTranscribeBody,
   WidgetBookInput,
   WidgetChatInput,
   WidgetConfig,
@@ -120,6 +124,219 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getSendInvoiceUrl = (id: number,) => {
+
+
+
+
+  return `/api/invoices/${id}/send`
+}
+
+/**
+ * @summary Email a draft invoice to its uniquely resolved client contact
+ */
+export const sendInvoice = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<Invoice> => {
+
+  return customFetch<Invoice>(getSendInvoiceUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getSendInvoiceMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendInvoice>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendInvoice>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['sendInvoice'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendInvoice>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  sendInvoice(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendInvoiceMutationResult = NonNullable<Awaited<ReturnType<typeof sendInvoice>>>
+
+    export type SendInvoiceMutationError = ErrorType<void>
+
+    /**
+ * @summary Email a draft invoice to its uniquely resolved client contact
+ */
+export const useSendInvoice = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendInvoice>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sendInvoice>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getSendInvoiceMutationOptions(options));
+    }
+
+export const getVoiceCommandUrl = () => {
+
+
+
+
+  return `/api/voice/command`
+}
+
+/**
+ * @summary Execute an ephemeral contractor command or extract quote materials
+ */
+export const voiceCommand = async (voiceCommandBody: VoiceCommandBody, options?: Parameters<typeof customFetch>[1]): Promise<VoiceCommandResult> => {
+
+  return customFetch<VoiceCommandResult>(getVoiceCommandUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(voiceCommandBody)
+  }
+);}
+
+
+
+
+
+export const getVoiceCommandMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof voiceCommand>>, TError,{data: BodyType<VoiceCommandBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof voiceCommand>>, TError,{data: BodyType<VoiceCommandBody>}, TContext> => {
+
+const mutationKey = ['voiceCommand'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof voiceCommand>>, {data: BodyType<VoiceCommandBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  voiceCommand(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VoiceCommandMutationResult = NonNullable<Awaited<ReturnType<typeof voiceCommand>>>
+    export type VoiceCommandMutationBody = BodyType<VoiceCommandBody>
+    export type VoiceCommandMutationError = ErrorType<void>
+
+    /**
+ * @summary Execute an ephemeral contractor command or extract quote materials
+ */
+export const useVoiceCommand = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof voiceCommand>>, TError,{data: BodyType<VoiceCommandBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof voiceCommand>>,
+        TError,
+        {data: BodyType<VoiceCommandBody>},
+        TContext
+      > => {
+      return useMutation(getVoiceCommandMutationOptions(options));
+    }
+
+export const getVoiceTranscribeUrl = () => {
+
+
+
+
+  return `/api/voice/transcribe`
+}
+
+/**
+ * @summary Transcribe ephemeral recorded audio
+ */
+export const voiceTranscribe = async (voiceTranscribeBody: VoiceTranscribeBody, options?: Parameters<typeof customFetch>[1]): Promise<VoiceTranscribe200> => {
+
+  return customFetch<VoiceTranscribe200>(getVoiceTranscribeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(voiceTranscribeBody)
+  }
+);}
+
+
+
+
+
+export const getVoiceTranscribeMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof voiceTranscribe>>, TError,{data: BodyType<VoiceTranscribeBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof voiceTranscribe>>, TError,{data: BodyType<VoiceTranscribeBody>}, TContext> => {
+
+const mutationKey = ['voiceTranscribe'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof voiceTranscribe>>, {data: BodyType<VoiceTranscribeBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  voiceTranscribe(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VoiceTranscribeMutationResult = NonNullable<Awaited<ReturnType<typeof voiceTranscribe>>>
+    export type VoiceTranscribeMutationBody = BodyType<VoiceTranscribeBody>
+    export type VoiceTranscribeMutationError = ErrorType<void>
+
+    /**
+ * @summary Transcribe ephemeral recorded audio
+ */
+export const useVoiceTranscribe = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof voiceTranscribe>>, TError,{data: BodyType<VoiceTranscribeBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof voiceTranscribe>>,
+        TError,
+        {data: BodyType<VoiceTranscribeBody>},
+        TContext
+      > => {
+      return useMutation(getVoiceTranscribeMutationOptions(options));
+    }
 
 export const getHealthCheckUrl = () => {
 

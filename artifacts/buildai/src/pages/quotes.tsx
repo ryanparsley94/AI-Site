@@ -12,6 +12,7 @@ import { QuoteEditor, type EditorInit } from "@/components/quotes/editor";
 import { QuoteList } from "@/components/quotes/quote-list";
 import { NewQuoteDialog, type StartKind } from "@/components/quotes/new-quote-dialog";
 import { apiBase, newItem, normalizeWorkflow, storedTotal } from "@/components/quotes/helpers";
+import { useVoice } from "@/lib/voice-context";
 
 type Extracted = { suggestedTitle?: string; materials?: { name: string; quantity: number; unit: string }[]; scope?: string; missing?: unknown; warnings?: unknown; message?: unknown; notes?: unknown };
 
@@ -36,12 +37,24 @@ export default function Quotes() {
   const [dialog, setDialog] = useState(false);
   const [busy, setBusy] = useState(false);
   const launched = useRef(false);
+  const { quoteDraft, setQuoteDraft } = useVoice();
 
   const open = (i: EditorInit) => { setInit(i); setKey(k => k + 1); };
   const base = (): QuoteWorkflow => ({ ...blankQuoteWorkflow(), paymentTerms: company?.paymentTerms ?? "" });
 
   const fromContact = (c: Contact): Partial<QuoteWorkflow> => ({ customerName: c.name, customerPhone: c.phone, customerEmail: c.email ?? "", billingAddress: c.address ?? "", siteAddress: c.address ?? "" });
   const fromJob = (j: Job): Partial<QuoteWorkflow> => ({ customerName: j.contactName, customerPhone: j.contactPhone, siteAddress: j.address ?? "", scope: j.description ?? "" });
+
+  useEffect(() => {
+    if (!quoteDraft?.length || !company) return;
+    launched.current = true;
+    const workflow = { ...blankQuoteWorkflow(), paymentTerms: company.paymentTerms ?? "" };
+    workflow.sections = [{ id: "work", title: "Work & materials", items: callItems(quoteDraft) }];
+    open({ quote: null, workflow, title: "", notices: [
+      "Photo draft — check every description, quantity and unit against the original image. Confirm labour and prices before saving or sending.",
+    ] });
+    setQuoteDraft(null);
+  }, [quoteDraft, setQuoteDraft, company]);
 
   const start = async (kind: StartKind, id?: number) => {
     const w = base();

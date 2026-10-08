@@ -29,6 +29,103 @@ tags:
   - name: email
     description: AI email responder inbox
 paths:
+  /invoices/{id}/send:
+    post:
+      operationId: sendInvoice
+      tags: [quotes]
+      summary: Email a draft invoice to its uniquely resolved client contact
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Provider accepted invoice and status updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invoice"
+        "401":
+          description: Admin session required
+        "400":
+          description: Client email missing or ambiguous
+        "409":
+          description: Already sent or send in progress
+        "503":
+          description: Email provider unavailable
+  /voice/command:
+    post:
+      operationId: voiceCommand
+      tags: [voice]
+      summary: Execute an ephemeral contractor command or extract quote materials
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                transcript:
+                  type: string
+                  maxLength: 4000
+                image:
+                  type: string
+                  description: JPEG, PNG or WebP data URL, maximum 5 MB
+                timeZone:
+                  type: string
+                voice:
+                  type: string
+                  enum: [alloy, echo, shimmer]
+      responses:
+        "200":
+          description: Action result and optional spoken audio, never persisted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VoiceCommandResult"
+        "400":
+          description: Invalid command or image
+        "401":
+          description: Admin session required
+        "429":
+          description: Another command is running
+        "502":
+          description: AI service unavailable
+  /voice/transcribe:
+    post:
+      operationId: voiceTranscribe
+      tags: [voice]
+      summary: Transcribe ephemeral recorded audio
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [audio]
+              properties:
+                audio:
+                  type: string
+                  description: Base64 audio, maximum 10 MB
+      responses:
+        "200":
+          description: Transcript
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [transcript]
+                properties:
+                  transcript:
+                    type: string
+        "401":
+          description: Admin session required
+        "400":
+          description: Invalid audio
+        "502":
+          description: Transcription unavailable
   /healthz:
     get:
       operationId: healthCheck
@@ -1573,6 +1670,34 @@ paths:
 
 components:
   schemas:
+    VoiceCommandResult:
+      type: object
+      required: [action, spokenResponse]
+      properties:
+        action:
+          type: string
+          enum: [none, send_invoice, complete_job, create_job, add_quote_items, schedule, outstanding_invoices, quote_draft]
+        spokenResponse:
+          type: string
+        audio:
+          type: string
+          description: Base64 WAV audio
+        audioError:
+          type: string
+        quoteDraft:
+          type: array
+          items:
+            type: object
+            required: [name, quantity, unit]
+            properties:
+              name:
+                type: string
+              quantity:
+                type: number
+              unit:
+                type: string
+        navigateTo:
+          type: string
     # ── Widget ───────────────────────────────────────────────────────────────
     WidgetConfig:
       type: object

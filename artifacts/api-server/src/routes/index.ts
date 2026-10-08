@@ -18,6 +18,7 @@ import tasksRouter from "./tasks";
 import marketingRouter from "./marketing";
 import supportQuestionsRouter from "./support-questions";
 import pilotRouter from "./pilot";
+import voiceRouter from "./voice";
 
 const router: IRouter = Router();
 
@@ -49,5 +50,6 @@ router.use(integrationsRouter);
 router.use(marketingRouter);
 router.use(tasksRouter);
 router.use(pilotRouter);
+router.use(voiceRouter);
 
 export default router;
