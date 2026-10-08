@@ -1,13 +1,8 @@
 import type { Company } from "@workspace/api-client-react";
 import type { QuoteWorkflow } from "@workspace/api-zod";
 import { formatCurrency } from "@/lib/utils";
+import { pdfBranding } from "@/lib/pdf-branding";
 import type { Calc } from "./helpers";
-
-const rgb = (hex: string): [number, number, number] => {
-  const c = (hex || "").replace("#", "");
-  const n = [0, 2, 4].map(i => parseInt(c.slice(i, i + 2), 16));
-  return n.some(Number.isNaN) ? [54, 198, 213] : [n[0], n[1], n[2]];
-};
 
 async function loadLogo(url?: string | null): Promise<{ data: string; w: number; h: number; fmt: string } | null> {
   if (!url) return null;
@@ -32,8 +27,9 @@ export async function downloadQuotePdf(o: {
   const { workflow: w, calc, company } = o;
   const doc = new jsPDF();
   const W = 210, mX = 14, rX = W - mX, bottom = 276;
-  const tpl = company?.quoteTemplate || "classic";
-  const [aR, aG, aB] = rgb(company?.quoteAccentColor || "#36C6D5");
+  const branding = pdfBranding(company);
+  const tpl = branding.template;
+  const [aR, aG, aB] = branding.accent;
   const name = company?.name || "Your company";
   const ref = o.id ? `Q-${o.id}` : "Unsaved";
   const date = new Date(o.createdAt ?? Date.now()).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
@@ -89,8 +85,8 @@ export async function downloadQuotePdf(o: {
       startY: y, margin: { left: mX, right: mX, top: 20, bottom: 20 },
       head: [[s.title || "Items", "Qty", "Unit price", "Total"]],
       body: s.items.map(i => [i.description, `${i.quantity} ${i.unit}`, formatCurrency(i.sellPrice), formatCurrency(byId.get(i.id)?.total ?? 0)]),
-      theme: tpl === "minimal" ? "grid" : "striped",
-      headStyles: tpl === "minimal" ? { fillColor: [255, 255, 255], textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.3 } : { fillColor: tpl === "modern" ? [aR, aG, aB] : [13, 23, 28], textColor: 255 },
+      theme: branding.theme,
+      headStyles: branding.headStyles,
       styles: { fontSize: 9, cellPadding: 2.8 },
       columnStyles: { 0: { cellWidth: 92 }, 2: { halign: "right" }, 3: { halign: "right" } },
     });

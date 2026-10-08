@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   useListInvoices,
+  useGetCompany,
   useCreateInvoice,
   useGetInvoice,
   useGetQuote,
@@ -31,6 +32,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { formatCurrency } from "@/lib/utils";
+import { downloadInvoicePDF } from "@/lib/invoice-pdf";
 
 // ── New Invoice dialog ────────────────────────────────────────────────────────
 
@@ -236,139 +238,6 @@ function StatusBadge({ status }: { status: string }) {
 
 // ── PDF generation ────────────────────────────────────────────────────────────
 
-async function downloadInvoicePDF(invoice: Invoice & { externalId?: string | null; externalProvider?: string | null }, companyName?: string) {
-  const { default: jsPDF } = await import("jspdf");
-  const { default: autoTable } = await import("jspdf-autotable");
-
-  const doc = new jsPDF();
-  const marginX = 14;
-  const rightX = 196;
-
-  // ── Header: company + invoice title ──────────────────────────────────────
-  doc.setFontSize(22);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(30, 41, 59); // slate-800
-  doc.text(companyName || "Your Company", marginX, 22);
-
-  doc.setFontSize(13);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(80, 80, 80);
-  doc.text("TAX INVOICE", marginX, 31);
-
-  // Invoice number (top-right)
-  doc.setFontSize(11);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(30, 41, 59);
-  doc.text(invoice.invoiceNumber, rightX, 22, { align: "right" });
-
-  // Dates
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.setTextColor(100, 100, 100);
-  doc.text(`Issued: ${invoice.issueDate}`, rightX, 29, { align: "right" });
-  doc.text(`Due:      ${invoice.dueDate}`, rightX, 36, { align: "right" });
-
-  // Bill-to block
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(30, 41, 59);
-  doc.text("BILL TO", marginX, 42);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(60, 60, 60);
-  doc.text(invoice.clientName || "—", marginX, 49);
-
-  // Divider
-  doc.setDrawColor(200, 200, 210);
-  doc.setLineWidth(0.4);
-  doc.line(marginX, 54, rightX, 54);
-
-  // ── Line items table ──────────────────────────────────────────────────────
-  const lineItems = invoice.lineItems as Array<{
-    name: string; quantity: number; unit: string; unitPrice: number; total: number;
-  }>;
-
-  const tableBody = lineItems.map(item => [
-    item.name,
-    `${item.quantity}`,
-    formatCurrency(item.unitPrice),
-    formatCurrency(item.unitPrice * item.quantity),
-  ]);
-
-  autoTable(doc, {
-    startY: 58,
-    head: [["Description", "Qty", "Unit Price", "Amount"]],
-    body: tableBody,
-    theme: "striped",
-    headStyles: { fillColor: [30, 41, 59], textColor: 255, fontSize: 9 },
-    styles: { fontSize: 9 },
-    columnStyles: {
-      0: { cellWidth: "auto" },
-      1: { halign: "right", cellWidth: 20 },
-      2: { halign: "right", cellWidth: 30 },
-      3: { halign: "right", cellWidth: 30 },
-    },
-    margin: { left: marginX, right: marginX },
-  });
-
-  const tableEndY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
-
-  // ── Totals breakdown ──────────────────────────────────────────────────────
-  let y = tableEndY;
-  const subtotal = lineItems.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
-  const vatAmount = subtotal * (invoice.vatPercent / 100);
-  const total = subtotal + vatAmount;
-
-  const addRow = (label: string, value: string, bold = false, large = false) => {
-    doc.setFont("helvetica", bold ? "bold" : "normal");
-    doc.setFontSize(large ? 11 : 9);
-    doc.setTextColor(bold ? 30 : 80, bold ? 41 : 80, bold ? 59 : 80);
-    doc.text(label, 130, y);
-    doc.text(value, rightX, y, { align: "right" });
-    y += bold ? 8 : 6;
-  };
-
-  addRow("Subtotal (ex-VAT)", formatCurrency(subtotal));
-  addRow(`VAT (${invoice.vatPercent}%)`, formatCurrency(vatAmount));
-
-  doc.setDrawColor(30, 41, 59);
-  doc.setLineWidth(0.5);
-  doc.line(130, y - 1, rightX, y - 1);
-  y += 2;
-
-  addRow("Total inc. VAT", formatCurrency(total), true, true);
-
-  // ── Notes ─────────────────────────────────────────────────────────────────
-  if (invoice.notes) {
-    y += 8;
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(30, 41, 59);
-    doc.text("Notes / Payment Instructions", marginX, y);
-    y += 6;
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(60, 60, 60);
-    const noteLines = doc.splitTextToSize(invoice.notes, 170);
-    doc.text(noteLines, marginX, y);
-    y += noteLines.length * 5 + 4;
-  }
-
-  // ── Footer ────────────────────────────────────────────────────────────────
-  const pageHeight = doc.internal.pageSize.getHeight();
-  doc.setFontSize(8);
-  doc.setFont("helvetica", "italic");
-  doc.setTextColor(150, 150, 150);
-  doc.text(
-    "Thank you for your business. Please make payment by the due date shown above.",
-    marginX,
-    pageHeight - 14,
-  );
-  doc.setDrawColor(200, 200, 210);
-  doc.setLineWidth(0.3);
-  doc.line(marginX, pageHeight - 18, rightX, pageHeight - 18);
-
-  doc.save(`invoice-${invoice.invoiceNumber.replace(/\s+/g, "-").toLowerCase()}.pdf`);
-}
-
 interface InvoiceExportSectionProps {
   invoiceId: number;
   externalId?: string | null;
@@ -383,6 +252,7 @@ function InvoiceDetail({
   onClose: () => void;
 }) {
   const { data: invoice, isLoading, refetch } = useGetInvoice(id);
+  const companyQuery = useGetCompany();
   const { data: linkedQuote } = useGetQuote(invoice?.quoteId ?? 0, {
     query: { queryKey: getGetQuoteQueryKey(invoice?.quoteId ?? 0), enabled: Boolean(invoice?.quoteId) },
   });
@@ -393,6 +263,7 @@ function InvoiceDetail({
   const { toast } = useToast();
 
   const [editNotes, setEditNotes] = useState<string | null>(null);
+  const [pdfDownloading, setPdfDownloading] = useState(false);
   const [editLineItems, setEditLineItems] = useState<null | Array<{
     name: string; quantity: number; unit: string; unitPrice: number; total: number;
   }>>(null);
@@ -638,15 +509,23 @@ function InvoiceDetail({
         <Button
           variant="default"
           className="gap-2"
+          data-testid="button-download-invoice-pdf"
+          disabled={pdfDownloading || companyQuery.isLoading}
           onClick={async () => {
+            setPdfDownloading(true);
             try {
-              await downloadInvoicePDF(raw);
-            } catch {
-              toast({ title: "Failed to generate PDF", variant: "destructive" });
+              const result = await companyQuery.refetch();
+              if (result.isError || !result.data) throw new Error("Company branding could not be loaded. Please try again.");
+              await downloadInvoicePDF(raw, result.data);
+            } catch (error) {
+              toast({ title: "Failed to generate PDF", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
+            } finally {
+              setPdfDownloading(false);
             }
           }}
         >
-          <Download className="h-4 w-4" /> Download PDF
+          {pdfDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          {pdfDownloading ? "Generating PDF..." : "Download PDF"}
         </Button>
         <Button variant="outline" className="gap-2" onClick={() => window.print()}>
           <Printer className="h-4 w-4" /> Print
