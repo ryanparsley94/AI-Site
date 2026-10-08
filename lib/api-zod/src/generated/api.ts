@@ -866,6 +866,47 @@ export const DeleteContactResponse = zod.void()
 
 
 /**
+ * @summary Configuration and recorded activity, not verified live-pilot evidence
+ */
+export const GetPilotActivityResponse = zod.object({
+  "phoneConfigured": zod.boolean(),
+  "emailInboundConfigured": zod.boolean(),
+  "emailOutboundConfigured": zod.boolean(),
+  "ownerEmailConfigured": zod.boolean(),
+  "completedCalls": zod.number(),
+  "ownerSummariesSent": zod.number().describe('Provider acceptance'),
+  "inboundEmails": zod.number(),
+  "emailRepliesSent": zod.number()
+})
+
+
+
+
+
+export const GetCallVoiceDeliveryParams = zod.object({
+  "id": zod.coerce.number().min(1)
+})
+
+export const GetCallVoiceDeliveryResponse = zod.object({
+  "owner": zod.string(),
+  "caller": zod.string(),
+  "retryable": zod.boolean()
+})
+
+
+
+
+
+export const RetryCallOwnerNotificationParams = zod.object({
+  "id": zod.coerce.number().min(1)
+})
+
+export const RetryCallOwnerNotificationResponse = zod.object({
+  "owner": zod.string()
+})
+
+
+/**
  * @summary Honest V1 release gate; demos never count as verified live evidence
  */
 export const GetPilotReadinessResponse = zod.object({

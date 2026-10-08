@@ -11,11 +11,36 @@ import { Router } from "express";
 import { db, integrationsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { logger } from "../lib/logger";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { COOKIE_NAME } from "../lib/adminAuth";
 
 const router = Router();
 
 type Provider = "google" | "quickbooks" | "xero";
 const PROVIDERS: Provider[] = ["google", "quickbooks", "xero"];
+
+function makeState(req: import("express").Request, provider: Provider): string {
+  const payload = `${provider}:${Date.now()}:${randomBytes(12).toString("hex")}`;
+  const session = req.cookies?.[COOKIE_NAME] ?? "";
+  const signature = createHmac("sha256", process.env.SESSION_SECRET ?? "")
+    .update(`${payload}:${session}`).digest("hex");
+  return `${payload}.${signature}`;
+}
+
+function validState(req: import("express").Request, provider: Provider): boolean {
+  const state = req.query.state;
+  if (typeof state !== "string" || !process.env.SESSION_SECRET) return false;
+  const index = state.lastIndexOf(".");
+  if (index < 0) return false;
+  const payload = state.slice(0, index);
+  const [stateProvider, timestamp] = payload.split(":");
+  if (stateProvider !== provider || !Number.isFinite(Number(timestamp)) || Math.abs(Date.now() - Number(timestamp)) > 10 * 60_000) return false;
+  const expected = createHmac("sha256", process.env.SESSION_SECRET)
+    .update(`${payload}:${req.cookies?.[COOKIE_NAME] ?? ""}`).digest("hex");
+  const actual = Buffer.from(state.slice(index + 1));
+  const wanted = Buffer.from(expected);
+  return actual.length === wanted.length && timingSafeEqual(actual, wanted);
+}
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -70,11 +95,13 @@ router.get("/integrations/google/auth", (req, res): void => {
     scope: "https://www.googleapis.com/auth/calendar.events",
     access_type: "offline",
     prompt: "consent",
+    state: makeState(req, "google"),
   });
   res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
 });
 
 router.get("/integrations/google/callback", async (req, res): Promise<void> => {
+  if (!validState(req, "google")) { res.status(403).send("Invalid connection state"); return; }
   const { code, error } = req.query as { code?: string; error?: string };
   if (error || !code) {
     res.redirect("/settings?tab=integrations&error=google_denied");
@@ -136,12 +163,13 @@ router.get("/integrations/quickbooks/auth", (req, res): void => {
     redirect_uri: getCallbackUrl(req, "quickbooks"),
     response_type: "code",
     scope: "com.intuit.quickbooks.accounting",
-    state: "buildai",
+    state: makeState(req, "quickbooks"),
   });
   res.redirect(`https://appcenter.intuit.com/connect/oauth2?${params}`);
 });
 
 router.get("/integrations/quickbooks/callback", async (req, res): Promise<void> => {
+  if (!validState(req, "quickbooks")) { res.status(403).send("Invalid connection state"); return; }
   const { code, realmId, error } = req.query as { code?: string; realmId?: string; error?: string };
   if (error || !code || !realmId) {
     res.redirect("/settings?tab=integrations&error=quickbooks_denied");
@@ -208,12 +236,13 @@ router.get("/integrations/xero/auth", (req, res): void => {
     redirect_uri: getCallbackUrl(req, "xero"),
     response_type: "code",
     scope: "openid profile email accounting.transactions offline_access",
-    state: "buildai",
+    state: makeState(req, "xero"),
   });
   res.redirect(`https://login.xero.com/identity/connect/authorize?${params}`);
 });
 
 router.get("/integrations/xero/callback", async (req, res): Promise<void> => {
+  if (!validState(req, "xero")) { res.status(403).send("Invalid connection state"); return; }
   const { code, error } = req.query as { code?: string; error?: string };
   if (error || !code) {
     res.redirect("/settings?tab=integrations&error=xero_denied");

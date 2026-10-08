@@ -16,3 +16,9 @@ The user chose Twilio for phone/SMS and identified https://parsleyelectrical.co.
 **Why:** These were explicitly supplied for the Parsley pilot rather than inferred from sample app data.
 
 **How to apply:** Use that website as a source for owner-reviewed knowledge, not automatic proof of accreditation, insurance, opening hours or response guarantees. Emergency handling must retain the no-attendance-promise rule even if website marketing suggests a response time.
+
+Keep customer-facing pilot data behind authenticated team access, including in development previews. Do not disable that boundary to make a demo or browser test appear successful.
+
+**Why:** Importing genuine enquiry ingestion makes the former open-dashboard testing approach inappropriate; preserving existing features means adapting their sign-in, not exposing customer records.
+
+**How to apply:** Retain public, signed provider callbacks separately from private office commands. Where authorised owner credentials are unavailable, label fixture-based UI checks as mocked and keep real-session/provider verification outstanding.

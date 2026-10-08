@@ -22,12 +22,9 @@ async function getOrCreateCompany() {
   const [created] = await db
     .insert(companiesTable)
     .values({
-      name: "Apex Construction Co.",
-      phone: "(555) 800-1234",
-      email: "dispatch@apexconstruction.com",
-      website: "https://apexconstruction.com",
-      address: "482 Industrial Blvd, Austin, TX 78701",
-      timezone: "America/Chicago",
+      name: "Parsley Electrical Ltd",
+      phone: "",
+      timezone: "Europe/London",
     })
     .returning();
   return created;

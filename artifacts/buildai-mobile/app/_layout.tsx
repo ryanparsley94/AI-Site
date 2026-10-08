@@ -18,6 +18,7 @@ import {
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { setBaseUrl } from '@workspace/api-client-react';
+import { MobileAuthGate } from '../components/auth-gate';
 import { useColors } from '@/hooks/useColors';
 
 // Prevent splash screen from auto-hiding before fonts are loaded.
@@ -104,7 +105,7 @@ export default function RootLayout() {
         >
           <GestureHandlerRootView style={{ flex: 1 }}>
             <KeyboardProvider>
-              <RootLayoutNav />
+              <MobileAuthGate><RootLayoutNav /></MobileAuthGate>
             </KeyboardProvider>
           </GestureHandlerRootView>
         </PersistQueryClientProvider>

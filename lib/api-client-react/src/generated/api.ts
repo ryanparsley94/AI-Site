@@ -53,6 +53,8 @@ import type {
   GenerateMarketingDraftsBody,
   GenerateMarketingDraftsResponse,
   GenerateTasksResponse,
+  GetCallVoiceDelivery200,
+  GetPilotActivity200,
   GetPilotReadiness200,
   GetWidgetConfigParams,
   GetWidgetScriptParams,
@@ -79,6 +81,7 @@ import type {
   Quote,
   QuoteInput,
   QuoteUpdate,
+  RetryCallOwnerNotification200,
   Task,
   TestAssistantInput,
   TestAssistantResult,
@@ -3118,6 +3121,219 @@ export const useDeleteContact = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getDeleteContactMutationOptions(options));
+    }
+
+export const getGetPilotActivityUrl = () => {
+
+
+
+
+  return `/api/dashboard/pilot-readiness`
+}
+
+/**
+ * @summary Configuration and recorded activity, not verified live-pilot evidence
+ */
+export const getPilotActivity = async ( options?: Parameters<typeof customFetch>[1]): Promise<GetPilotActivity200> => {
+
+  return customFetch<GetPilotActivity200>(getGetPilotActivityUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPilotActivityQueryKey = () => {
+    return [
+    `/api/dashboard/pilot-readiness`
+    ] as const;
+    }
+
+
+export const getGetPilotActivityQueryOptions = <TData = Awaited<ReturnType<typeof getPilotActivity>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPilotActivity>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPilotActivityQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPilotActivity>>> = ({ signal }) => getPilotActivity({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPilotActivity>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPilotActivityQueryResult = NonNullable<Awaited<ReturnType<typeof getPilotActivity>>>
+export type GetPilotActivityQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Configuration and recorded activity, not verified live-pilot evidence
+ */
+
+export function useGetPilotActivity<TData = Awaited<ReturnType<typeof getPilotActivity>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPilotActivity>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPilotActivityQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetCallVoiceDeliveryUrl = (id: number,) => {
+
+
+
+
+  return `/api/calls/${id}/voice-delivery`
+}
+
+export const getCallVoiceDelivery = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<GetCallVoiceDelivery200> => {
+
+  return customFetch<GetCallVoiceDelivery200>(getGetCallVoiceDeliveryUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCallVoiceDeliveryQueryKey = (id: number,) => {
+    return [
+    `/api/calls/${id}/voice-delivery`
+    ] as const;
+    }
+
+
+export const getGetCallVoiceDeliveryQueryOptions = <TData = Awaited<ReturnType<typeof getCallVoiceDelivery>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCallVoiceDelivery>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCallVoiceDeliveryQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCallVoiceDelivery>>> = ({ signal }) => getCallVoiceDelivery(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCallVoiceDelivery>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCallVoiceDeliveryQueryResult = NonNullable<Awaited<ReturnType<typeof getCallVoiceDelivery>>>
+export type GetCallVoiceDeliveryQueryError = ErrorType<void>
+
+
+
+export function useGetCallVoiceDelivery<TData = Awaited<ReturnType<typeof getCallVoiceDelivery>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCallVoiceDelivery>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCallVoiceDeliveryQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRetryCallOwnerNotificationUrl = (id: number,) => {
+
+
+
+
+  return `/api/calls/${id}/retry-notification`
+}
+
+export const retryCallOwnerNotification = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<RetryCallOwnerNotification200> => {
+
+  return customFetch<RetryCallOwnerNotification200>(getRetryCallOwnerNotificationUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRetryCallOwnerNotificationMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof retryCallOwnerNotification>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof retryCallOwnerNotification>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['retryCallOwnerNotification'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof retryCallOwnerNotification>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  retryCallOwnerNotification(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RetryCallOwnerNotificationMutationResult = NonNullable<Awaited<ReturnType<typeof retryCallOwnerNotification>>>
+
+    export type RetryCallOwnerNotificationMutationError = ErrorType<void>
+
+    export const useRetryCallOwnerNotification = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof retryCallOwnerNotification>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof retryCallOwnerNotification>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getRetryCallOwnerNotificationMutationOptions(options));
     }
 
 export const getGetPilotReadinessUrl = () => {

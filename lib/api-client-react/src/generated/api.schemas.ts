@@ -1358,6 +1358,28 @@ export const ListContactsType = {
   customer: 'customer',
 } as const;
 
+export type GetPilotActivity200 = {
+  phoneConfigured: boolean;
+  emailInboundConfigured: boolean;
+  emailOutboundConfigured: boolean;
+  ownerEmailConfigured: boolean;
+  completedCalls: number;
+  /** Provider acceptance */
+  ownerSummariesSent: number;
+  inboundEmails: number;
+  emailRepliesSent: number;
+};
+
+export type GetCallVoiceDelivery200 = {
+  owner: string;
+  caller: string;
+  retryable: boolean;
+};
+
+export type RetryCallOwnerNotification200 = {
+  owner: string;
+};
+
 export type GetPilotReadiness200ChecksItemStatus = typeof GetPilotReadiness200ChecksItemStatus[keyof typeof GetPilotReadiness200ChecksItemStatus];
 
 
