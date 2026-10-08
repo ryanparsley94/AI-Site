@@ -41,11 +41,11 @@ async function sendWidgetLeadNotification(
     `Name: ${visitorName}\n` +
     `Phone: ${visitorPhone}\n\n` +
     `Chat summary:\n${chatSummary}\n\n` +
-    `Log in to BuildAI to view the full conversation and follow up.`;
+    `Log in to CREWON to view the full conversation and follow up.`;
 
   try {
     const result = await resend.emails.send({
-      from: `BuildAI <${fromAddress}>`,
+      from: `CREWON <${fromAddress}>`,
       to: [toEmail],
       subject,
       text: body,
@@ -666,7 +666,7 @@ function buildWidgetScript(): string {
   }
   var key = scriptEl && (scriptEl.getAttribute("data-buildai-key") || scriptEl.getAttribute("data-key"));
   if (!key) {
-    console.warn("[BuildAI Widget] No data-buildai-key attribute found on script tag.");
+    console.warn("[CREWON Widget] No data-buildai-key attribute found on script tag.");
     return;
   }
 
@@ -771,7 +771,7 @@ function buildWidgetScript(): string {
     '  <input id="bai-input" type="text" placeholder="Type a message…" autocomplete="off"/>',
     '  <button id="bai-send-btn" aria-label="Send"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg></button>',
     "</div>",
-    '<div id="bai-powered"><a href="https://buildai.app" target="_blank" rel="noopener">Powered by BuildAI</a></div>',
+    '<div id="bai-powered"><a href="https://buildai.app" target="_blank" rel="noopener">Powered by CREWON</a></div>',
   ].join("");
 
   document.body.appendChild(btn);

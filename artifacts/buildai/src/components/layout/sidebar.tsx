@@ -49,7 +49,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           className="flex items-center gap-3 text-sidebar-primary font-bold text-xl hover:opacity-90 transition-opacity"
         >
           <img src="/logo-mark.png" alt="" className="w-8 h-8 object-contain" />
-          Build<span className="text-sidebar-primary">AI</span>
+          <span>CREWON</span>
         </Link>
         {/* Close button — mobile only */}
         {onClose && (

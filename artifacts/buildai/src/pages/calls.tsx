@@ -1,6 +1,5 @@
-import { useState } from "react";
 import { useListCalls, ListCallsStatus, useDeleteCall } from "@workspace/api-client-react";
-import { Link } from "wouter";
+import { Link, useSearch, useLocation } from "wouter";
 import { format } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -43,9 +42,31 @@ const statusConfig = {
 type SourceFilter = "all" | "phone" | "widget";
 
 export default function Calls() {
-  const [statusFilter, setStatusFilter] = useState<ListCallsStatus | "all">("all");
-  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
-  const [search, setSearch] = useState("");
+  const searchStr = useSearch();
+  const [, setLocation] = useLocation();
+  const params = new URLSearchParams(searchStr);
+
+  const sourceFilter = (params.get("source") as SourceFilter) || "all";
+  const statusFilter = (params.get("status") as ListCallsStatus | "all") || "all";
+  const search = params.get("q") || "";
+
+  const setSourceFilter = (value: SourceFilter) => {
+    const next = new URLSearchParams(searchStr);
+    if (value === "all") next.delete("source"); else next.set("source", value);
+    setLocation(`/calls?${next.toString()}`);
+  };
+
+  const setStatusFilter = (value: ListCallsStatus | "all") => {
+    const next = new URLSearchParams(searchStr);
+    if (value === "all") next.delete("status"); else next.set("status", value);
+    setLocation(`/calls?${next.toString()}`);
+  };
+
+  const setSearch = (value: string) => {
+    const next = new URLSearchParams(searchStr);
+    if (!value) next.delete("q"); else next.set("q", value);
+    setLocation(`/calls?${next.toString()}`);
+  };
 
   const { data: calls = [], isLoading } = useListCalls(
     {

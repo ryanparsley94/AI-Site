@@ -23,7 +23,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </button>
           <div className="flex items-center gap-2 font-bold text-lg text-sidebar-foreground">
             <img src="/logo-mark.png" alt="" className="w-6 h-6 object-contain" />
-            Build<span className="text-sidebar-primary">AI</span>
+            <span>CREW<span className="text-sidebar-primary">ON</span></span>
           </div>
         </header>
 

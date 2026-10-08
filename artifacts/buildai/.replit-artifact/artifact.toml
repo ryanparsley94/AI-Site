@@ -1,6 +1,6 @@
 kind = "web"
 previewPath = "/"
-title = "BuildAI — Construction AI Platform"
+title = "CREWON — AI Platform for Trades"
 description = "A SaaS web app for construction companies that provides AI-powered phone call assistants (answer calls, qualify leads, book jobs), job scheduling, and a dashboard with call logs and analytics. Targeted at small-to-mid-size construction firms wanting to automate their front-office operations."
 version = "1.0.0"
 id = "artifacts/buildai"

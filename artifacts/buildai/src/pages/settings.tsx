@@ -149,7 +149,7 @@ function IntegrationsTab() {
     <div className="space-y-4">
       <div>
         <p className="text-sm text-muted-foreground">
-          Connect your existing tools so BuildAI can sync jobs to your calendar and push invoices to your accounting software automatically.
+          Connect your existing tools so CREWON can sync jobs to your calendar and push invoices to your accounting software automatically.
         </p>
       </div>
 

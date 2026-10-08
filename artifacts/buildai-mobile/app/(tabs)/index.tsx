@@ -117,7 +117,7 @@ export default function DashboardScreen() {
             <Text style={[styles.greeting, { color: colors.mutedForeground }]}>
               {getGreeting()}
             </Text>
-            <Text style={[styles.headerTitle, { color: colors.foreground }]}>BuildAI Field</Text>
+            <Text style={[styles.headerTitle, { color: colors.foreground }]}>CREWON Field</Text>
           </View>
           <View style={[styles.amberDot, { backgroundColor: colors.primary }]} />
         </View>
