@@ -102,7 +102,7 @@ function summary(answers: Answers, caller: string): string {
 
 export async function notifyOwner(sid: string): Promise<void> {
   const claim = await pool.query<Session>(
-    "UPDATE voice_call_sessions SET notification_status='sending' WHERE call_sid=$1 AND notification_status='pending' RETURNING *",
+    "UPDATE voice_call_sessions SET notification_status='sending',updated_at=now() WHERE call_sid=$1 AND notification_status='pending' RETURNING *",
     [sid],
   );
   const session = claim.rows[0];
@@ -113,7 +113,7 @@ export async function notifyOwner(sid: string): Promise<void> {
     const from = process.env.RESEND_FROM_EMAIL;
     const key = process.env.RESEND_API_KEY;
     if (!recipient || !from || !key) {
-      await pool.query("UPDATE voice_call_sessions SET notification_status='unconfigured' WHERE call_sid=$1", [sid]);
+      await pool.query("UPDATE voice_call_sessions SET notification_status='unconfigured',updated_at=now() WHERE call_sid=$1", [sid]);
       return;
     }
     const urgent = /urgent|danger|sparking|fire|shock|burning|no power/i.test(session.answers.urgency ?? "");
@@ -124,10 +124,10 @@ export async function notifyOwner(sid: string): Promise<void> {
       text: `${summary(session.answers, session.caller_phone)}\n\nReview the full call in CREWON.`,
     }, { idempotencyKey: `crewon-voice-${sid}` });
     const status = result.error ? "failed" : "sent";
-    await pool.query("UPDATE voice_call_sessions SET notification_status=$2 WHERE call_sid=$1", [sid, status]);
+    await pool.query("UPDATE voice_call_sessions SET notification_status=$2,updated_at=now() WHERE call_sid=$1", [sid, status]);
   } catch (error) {
     logger.error({ err: error, sid }, "Voice enquiry notification failed");
-    await pool.query("UPDATE voice_call_sessions SET notification_status='failed' WHERE call_sid=$1", [sid]);
+    await pool.query("UPDATE voice_call_sessions SET notification_status='failed',updated_at=now() WHERE call_sid=$1", [sid]);
   }
 }
 

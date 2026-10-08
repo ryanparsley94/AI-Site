@@ -51,7 +51,7 @@ export default function CallDetail() {
   const [notes, setNotes] = useState("");
   const [status, setStatus] = useState<CallUpdateStatus | "">("");
   const [isExtractingQuote, setIsExtractingQuote] = useState(false);
-  const [delivery, setDelivery] = useState<{ owner: string; caller: string } | null>(null);
+  const [delivery, setDelivery] = useState<{ owner: string; caller: string; retryable: boolean } | null>(null);
   const [retrying, setRetrying] = useState(false);
   const initialized = useRef(false);
   const markedReviewed = useRef(false);
@@ -70,7 +70,7 @@ export default function CallDetail() {
       const response = await fetch(`/api/calls/${callId}/retry-notification`, { method: "POST", credentials: "include" });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error ?? "Retry failed");
-      setDelivery(current => current ? { ...current, owner: result.owner } : null);
+      setDelivery(current => current ? { ...current, owner: result.owner, retryable: ["pending", "failed", "unconfigured"].includes(result.owner) } : null);
       toast({ title: result.owner === "sent" ? "Owner summary accepted" : `Owner summary: ${result.owner}` });
     } catch (error) {
       toast({ title: error instanceof Error ? error.message : "Retry failed", variant: "destructive" });
@@ -204,7 +204,7 @@ export default function CallDetail() {
         <div className="px-4 py-2 border-b bg-card text-xs flex flex-wrap items-center gap-3">
           <span>Owner summary: <strong>{delivery.owner}</strong></span>
           <span>Caller confirmation: <strong>{delivery.caller}</strong></span>
-          {(["failed", "unconfigured"].includes(delivery.owner)) && (
+          {delivery.retryable && (
             <Button size="sm" variant="outline" disabled={retrying} onClick={retryOwnerSummary}>
               {retrying ? "Retrying…" : "Retry owner summary"}
             </Button>

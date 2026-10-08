@@ -97,20 +97,27 @@ router.get("/calls/:id", async (req, res): Promise<void> => {
 router.get("/calls/:id/voice-delivery", async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id < 1) { res.status(400).json({ error: "Invalid id" }); return; }
-  const result = await pool.query<{ notification_status: string; customer_confirmation_status: string }>(
-    "SELECT notification_status,customer_confirmation_status FROM voice_call_sessions WHERE call_id=$1 LIMIT 1", [id],
+  const result = await pool.query<{ notification_status: string; customer_confirmation_status: string; retryable: boolean }>(
+    `SELECT notification_status,customer_confirmation_status,
+      completed AND (notification_status IN ('pending','failed','unconfigured')
+        OR (notification_status='sending' AND updated_at < now() - interval '5 minutes')) AS retryable
+     FROM voice_call_sessions WHERE call_id=$1 LIMIT 1`, [id],
   );
   if (!result.rows[0]) { res.status(404).json({ error: "No phone delivery record" }); return; }
-  res.json({ owner: result.rows[0].notification_status, caller: result.rows[0].customer_confirmation_status });
+  res.json({ owner: result.rows[0].notification_status, caller: result.rows[0].customer_confirmation_status, retryable: result.rows[0].retryable });
 });
 
 router.post("/calls/:id/retry-notification", async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id < 1) { res.status(400).json({ error: "Invalid id" }); return; }
   const claimed = await pool.query<{ call_sid: string }>(
-    "UPDATE voice_call_sessions SET notification_status='pending' WHERE call_id=$1 AND completed=true AND notification_status IN ('failed','unconfigured') RETURNING call_sid", [id],
+    `UPDATE voice_call_sessions SET notification_status='pending',updated_at=now()
+     WHERE call_id=$1 AND completed=true AND
+       (notification_status IN ('pending','failed','unconfigured')
+         OR (notification_status='sending' AND updated_at < now() - interval '5 minutes'))
+     RETURNING call_sid`, [id],
   );
-  if (!claimed.rows[0]) { res.status(409).json({ error: "No failed owner notification to retry" }); return; }
+  if (!claimed.rows[0]) { res.status(409).json({ error: "Owner notification is already sent or still sending" }); return; }
   await notifyOwner(claimed.rows[0].call_sid);
   const state = await pool.query<{ notification_status: string }>(
     "SELECT notification_status FROM voice_call_sessions WHERE call_sid=$1", [claimed.rows[0].call_sid],
