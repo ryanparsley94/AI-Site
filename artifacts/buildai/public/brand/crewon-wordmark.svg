@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 246 100" role="img" aria-label="CREWON">
+  <title>CREWON — Your crew. Switched on.</title>
+  <g fill="#F7FAF9">
+    <path d="M7 55H34V64H11V86H34V95H7L0 88V62Z"/>
+    <path fill-rule="evenodd" d="M42 55H69L76 62V74L70 80L78 95H66L58 81H52V95H42ZM52 64V72H65V64Z"/>
+    <path d="M84 55H116V64H94V70H113V79H94V86H116V95H84Z"/>
+    <path d="M122 55H132L137 80L143 62H152L158 80L163 55H173L164 95H154L147 75L140 95H130Z"/>
+  </g>
+  <g fill="#36C6D5">
+    <path fill-rule="evenodd" d="M182 55H202L209 62V88L202 95H182L175 88V62ZM185 64V86H199V64Z"/>
+    <path d="M217 55H227L240 77V55H250V95H240L227 73V95H217Z" transform="translate(-4)"/>
+    <path d="M179 43C179 36 184 32 192 32C200 32 205 36 205 43V45H179Z"/>
+    <rect x="190" y="30" width="4" height="12" rx="1"/>
+    <rect x="176" y="45" width="32" height="4" rx="1"/>
+    <circle cx="192" cy="24" r="2.3"/>
+  </g>
+  <g fill="none" stroke="#36C6D5" stroke-width="3" stroke-linecap="round">
+    <path d="M179 10Q192 -1 205 10"/>
+    <path d="M185 17Q192 11 199 17"/>
+  </g>
+</svg>

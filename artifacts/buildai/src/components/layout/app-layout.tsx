@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Menu } from "lucide-react";
+import { BrandLogo } from "@/components/brand-logo";
 import Sidebar from "@/components/layout/sidebar";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -19,12 +20,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             className="p-2 rounded-md text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
             aria-label="Open menu"
           >
-            <Menu size={22} className="text-white" />
+            <Menu size={22} className="text-sidebar-foreground" />
           </button>
-          <div className="flex items-center gap-2 font-bold text-lg text-sidebar-foreground">
-            <img src="/logo-mark.png" alt="" className="w-6 h-6 object-contain" />
-            <span>CREW<span className="text-sidebar-primary">ON</span></span>
-          </div>
+          <BrandLogo className="h-10 w-auto" />
         </header>
 
         <main className="flex-1 overflow-auto">

@@ -18,7 +18,7 @@ const CERT_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
   completion: { label: 'Completion Certificate', color: '#22c55e' },
   safety: { label: 'Safety Certificate', color: '#ef4444' },
   warranty: { label: 'Warranty Document', color: '#3b82f6' },
-  lien_waiver: { label: 'Lien Waiver', color: '#fb8c04' },
+  lien_waiver: { label: 'Lien Waiver', color: '#36C6D5' },
   subcontractor_agreement: { label: 'Subcontractor Agreement', color: '#a855f7' },
 };
 

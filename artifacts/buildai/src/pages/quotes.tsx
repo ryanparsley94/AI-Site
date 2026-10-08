@@ -172,7 +172,7 @@ async function downloadQuotePDF(quote: Quote, company?: Company | null) {
 
   const companyName = company?.name || "Your Company";
   const template = company?.quoteTemplate || "classic";
-  const accentHex = company?.quoteAccentColor || "#f97316";
+  const accentHex = company?.quoteAccentColor || "#36C6D5";
   const [aR, aG, aB] = hexToRgb(accentHex);
   const tagline = company?.quoteTagline || "";
   const paymentTerms = company?.paymentTerms || "";
@@ -1300,7 +1300,7 @@ export default function Quotes() {
                   checked={quoteReviewed}
                   onChange={(e) => setQuoteReviewed(e.target.checked)}
                   required
-                  className="mt-1 accent-orange-500"
+                  className="mt-1 accent-[#36C6D5]"
                 />
                 <span>I have reviewed the scope, materials, quantities, labour, prices and VAT. This quote is ready to save for sending.</span>
               </label>

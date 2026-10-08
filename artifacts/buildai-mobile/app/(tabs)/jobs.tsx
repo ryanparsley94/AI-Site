@@ -18,7 +18,7 @@ import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { OfflineBanner } from '@/components/OfflineBanner';
 
 const JOB_STATUS_COLORS: Record<string, string> = {
-  scheduled: '#fb8c04',
+  scheduled: '#36C6D5',
   in_progress: '#3b82f6',
   completed: '#22c55e',
   cancelled: '#94a3b8',

@@ -1,4 +1,5 @@
 import { Link, useLocation } from "wouter";
+import { BrandLogo } from "@/components/brand-logo";
 import { cn } from "@/lib/utils";
 import { useUnreviewedWidgetCount } from "@workspace/api-client-react";
 import { 
@@ -46,10 +47,9 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         <Link
           href="/dashboard"
           onClick={onClose}
-          className="flex items-center gap-3 text-sidebar-primary font-bold text-xl hover:opacity-90 transition-opacity"
+          className="flex items-center hover:opacity-90 transition-opacity"
         >
-          <img src="/logo-mark.png" alt="" className="w-8 h-8 object-contain" />
-          <span>CREWON</span>
+          <BrandLogo className="h-12 w-auto" />
         </Link>
         {/* Close button — mobile only */}
         {onClose && (
@@ -85,7 +85,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
               <item.icon size={18} className={isActive ? "text-sidebar-primary" : "opacity-70"} />
               <span className="flex-1">{item.label}</span>
               {showBadge && (
-                <span className="ml-auto min-w-[1.25rem] h-5 px-1 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center leading-none">
+                <span className="ml-auto min-w-[1.25rem] h-5 px-1 rounded-full bg-red-600 text-white text-xs font-bold flex items-center justify-center leading-none">
                   {unreviewedCount > 99 ? "99+" : unreviewedCount}
                 </span>
               )}

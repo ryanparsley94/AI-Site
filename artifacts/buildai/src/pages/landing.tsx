@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { PhoneCall, CalendarDays, Bot, ArrowRight, CheckCircle2, Star, MapPin, Zap, Play, ChevronDown, Send } from "lucide-react";
+import { BrandLogo } from "@/components/brand-logo";
 import { CallDemoModal } from "@/components/call-demo-modal";
 
 const FAQ_ITEMS = [
@@ -26,8 +27,8 @@ const FAQ_ITEMS = [
     a: "Yes — CREWON is trained across the full range of UK trades: plumbing, electrical, gas, roofing, plastering, groundworks, landscaping, and more. The AI asks the right qualifying questions for each trade type, and you can add your own custom instructions to fine-tune it further.",
   },
   {
-    q: "Is my data stored in the UK? (GDPR)",
-    a: "Yes. All call recordings, transcripts, and customer data are stored on UK-based servers. You can request a Data Processing Agreement (DPA) from the CREWON team at any time — just contact us.",
+    q: "How is my data handled?",
+    a: "Call records, transcripts and customer details are used to run your account. For specific questions about data handling or a Data Processing Agreement, contact the CREWON team.",
   },
   {
     q: "Can I change plans later?",
@@ -73,12 +74,11 @@ export default function Landing() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0d1117] text-white flex flex-col font-sans">
+    <div className="min-h-screen bg-[#0D171C] text-white flex flex-col font-sans">
       {/* Navbar */}
-      <header className="px-6 py-4 flex items-center justify-between sticky top-0 z-50 bg-[#0d1117]/90 backdrop-blur-md border-b border-white/10">
+      <header className="px-6 py-4 flex items-center justify-between sticky top-0 z-50 bg-[#0D171C]/90 backdrop-blur-md border-b border-white/10">
         <div className="flex items-center gap-2.5 font-bold text-xl">
-          <img src="/logo-mark.png" alt="CREWON" className="w-8 h-8 object-contain" />
-          <span className="text-white">CREW<span className="text-[#F97316]">ON</span></span>
+          <BrandLogo className="h-11 w-auto" />
         </div>
         <nav className="hidden md:flex gap-8 text-sm font-medium text-white/60">
           <a href="#features" className="hover:text-white transition-colors">Features</a>
@@ -91,7 +91,7 @@ export default function Landing() {
             Login
           </Link>
           <Link href="/dashboard">
-            <Button className="font-bold bg-[#F97316] hover:bg-[#ea6c0a] text-white border-0">Get Started</Button>
+            <Button className="font-bold bg-[#36C6D5] hover:bg-[#2fb3c1] text-[#0D171C] border-0">Get Started</Button>
           </Link>
         </div>
       </header>
@@ -107,25 +107,23 @@ export default function Landing() {
               className="w-full h-full object-cover object-center"
             />
             {/* Gradient overlays for readability */}
-            <div className="absolute inset-0 bg-gradient-to-r from-[#0d1117] via-[#0d1117]/80 to-[#0d1117]/30" />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#0d1117] via-transparent to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-r from-[#0D171C] via-[#0D171C]/80 to-[#0D171C]/30" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#0D171C] via-transparent to-transparent" />
           </div>
 
           <div className="relative z-10 w-full max-w-7xl mx-auto px-6 py-14 md:py-24 grid md:grid-cols-2 gap-12 items-center">
             {/* Left — copy */}
             <div className="space-y-8">
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#F97316]/15 text-[#F97316] text-sm font-semibold border border-[#F97316]/30">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#36C6D5]/15 text-[#36C6D5] text-sm font-semibold border border-[#36C6D5]/30">
                 <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#F97316] opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[#F97316]"></span>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#36C6D5] opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[#36C6D5]"></span>
                 </span>
-                Built for UK trades &amp; construction
+                YOUR CREW. SWITCHED ON.
               </div>
 
               <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.08] text-white">
-                Your <span className="text-[#F97316]">AI Foreman</span><br />
-                Never Misses<br />
-                A Call.
+                Your <span className="text-[#36C6D5]">Crew</span>.<br />Switched On.
               </h1>
 
               <p className="text-lg md:text-xl text-white/70 max-w-lg leading-relaxed">
@@ -134,7 +132,7 @@ export default function Landing() {
 
               <div className="flex flex-col sm:flex-row gap-4">
                 <Link href="/dashboard">
-                  <Button size="lg" className="w-full sm:w-auto text-lg h-14 px-8 font-bold gap-2 bg-[#F97316] hover:bg-[#ea6c0a] border-0">
+                  <Button size="lg" className="w-full sm:w-auto text-lg h-14 px-8 font-bold gap-2 bg-[#36C6D5] hover:bg-[#2fb3c1] text-[#0D171C] border-0">
                     Start Your Free Trial <ArrowRight size={20} />
                   </Button>
                 </Link>
@@ -152,14 +150,14 @@ export default function Landing() {
               <div className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center gap-3 sm:gap-5 text-sm font-medium text-white/50 pt-2">
                 <span className="flex items-center gap-1.5"><CheckCircle2 size={15} className="text-green-400 shrink-0" /> No credit card required</span>
                 <span className="flex items-center gap-1.5"><CheckCircle2 size={15} className="text-green-400 shrink-0" /> Setup in 5 minutes</span>
-                <span className="flex items-center gap-1.5"><MapPin size={15} className="text-[#F97316] shrink-0" /> UK-based &amp; GDPR compliant</span>
+                <span className="flex items-center gap-1.5"><MapPin size={15} className="text-[#36C6D5] shrink-0" /> Built for UK trades</span>
               </div>
             </div>
 
             {/* Right — AI chat demo card */}
             <div className="relative hidden md:block">
-              <div className="relative bg-[#161b22]/90 backdrop-blur-md border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
-                <div className="bg-[#0d1117] px-5 py-3.5 flex items-center gap-3 border-b border-white/10">
+              <div className="relative bg-[#203038]/90 backdrop-blur-md border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
+                <div className="bg-[#0D171C] px-5 py-3.5 flex items-center gap-3 border-b border-white/10">
                   <div className="flex gap-1.5">
                     <div className="w-3 h-3 rounded-full bg-red-500/80"></div>
                     <div className="w-3 h-3 rounded-full bg-yellow-500/80"></div>
@@ -176,16 +174,16 @@ export default function Landing() {
                     <p className="text-xs font-semibold text-white/50 mb-1 uppercase tracking-wide">Incoming Call</p>
                     <p className="text-sm text-white">"Hi, I need a quote for re-roofing my semi-detached in Manchester…"</p>
                   </div>
-                  <div className="bg-[#F97316]/15 border border-[#F97316]/30 p-3.5 rounded-xl self-end max-w-[78%]">
-                    <p className="text-xs font-semibold text-[#F97316] mb-1">CREWON Assistant</p>
+                  <div className="bg-[#36C6D5]/15 border border-[#36C6D5]/30 p-3.5 rounded-xl self-end max-w-[78%]">
+                    <p className="text-xs font-semibold text-[#36C6D5] mb-1">CREWON Assistant</p>
                     <p className="text-sm text-white">"Of course! Is the roof currently leaking, or is this a planned replacement?"</p>
                   </div>
                   <div className="bg-white/5 border border-white/10 p-3.5 rounded-xl self-start max-w-[78%]">
                     <p className="text-xs font-semibold text-white/50 mb-1 uppercase tracking-wide">Caller</p>
                     <p className="text-sm text-white">"No leaks — just 25 years old and looking rough."</p>
                   </div>
-                  <div className="bg-[#F97316]/15 border border-[#F97316]/30 p-3.5 rounded-xl self-end max-w-[78%]">
-                    <p className="text-xs font-semibold text-[#F97316] mb-1">CREWON Assistant</p>
+                  <div className="bg-[#36C6D5]/15 border border-[#36C6D5]/30 p-3.5 rounded-xl self-end max-w-[78%]">
+                    <p className="text-xs font-semibold text-[#36C6D5] mb-1">CREWON Assistant</p>
                     <p className="text-sm text-white">"Perfect. I have Thursday 2 PM or Friday 9 AM available for a free survey. Which suits you?"</p>
                   </div>
                   <div className="mt-auto bg-green-500/10 border border-green-500/30 text-green-400 p-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2">
@@ -195,32 +193,29 @@ export default function Landing() {
                 </div>
               </div>
               {/* Floating trust badge */}
-              <div className="absolute -bottom-4 -left-4 bg-[#161b22] border border-white/10 rounded-xl p-3 flex items-center gap-3 shadow-xl">
-                <div className="w-9 h-9 rounded-full bg-[#F97316]/20 flex items-center justify-center text-[#F97316]">
+              <div className="absolute -bottom-4 -left-4 bg-[#203038] border border-white/10 rounded-xl p-3 flex items-center gap-3 shadow-xl">
+                <div className="w-9 h-9 rounded-full bg-[#36C6D5]/20 flex items-center justify-center text-[#36C6D5]">
                   <PhoneCall size={17} />
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-white">0 missed calls today</p>
-                  <p className="text-[10px] text-white/40">AI handled 14 enquiries</p>
+                  <p className="text-xs font-bold text-white">Illustrative example</p>
+                  <p className="text-[10px] text-white/40">Sample data, not live results</p>
                 </div>
               </div>
             </div>
           </div>
         </section>
 
-        {/* Social proof strip */}
-        <section className="bg-[#F97316] py-5 overflow-hidden">
-          <div className="max-w-7xl mx-auto px-6 flex flex-wrap justify-center md:justify-between items-center gap-6 text-white font-bold text-sm">
-            <span className="flex items-center gap-2"><Star size={16} fill="white" /> "Saved us £4,000 in missed jobs last month"</span>
-            <span className="hidden md:block opacity-30">|</span>
-            <span className="flex items-center gap-2"><Star size={16} fill="white" /> "Set up in an afternoon, paid for itself in a week"</span>
-            <span className="hidden md:block opacity-30">|</span>
-            <span className="flex items-center gap-2"><Star size={16} fill="white" /> "Our AI receptionist never takes a sick day"</span>
+        {/* Tagline strip */}
+        <section className="bg-[#36C6D5] py-5 overflow-hidden text-[#0D171C]">
+          <div className="max-w-7xl mx-auto px-6 flex flex-wrap justify-center md:justify-between items-center gap-4 font-bold text-sm">
+            <span className="tracking-widest">YOUR CREW. SWITCHED ON.</span>
+            <span>Calls answered. Jobs scheduled. Drafts reviewed by you.</span>
           </div>
         </section>
 
         {/* Features */}
-        <section id="features" className="py-24 bg-[#0d1117]">
+        <section id="features" className="py-24 bg-[#0D171C]">
           <div className="max-w-7xl mx-auto px-6">
             <div className="text-center max-w-2xl mx-auto mb-16">
               <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Built for the reality of the job site.</h2>
@@ -246,13 +241,13 @@ export default function Landing() {
                 },
                 {
                   icon: <Zap size={22} />,
-                  title: "Instant Job Quotes",
-                  body: "AI pulls live UK wholesale prices from Screwfix, TLC Direct, Travis Perkins and more to build accurate material quotes on the spot.",
+                  title: "Reviewed Quote Drafts",
+                  body: "AI drafts material quotes from supplier prices where available. Every quote draft needs your review before it goes out; nothing is guessed.",
                 },
                 {
                   icon: <CheckCircle2 size={22} />,
-                  title: "UK Compliance Docs",
-                  body: "Generate Gas Safe records, EICRs, FENSA certificates, and more in seconds — properly formatted, ready to sign.",
+                  title: "Draft Certificates",
+                  body: "Generate draft certificate documents in seconds. Drafts must be checked and signed off by a suitably qualified person before use.",
                 },
                 {
                   icon: <Star size={22} />,
@@ -260,8 +255,8 @@ export default function Landing() {
                   body: "Every caller becomes a contact. Job history, call recordings, and booked visits in one place — no spreadsheets.",
                 },
               ].map((f) => (
-                <div key={f.title} className="bg-[#161b22] border border-white/8 p-7 rounded-2xl hover:border-[#F97316]/40 transition-colors group">
-                  <div className="bg-[#F97316]/10 text-[#F97316] w-11 h-11 rounded-xl flex items-center justify-center mb-5 group-hover:bg-[#F97316]/20 transition-colors">
+                <div key={f.title} className="bg-[#203038] border border-white/8 p-7 rounded-2xl hover:border-[#36C6D5]/40 transition-colors group">
+                  <div className="bg-[#36C6D5]/10 text-[#36C6D5] w-11 h-11 rounded-xl flex items-center justify-center mb-5 group-hover:bg-[#36C6D5]/20 transition-colors">
                     {f.icon}
                   </div>
                   <h3 className="text-lg font-bold text-white mb-2">{f.title}</h3>
@@ -272,23 +267,6 @@ export default function Landing() {
           </div>
         </section>
 
-        {/* Stats */}
-        <section className="py-20 bg-[#161b22] border-y border-white/10">
-          <div className="max-w-7xl mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-            {[
-              { stat: "47%", label: "Of leads go to the first to respond" },
-              { stat: "0", label: "Missed calls with CREWON" },
-              { stat: "12hrs", label: "Saved per week on average" },
-              { stat: "3×", label: "Increase in booked estimates" },
-            ].map((s) => (
-              <div key={s.stat}>
-                <div className="text-4xl md:text-5xl font-extrabold text-[#F97316] mb-2">{s.stat}</div>
-                <div className="text-white/50 font-medium text-sm leading-snug">{s.label}</div>
-              </div>
-            ))}
-          </div>
-        </section>
-
         {/* Photo break — electrician on site */}
         <section className="relative h-72 md:h-96 overflow-hidden">
           <img
@@ -296,19 +274,18 @@ export default function Landing() {
             alt="Electrician on site handling a call"
             className="w-full h-full object-cover object-top"
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#0d1117] via-[#0d1117]/60 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#0D171C] via-[#0D171C]/60 to-transparent" />
           <div className="absolute inset-0 flex items-center">
             <div className="max-w-7xl mx-auto px-6">
               <p className="text-2xl md:text-3xl font-extrabold text-white max-w-md leading-snug">
-                "I was losing 2–3 jobs a week to voicemail. Not anymore."
+                Out on the tools. Still on the call.
               </p>
-              <p className="text-white/50 mt-3 font-medium">— James T., Electrician, Leeds</p>
             </div>
           </div>
         </section>
 
         {/* Pricing */}
-        <section id="pricing" className="py-24 bg-[#0d1117]">
+        <section id="pricing" className="py-24 bg-[#0D171C]">
           <div className="max-w-7xl mx-auto px-6">
             <div className="text-center max-w-2xl mx-auto mb-10">
               <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Simple, transparent pricing.</h2>
@@ -317,12 +294,12 @@ export default function Landing() {
 
             {/* Billing toggle */}
             <div className="flex justify-center mb-12">
-              <div className="inline-flex items-center gap-1 bg-[#161b22] border border-white/10 rounded-full p-1">
+              <div className="inline-flex items-center gap-1 bg-[#203038] border border-white/10 rounded-full p-1">
                 <button
                   onClick={() => setBillingCycle("monthly")}
                   className={`px-5 py-2 rounded-full text-sm font-semibold transition-all ${
                     billingCycle === "monthly"
-                      ? "bg-[#F97316] text-white shadow"
+                      ? "bg-[#36C6D5] text-[#0D171C] shadow"
                       : "text-white/50 hover:text-white"
                   }`}
                 >
@@ -332,15 +309,15 @@ export default function Landing() {
                   onClick={() => setBillingCycle("yearly")}
                   className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-semibold transition-all ${
                     billingCycle === "yearly"
-                      ? "bg-[#F97316] text-white shadow"
+                      ? "bg-[#36C6D5] text-[#0D171C] shadow"
                       : "text-white/50 hover:text-white"
                   }`}
                 >
                   Yearly
                   <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full transition-all ${
                     billingCycle === "yearly"
-                      ? "bg-white/20 text-white"
-                      : "bg-[#F97316]/20 text-[#F97316]"
+                      ? "bg-[#0D171C]/15 text-[#0D171C]"
+                      : "bg-[#36C6D5]/20 text-[#36C6D5]"
                   }`}>
                     Save 20%
                   </span>
@@ -404,32 +381,32 @@ export default function Landing() {
                   key={plan.name}
                   className={`rounded-2xl p-8 flex flex-col transition-transform ${
                     plan.highlight
-                      ? "bg-[#F97316] text-white scale-105 shadow-2xl shadow-[#F97316]/20"
-                      : "bg-[#161b22] border border-white/10 text-white"
+                      ? "bg-[#36C6D5] text-[#0D171C] scale-105 shadow-2xl"
+                      : "bg-[#203038] border border-white/10 text-white"
                   }`}
                 >
                   {plan.highlight && (
-                    <div className="text-xs font-bold uppercase tracking-widest text-white/80 mb-3">Most Popular</div>
+                    <div className="text-xs font-bold uppercase tracking-widest text-[#0D171C]/80 mb-3">Most Popular</div>
                   )}
                   <h3 className="text-xl font-bold mb-1">{plan.name}</h3>
-                  <p className={`text-sm mb-6 ${plan.highlight ? "text-white/70" : "text-white/40"}`}>{plan.desc}</p>
+                  <p className={`text-sm mb-6 ${plan.highlight ? "text-[#0D171C]/75" : "text-white/50"}`}>{plan.desc}</p>
                   <div className="mb-6">
                     <span className="text-4xl font-extrabold">
                       {billingCycle === "yearly" ? plan.yearlyPrice : plan.monthlyPrice}
                     </span>
-                    <span className={`text-sm ${plan.highlight ? "text-white/70" : "text-white/40"}`}>/mo + VAT</span>
+                    <span className={`text-sm ${plan.highlight ? "text-[#0D171C]/75" : "text-white/50"}`}>/mo + VAT</span>
                     {billingCycle === "yearly" && (
-                      <p className={`text-xs mt-1 ${plan.highlight ? "text-white/60" : "text-white/35"}`}>billed annually</p>
+                      <p className={`text-xs mt-1 ${plan.highlight ? "text-[#0D171C]/70" : "text-white/50"}`}>billed annually</p>
                     )}
                   </div>
                   <ul className="space-y-3 mb-8 flex-1">
                     {plan.features.map((f) => (
                       <li key={f.text} className="flex items-start gap-2.5 text-sm">
-                        <CheckCircle2 size={17} className={`${plan.highlight ? "text-white" : "text-[#F97316]"} shrink-0 mt-0.5`} />
+                        <CheckCircle2 size={17} className={`${plan.highlight ? "text-[#0D171C]" : "text-[#36C6D5]"} shrink-0 mt-0.5`} />
                         <span className="flex-1">{f.text}</span>
                         {f.soon && (
                           <span className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full shrink-0 ${
-                            plan.highlight ? "bg-white/20 text-white/70" : "bg-white/8 text-white/40"
+                            plan.highlight ? "bg-[#0D171C]/15 text-[#0D171C]" : "bg-white/10 text-white/60"
                           }`}>
                             Soon
                           </span>
@@ -441,8 +418,8 @@ export default function Landing() {
                     <Button
                       className={`w-full font-bold ${
                         plan.highlight
-                          ? "bg-white text-[#F97316] hover:bg-white/90 border-0"
-                          : "bg-[#F97316] hover:bg-[#ea6c0a] text-white border-0"
+                          ? "bg-[#0D171C] text-[#36C6D5] hover:bg-[#0D171C]/90 border-0"
+                          : "bg-[#36C6D5] hover:bg-[#2fb3c1] text-[#0D171C] border-0"
                       }`}
                     >
                       {billingCycle === "yearly" ? "Start Free Trial — billed annually" : "Start Free Trial"}
@@ -455,7 +432,7 @@ export default function Landing() {
         </section>
 
         {/* FAQ */}
-        <section id="faq" className="py-24 bg-[#161b22] border-t border-white/10">
+        <section id="faq" className="py-24 bg-[#203038] border-t border-white/10">
           <div className="max-w-3xl mx-auto px-6">
             <div className="text-center mb-14">
               <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Frequently asked questions</h2>
@@ -468,7 +445,7 @@ export default function Landing() {
                   <div
                     key={i}
                     className={`rounded-xl border transition-colors ${
-                      isOpen ? "border-[#F97316]/40 bg-[#F97316]/5" : "border-white/10 bg-[#0d1117]/60"
+                      isOpen ? "border-[#36C6D5]/40 bg-[#36C6D5]/5" : "border-white/10 bg-[#0D171C]/60"
                     }`}
                   >
                     <button
@@ -478,7 +455,7 @@ export default function Landing() {
                       <span className="text-white font-semibold text-sm md:text-base leading-snug">{item.q}</span>
                       <ChevronDown
                         size={18}
-                        className={`shrink-0 text-white/40 transition-transform duration-300 ${isOpen ? "rotate-180 text-[#F97316]" : ""}`}
+                        className={`shrink-0 text-white/40 transition-transform duration-300 ${isOpen ? "rotate-180 text-[#36C6D5]" : ""}`}
                       />
                     </button>
                     <div
@@ -494,7 +471,7 @@ export default function Landing() {
             </div>
 
             {/* Support CTA */}
-            <div className="mt-12 rounded-2xl border border-white/10 bg-[#0d1117]/60 p-8 text-center">
+            <div className="mt-12 rounded-2xl border border-white/10 bg-[#0D171C]/60 p-8 text-center">
               <p className="text-white/70 text-base mb-1">Still have a question?</p>
               <h3 className="text-white font-bold text-xl mb-2">We'd love to hear from you.</h3>
               <p className="text-white/40 text-sm mb-6">
@@ -510,7 +487,7 @@ export default function Landing() {
                   <p className="text-white/50 text-sm">We'll be in touch soon.</p>
                   <button
                     onClick={() => { setSupportState("idle"); setSupportFormOpen(false); }}
-                    className="mt-1 text-sm text-[#F97316] hover:underline"
+                    className="mt-1 text-sm text-[#36C6D5] hover:underline"
                   >
                     Send another
                   </button>
@@ -534,7 +511,7 @@ export default function Landing() {
                       value={supportName}
                       onChange={(e) => setSupportName(e.target.value)}
                       placeholder="e.g. James Thornton"
-                      className="w-full bg-white/5 border border-white/15 rounded-xl px-4 py-3 text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#F97316]/60 focus:bg-white/8 transition-colors"
+                      className="w-full bg-white/5 border border-white/15 rounded-xl px-4 py-3 text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#36C6D5]/60 focus:bg-white/8 transition-colors"
                     />
                   </div>
                   <div>
@@ -547,7 +524,7 @@ export default function Landing() {
                       value={supportQuestion}
                       onChange={(e) => setSupportQuestion(e.target.value)}
                       placeholder="What would you like to know?"
-                      className="w-full bg-white/5 border border-white/15 rounded-xl px-4 py-3 text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#F97316]/60 focus:bg-white/8 transition-colors resize-none"
+                      className="w-full bg-white/5 border border-white/15 rounded-xl px-4 py-3 text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#36C6D5]/60 focus:bg-white/8 transition-colors resize-none"
                     />
                   </div>
                   {supportState === "error" && (
@@ -564,7 +541,7 @@ export default function Landing() {
                     <button
                       type="submit"
                       disabled={supportState === "submitting"}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[#F97316] hover:bg-[#ea6c0a] text-white text-sm font-bold transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[#36C6D5] hover:bg-[#2fb3c1] text-[#0D171C] text-sm font-bold text-[#0D171C] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       {supportState === "submitting" ? (
                         <>Sending…</>
@@ -580,14 +557,14 @@ export default function Landing() {
         </section>
 
         {/* CTA */}
-        <section className="py-24 bg-[#0d1117] border-t border-white/10">
+        <section className="py-24 bg-[#0D171C] border-t border-white/10">
           <div className="max-w-4xl mx-auto px-6 text-center">
             <h2 className="text-4xl md:text-5xl font-extrabold text-white mb-6">Ready to put your phones on autopilot?</h2>
             <p className="text-xl text-white/50 mb-10 max-w-2xl mx-auto">
               Join UK contractors who've stopped losing jobs to voicemail and reclaimed their evenings.
             </p>
             <Link href="/dashboard">
-              <Button size="lg" className="text-lg h-16 px-10 font-bold bg-[#F97316] hover:bg-[#ea6c0a] text-white border-0">
+              <Button size="lg" className="text-lg h-16 px-10 font-bold bg-[#36C6D5] hover:bg-[#2fb3c1] text-[#0D171C] border-0">
                 Create Your Account — Free Trial
               </Button>
             </Link>
@@ -596,13 +573,12 @@ export default function Landing() {
         </section>
       </main>
 
-      <footer className="bg-[#0d1117] border-t border-white/10 py-10 px-6">
+      <footer className="bg-[#0D171C] border-t border-white/10 py-10 px-6">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-2.5 font-bold text-lg">
-            <img src="/logo-mark.png" alt="CREWON" className="w-7 h-7 object-contain" />
-            <span className="text-white">CREW<span className="text-[#F97316]">ON</span></span>
+            <BrandLogo className="h-11 w-auto" />
           </div>
-          <p className="text-white/30 text-sm">© {new Date().getFullYear()} CREWON. All rights reserved.</p>
+          <p className="text-white/50 text-sm text-center md:text-right"><span className="block font-bold tracking-widest text-[#36C6D5] text-xs mb-1">YOUR CREW. SWITCHED ON.</span>© {new Date().getFullYear()} CREWON. All rights reserved.</p>
         </div>
       </footer>
 
