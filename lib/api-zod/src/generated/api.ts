@@ -411,8 +411,8 @@ export const ListCallsResponseItem = zod.object({
   "duration": zod.number().describe('Duration in seconds'),
   "assistantName": zod.string(),
   "notes": zod.string().nullish(),
-  "jobId": zod.number().int().nullish(),
-  "contactId": zod.number().int().nullish(),
+  "jobId": zod.number().nullish(),
+  "contactId": zod.number().nullish(),
   "reviewed": zod.boolean().optional(),
   "createdAt": zod.coerce.date()
 })
@@ -435,8 +435,8 @@ export const GetCallResponse = zod.object({
   "duration": zod.number(),
   "assistantName": zod.string(),
   "notes": zod.string().nullish(),
-  "jobId": zod.number().int().nullish(),
-  "contactId": zod.number().int().nullish(),
+  "jobId": zod.number().nullish(),
+  "contactId": zod.number().nullish(),
   "reviewed": zod.boolean().optional(),
   "transcript": zod.array(zod.object({
   "speaker": zod.enum(['assistant', 'caller']),
@@ -469,8 +469,8 @@ export const UpdateCallResponse = zod.object({
   "duration": zod.number().describe('Duration in seconds'),
   "assistantName": zod.string(),
   "notes": zod.string().nullish(),
-  "jobId": zod.number().int().nullish(),
-  "contactId": zod.number().int().nullish(),
+  "jobId": zod.number().nullish(),
+  "contactId": zod.number().nullish(),
   "reviewed": zod.boolean().optional(),
   "createdAt": zod.coerce.date()
 })
@@ -514,10 +514,10 @@ export const ListJobsResponseItem = zod.object({
   "description": zod.string().nullish(),
   "status": zod.enum(['pending_confirmation', 'scheduled', 'in_progress', 'completed', 'cancelled']),
   "scheduledAt": zod.coerce.date(),
-  "estimatedDuration": zod.number().int().nullish().describe('Duration in minutes'),
+  "estimatedDuration": zod.number().nullish().describe('Duration in minutes'),
   "contactName": zod.string(),
   "contactPhone": zod.string(),
-  "contactId": zod.number().int().nullish(),
+  "contactId": zod.number().nullish(),
   "serviceType": zod.string(),
   "address": zod.string().nullish(),
   "notes": zod.string().nullish(),
@@ -551,10 +551,10 @@ export const CreateJobResponse = zod.object({
   "description": zod.string().nullish(),
   "status": zod.enum(['pending_confirmation', 'scheduled', 'in_progress', 'completed', 'cancelled']),
   "scheduledAt": zod.coerce.date(),
-  "estimatedDuration": zod.number().int().nullish().describe('Duration in minutes'),
+  "estimatedDuration": zod.number().nullish().describe('Duration in minutes'),
   "contactName": zod.string(),
   "contactPhone": zod.string(),
-  "contactId": zod.number().int().nullish(),
+  "contactId": zod.number().nullish(),
   "serviceType": zod.string(),
   "address": zod.string().nullish(),
   "notes": zod.string().nullish(),
@@ -572,10 +572,10 @@ export const GetUpcomingJobsResponseItem = zod.object({
   "description": zod.string().nullish(),
   "status": zod.enum(['pending_confirmation', 'scheduled', 'in_progress', 'completed', 'cancelled']),
   "scheduledAt": zod.coerce.date(),
-  "estimatedDuration": zod.number().int().nullish().describe('Duration in minutes'),
+  "estimatedDuration": zod.number().nullish().describe('Duration in minutes'),
   "contactName": zod.string(),
   "contactPhone": zod.string(),
-  "contactId": zod.number().int().nullish(),
+  "contactId": zod.number().nullish(),
   "serviceType": zod.string(),
   "address": zod.string().nullish(),
   "notes": zod.string().nullish(),
@@ -598,10 +598,10 @@ export const GetJobResponse = zod.object({
   "description": zod.string().nullish(),
   "status": zod.enum(['pending_confirmation', 'scheduled', 'in_progress', 'completed', 'cancelled']),
   "scheduledAt": zod.coerce.date(),
-  "estimatedDuration": zod.number().int().nullish().describe('Duration in minutes'),
+  "estimatedDuration": zod.number().nullish().describe('Duration in minutes'),
   "contactName": zod.string(),
   "contactPhone": zod.string(),
-  "contactId": zod.number().int().nullish(),
+  "contactId": zod.number().nullish(),
   "serviceType": zod.string(),
   "address": zod.string().nullish(),
   "notes": zod.string().nullish(),
@@ -629,7 +629,7 @@ export const UpdateJobBody = zod.object({
   "notes": zod.string().optional(),
   "estimatedValue": zod.number().optional(),
   "status": zod.enum(['pending_confirmation', 'scheduled', 'in_progress', 'completed', 'cancelled']).optional(),
-  "quoteId": zod.number().int().nullish().describe('Link a quote to this job; sets estimatedValue from quote\'s totalIncVat')
+  "quoteId": zod.number().nullish().describe('Link a quote to this job; sets estimatedValue from quote\'s totalIncVat')
 })
 
 export const UpdateJobResponse = zod.object({
@@ -638,10 +638,10 @@ export const UpdateJobResponse = zod.object({
   "description": zod.string().nullish(),
   "status": zod.enum(['pending_confirmation', 'scheduled', 'in_progress', 'completed', 'cancelled']),
   "scheduledAt": zod.coerce.date(),
-  "estimatedDuration": zod.number().int().nullish().describe('Duration in minutes'),
+  "estimatedDuration": zod.number().nullish().describe('Duration in minutes'),
   "contactName": zod.string(),
   "contactPhone": zod.string(),
-  "contactId": zod.number().int().nullish(),
+  "contactId": zod.number().nullish(),
   "serviceType": zod.string(),
   "address": zod.string().nullish(),
   "notes": zod.string().nullish(),
@@ -794,16 +794,138 @@ export const DeleteContactResponse = zod.void()
 
 
 /**
- * @summary List saved quotes
+ * @summary Honest V1 release gate; demos never count as verified live evidence
  */
-export const ListQuotesQueryParams = zod.object({
-  "jobId": zod.coerce.number().optional()
+export const GetPilotReadinessResponse = zod.object({
+  "pilotName": zod.string(),
+  "timezone": zod.string(),
+  "live": zod.boolean(),
+  "checks": zod.array(zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "status": zod.enum(['blocked', 'not_verified', 'verified', 'failed']),
+  "detail": zod.string(),
+  "path": zod.string()
+})),
+  "missingSetup": zod.array(zod.string())
 })
 
-export const ListQuotesResponseItem = zod.object({
+
+/**
+ * @summary Duplicate a quote as an editable draft
+ */
+export const DuplicateQuoteParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const duplicateQuoteResponseWorkflowOneCustomerNameMax = 300;
+
+export const duplicateQuoteResponseWorkflowOneCustomerEmailMax = 300;
+
+export const duplicateQuoteResponseWorkflowOneCustomerPhoneMax = 100;
+
+export const duplicateQuoteResponseWorkflowOneBillingAddressMax = 2000;
+
+export const duplicateQuoteResponseWorkflowOneSiteAddressMax = 2000;
+
+export const duplicateQuoteResponseWorkflowOneScopeMax = 20000;
+
+export const duplicateQuoteResponseWorkflowOneAssumptionsMax = 10000;
+
+export const duplicateQuoteResponseWorkflowOneExclusionsMax = 10000;
+
+export const duplicateQuoteResponseWorkflowOnePaymentTermsMax = 10000;
+
+export const duplicateQuoteResponseWorkflowOneVatPercentMin = 0;
+export const duplicateQuoteResponseWorkflowOneVatPercentMax = 100;
+
+export const duplicateQuoteResponseWorkflowOneDepositValueMin = 0;
+
+export const duplicateQuoteResponseWorkflowOneSectionsItemTitleMax = 300;
+
+export const duplicateQuoteResponseWorkflowOneSectionsItemItemsItemDescriptionMax = 2000;
+
+export const duplicateQuoteResponseWorkflowOneSectionsItemItemsItemQuantityMin = 0;
+export const duplicateQuoteResponseWorkflowOneSectionsItemItemsItemQuantityMax = 1000000;
+
+export const duplicateQuoteResponseWorkflowOneSectionsItemItemsItemUnitMax = 100;
+
+export const duplicateQuoteResponseWorkflowOneSectionsItemItemsItemCostPriceMin = 0;
+export const duplicateQuoteResponseWorkflowOneSectionsItemItemsItemCostPriceMax = 10000000;
+
+export const duplicateQuoteResponseWorkflowOneSectionsItemItemsItemSellPriceMin = 0;
+export const duplicateQuoteResponseWorkflowOneSectionsItemItemsItemSellPriceMax = 10000000;
+
+export const duplicateQuoteResponseWorkflowOneSectionsItemItemsMax = 500;
+
+export const duplicateQuoteResponseWorkflowOneSectionsMax = 100;
+
+
+
+export const DuplicateQuoteResponse = zod.object({
+  "contactId": zod.number().nullish(),
+  "callId": zod.number().nullish(),
+  "status": zod.enum(['draft', 'reviewed', 'accepted']).optional(),
+  "revision": zod.number().optional(),
+  "reviewedAt": zod.string().nullish(),
+  "acceptedAt": zod.string().nullish(),
+  "workflow": zod.union([zod.object({
+  "customerName": zod.string().max(duplicateQuoteResponseWorkflowOneCustomerNameMax),
+  "customerEmail": zod.string().max(duplicateQuoteResponseWorkflowOneCustomerEmailMax),
+  "customerPhone": zod.string().max(duplicateQuoteResponseWorkflowOneCustomerPhoneMax),
+  "billingAddress": zod.string().max(duplicateQuoteResponseWorkflowOneBillingAddressMax),
+  "siteAddress": zod.string().max(duplicateQuoteResponseWorkflowOneSiteAddressMax),
+  "scope": zod.string().max(duplicateQuoteResponseWorkflowOneScopeMax),
+  "assumptions": zod.string().max(duplicateQuoteResponseWorkflowOneAssumptionsMax),
+  "exclusions": zod.string().max(duplicateQuoteResponseWorkflowOneExclusionsMax),
+  "paymentTerms": zod.string().max(duplicateQuoteResponseWorkflowOnePaymentTermsMax),
+  "validUntil": zod.string(),
+  "vatRegistered": zod.boolean(),
+  "vatNumber": zod.string(),
+  "vatPercent": zod.number().min(duplicateQuoteResponseWorkflowOneVatPercentMin).max(duplicateQuoteResponseWorkflowOneVatPercentMax),
+  "deposit": zod.object({
+  "mode": zod.enum(['none', 'materials', 'fixed', 'percentage']),
+  "value": zod.number().min(duplicateQuoteResponseWorkflowOneDepositValueMin)
+}),
+  "sections": zod.array(zod.object({
+  "id": zod.string(),
+  "title": zod.string().max(duplicateQuoteResponseWorkflowOneSectionsItemTitleMax),
+  "items": zod.array(zod.object({
+  "id": zod.string(),
+  "type": zod.enum(['materials', 'labour', 'subcontractor', 'plant', 'other']),
+  "description": zod.string().max(duplicateQuoteResponseWorkflowOneSectionsItemItemsItemDescriptionMax),
+  "quantity": zod.number().min(duplicateQuoteResponseWorkflowOneSectionsItemItemsItemQuantityMin).max(duplicateQuoteResponseWorkflowOneSectionsItemItemsItemQuantityMax),
+  "unit": zod.string().max(duplicateQuoteResponseWorkflowOneSectionsItemItemsItemUnitMax),
+  "costPrice": zod.number().min(duplicateQuoteResponseWorkflowOneSectionsItemItemsItemCostPriceMin).max(duplicateQuoteResponseWorkflowOneSectionsItemItemsItemCostPriceMax),
+  "sellPrice": zod.number().min(duplicateQuoteResponseWorkflowOneSectionsItemItemsItemSellPriceMin).max(duplicateQuoteResponseWorkflowOneSectionsItemItemsItemSellPriceMax),
+  "source": zod.string().optional(),
+  "sourceUrl": zod.string().optional(),
+  "pricedAt": zod.string().optional(),
+  "priceVerified": zod.boolean().optional()
+})).max(duplicateQuoteResponseWorkflowOneSectionsItemItemsMax)
+})).max(duplicateQuoteResponseWorkflowOneSectionsMax)
+}),zod.null()]).optional(),
+  "companySnapshot": zod.union([zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "phone": zod.string(),
+  "email": zod.string().nullish(),
+  "website": zod.string().nullish(),
+  "address": zod.string().nullish(),
+  "timezone": zod.string(),
+  "logoUrl": zod.string().nullish(),
+  "quoteTemplate": zod.enum(['classic', 'modern', 'minimal']).optional(),
+  "quoteAccentColor": zod.string().optional(),
+  "quoteTagline": zod.string().nullish(),
+  "paymentTerms": zod.string().nullish(),
+  "quoteFooterText": zod.string().nullish(),
+  "emailAutoSend": zod.boolean().optional(),
+  "createdAt": zod.coerce.date()
+}),zod.null()]).optional(),
   "id": zod.number(),
   "title": zod.string(),
   "materials": zod.array(zod.object({
+  "type": zod.string().optional(),
   "name": zod.string(),
   "quantity": zod.number(),
   "unit": zod.string(),
@@ -813,7 +935,202 @@ export const ListQuotesResponseItem = zod.object({
   "total": zod.number().nullish()
 })),
   "grandTotal": zod.number(),
-  "jobId": zod.number().int().nullish(),
+  "jobId": zod.number().nullish(),
+  "marginPercent": zod.number().nullish(),
+  "vatPercent": zod.number().nullish(),
+  "marginAmount": zod.number().nullish(),
+  "vatAmount": zod.number().nullish(),
+  "totalIncVat": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Convert an accepted quote, returning the existing invoice on retry
+ */
+export const ConvertQuoteToInvoiceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ConvertQuoteToInvoiceResponse = zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.string(),
+  "quoteId": zod.number().nullish(),
+  "jobId": zod.number().nullish(),
+  "status": zod.enum(['draft', 'sent', 'paid']),
+  "issueDate": zod.string(),
+  "dueDate": zod.string(),
+  "lineItems": zod.array(zod.object({
+  "name": zod.string(),
+  "quantity": zod.number(),
+  "unit": zod.string(),
+  "unitPrice": zod.number(),
+  "total": zod.number()
+})),
+  "subtotal": zod.number(),
+  "vatPercent": zod.number(),
+  "vatAmount": zod.number(),
+  "total": zod.number(),
+  "notes": zod.string().nullish(),
+  "clientName": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Create or return the job linked to an accepted quote
+ */
+export const ConvertQuoteToJobParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ConvertQuoteToJobBody = zod.object({
+  "scheduledAt": zod.coerce.date()
+})
+
+export const ConvertQuoteToJobResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['pending_confirmation', 'scheduled', 'in_progress', 'completed', 'cancelled']),
+  "scheduledAt": zod.coerce.date(),
+  "estimatedDuration": zod.number().nullish().describe('Duration in minutes'),
+  "contactName": zod.string(),
+  "contactPhone": zod.string(),
+  "contactId": zod.number().nullish(),
+  "serviceType": zod.string(),
+  "address": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "estimatedValue": zod.number().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary List saved quotes
+ */
+export const ListQuotesQueryParams = zod.object({
+  "jobId": zod.coerce.number().optional()
+})
+
+export const listQuotesResponseWorkflowOneCustomerNameMax = 300;
+
+export const listQuotesResponseWorkflowOneCustomerEmailMax = 300;
+
+export const listQuotesResponseWorkflowOneCustomerPhoneMax = 100;
+
+export const listQuotesResponseWorkflowOneBillingAddressMax = 2000;
+
+export const listQuotesResponseWorkflowOneSiteAddressMax = 2000;
+
+export const listQuotesResponseWorkflowOneScopeMax = 20000;
+
+export const listQuotesResponseWorkflowOneAssumptionsMax = 10000;
+
+export const listQuotesResponseWorkflowOneExclusionsMax = 10000;
+
+export const listQuotesResponseWorkflowOnePaymentTermsMax = 10000;
+
+export const listQuotesResponseWorkflowOneVatPercentMin = 0;
+export const listQuotesResponseWorkflowOneVatPercentMax = 100;
+
+export const listQuotesResponseWorkflowOneDepositValueMin = 0;
+
+export const listQuotesResponseWorkflowOneSectionsItemTitleMax = 300;
+
+export const listQuotesResponseWorkflowOneSectionsItemItemsItemDescriptionMax = 2000;
+
+export const listQuotesResponseWorkflowOneSectionsItemItemsItemQuantityMin = 0;
+export const listQuotesResponseWorkflowOneSectionsItemItemsItemQuantityMax = 1000000;
+
+export const listQuotesResponseWorkflowOneSectionsItemItemsItemUnitMax = 100;
+
+export const listQuotesResponseWorkflowOneSectionsItemItemsItemCostPriceMin = 0;
+export const listQuotesResponseWorkflowOneSectionsItemItemsItemCostPriceMax = 10000000;
+
+export const listQuotesResponseWorkflowOneSectionsItemItemsItemSellPriceMin = 0;
+export const listQuotesResponseWorkflowOneSectionsItemItemsItemSellPriceMax = 10000000;
+
+export const listQuotesResponseWorkflowOneSectionsItemItemsMax = 500;
+
+export const listQuotesResponseWorkflowOneSectionsMax = 100;
+
+
+
+export const ListQuotesResponseItem = zod.object({
+  "contactId": zod.number().nullish(),
+  "callId": zod.number().nullish(),
+  "status": zod.enum(['draft', 'reviewed', 'accepted']).optional(),
+  "revision": zod.number().optional(),
+  "reviewedAt": zod.string().nullish(),
+  "acceptedAt": zod.string().nullish(),
+  "workflow": zod.union([zod.object({
+  "customerName": zod.string().max(listQuotesResponseWorkflowOneCustomerNameMax),
+  "customerEmail": zod.string().max(listQuotesResponseWorkflowOneCustomerEmailMax),
+  "customerPhone": zod.string().max(listQuotesResponseWorkflowOneCustomerPhoneMax),
+  "billingAddress": zod.string().max(listQuotesResponseWorkflowOneBillingAddressMax),
+  "siteAddress": zod.string().max(listQuotesResponseWorkflowOneSiteAddressMax),
+  "scope": zod.string().max(listQuotesResponseWorkflowOneScopeMax),
+  "assumptions": zod.string().max(listQuotesResponseWorkflowOneAssumptionsMax),
+  "exclusions": zod.string().max(listQuotesResponseWorkflowOneExclusionsMax),
+  "paymentTerms": zod.string().max(listQuotesResponseWorkflowOnePaymentTermsMax),
+  "validUntil": zod.string(),
+  "vatRegistered": zod.boolean(),
+  "vatNumber": zod.string(),
+  "vatPercent": zod.number().min(listQuotesResponseWorkflowOneVatPercentMin).max(listQuotesResponseWorkflowOneVatPercentMax),
+  "deposit": zod.object({
+  "mode": zod.enum(['none', 'materials', 'fixed', 'percentage']),
+  "value": zod.number().min(listQuotesResponseWorkflowOneDepositValueMin)
+}),
+  "sections": zod.array(zod.object({
+  "id": zod.string(),
+  "title": zod.string().max(listQuotesResponseWorkflowOneSectionsItemTitleMax),
+  "items": zod.array(zod.object({
+  "id": zod.string(),
+  "type": zod.enum(['materials', 'labour', 'subcontractor', 'plant', 'other']),
+  "description": zod.string().max(listQuotesResponseWorkflowOneSectionsItemItemsItemDescriptionMax),
+  "quantity": zod.number().min(listQuotesResponseWorkflowOneSectionsItemItemsItemQuantityMin).max(listQuotesResponseWorkflowOneSectionsItemItemsItemQuantityMax),
+  "unit": zod.string().max(listQuotesResponseWorkflowOneSectionsItemItemsItemUnitMax),
+  "costPrice": zod.number().min(listQuotesResponseWorkflowOneSectionsItemItemsItemCostPriceMin).max(listQuotesResponseWorkflowOneSectionsItemItemsItemCostPriceMax),
+  "sellPrice": zod.number().min(listQuotesResponseWorkflowOneSectionsItemItemsItemSellPriceMin).max(listQuotesResponseWorkflowOneSectionsItemItemsItemSellPriceMax),
+  "source": zod.string().optional(),
+  "sourceUrl": zod.string().optional(),
+  "pricedAt": zod.string().optional(),
+  "priceVerified": zod.boolean().optional()
+})).max(listQuotesResponseWorkflowOneSectionsItemItemsMax)
+})).max(listQuotesResponseWorkflowOneSectionsMax)
+}),zod.null()]).optional(),
+  "companySnapshot": zod.union([zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "phone": zod.string(),
+  "email": zod.string().nullish(),
+  "website": zod.string().nullish(),
+  "address": zod.string().nullish(),
+  "timezone": zod.string(),
+  "logoUrl": zod.string().nullish(),
+  "quoteTemplate": zod.enum(['classic', 'modern', 'minimal']).optional(),
+  "quoteAccentColor": zod.string().optional(),
+  "quoteTagline": zod.string().nullish(),
+  "paymentTerms": zod.string().nullish(),
+  "quoteFooterText": zod.string().nullish(),
+  "emailAutoSend": zod.boolean().optional(),
+  "createdAt": zod.coerce.date()
+}),zod.null()]).optional(),
+  "id": zod.number(),
+  "title": zod.string(),
+  "materials": zod.array(zod.object({
+  "type": zod.string().optional(),
+  "name": zod.string(),
+  "quantity": zod.number(),
+  "unit": zod.string(),
+  "unitPrice": zod.number().nullish(),
+  "source": zod.string().nullish(),
+  "sourceUrl": zod.string().nullish(),
+  "total": zod.number().nullish()
+})),
+  "grandTotal": zod.number(),
+  "jobId": zod.number().nullish(),
   "marginPercent": zod.number().nullish(),
   "vatPercent": zod.number().nullish(),
   "marginAmount": zod.number().nullish(),
@@ -827,9 +1144,93 @@ export const ListQuotesResponse = zod.array(ListQuotesResponseItem)
 /**
  * @summary Save a new quote
  */
+export const createQuoteBodyWorkflowCustomerNameMax = 300;
+
+export const createQuoteBodyWorkflowCustomerEmailMax = 300;
+
+export const createQuoteBodyWorkflowCustomerPhoneMax = 100;
+
+export const createQuoteBodyWorkflowBillingAddressMax = 2000;
+
+export const createQuoteBodyWorkflowSiteAddressMax = 2000;
+
+export const createQuoteBodyWorkflowScopeMax = 20000;
+
+export const createQuoteBodyWorkflowAssumptionsMax = 10000;
+
+export const createQuoteBodyWorkflowExclusionsMax = 10000;
+
+export const createQuoteBodyWorkflowPaymentTermsMax = 10000;
+
+export const createQuoteBodyWorkflowVatPercentMin = 0;
+export const createQuoteBodyWorkflowVatPercentMax = 100;
+
+export const createQuoteBodyWorkflowDepositValueMin = 0;
+
+export const createQuoteBodyWorkflowSectionsItemTitleMax = 300;
+
+export const createQuoteBodyWorkflowSectionsItemItemsItemDescriptionMax = 2000;
+
+export const createQuoteBodyWorkflowSectionsItemItemsItemQuantityMin = 0;
+export const createQuoteBodyWorkflowSectionsItemItemsItemQuantityMax = 1000000;
+
+export const createQuoteBodyWorkflowSectionsItemItemsItemUnitMax = 100;
+
+export const createQuoteBodyWorkflowSectionsItemItemsItemCostPriceMin = 0;
+export const createQuoteBodyWorkflowSectionsItemItemsItemCostPriceMax = 10000000;
+
+export const createQuoteBodyWorkflowSectionsItemItemsItemSellPriceMin = 0;
+export const createQuoteBodyWorkflowSectionsItemItemsItemSellPriceMax = 10000000;
+
+export const createQuoteBodyWorkflowSectionsItemItemsMax = 500;
+
+export const createQuoteBodyWorkflowSectionsMax = 100;
+
+
+
 export const CreateQuoteBody = zod.object({
+  "contactId": zod.number().nullish(),
+  "callId": zod.number().nullish(),
+  "status": zod.enum(['draft', 'reviewed']).optional(),
+  "workflow": zod.object({
+  "customerName": zod.string().max(createQuoteBodyWorkflowCustomerNameMax),
+  "customerEmail": zod.string().max(createQuoteBodyWorkflowCustomerEmailMax),
+  "customerPhone": zod.string().max(createQuoteBodyWorkflowCustomerPhoneMax),
+  "billingAddress": zod.string().max(createQuoteBodyWorkflowBillingAddressMax),
+  "siteAddress": zod.string().max(createQuoteBodyWorkflowSiteAddressMax),
+  "scope": zod.string().max(createQuoteBodyWorkflowScopeMax),
+  "assumptions": zod.string().max(createQuoteBodyWorkflowAssumptionsMax),
+  "exclusions": zod.string().max(createQuoteBodyWorkflowExclusionsMax),
+  "paymentTerms": zod.string().max(createQuoteBodyWorkflowPaymentTermsMax),
+  "validUntil": zod.string(),
+  "vatRegistered": zod.boolean(),
+  "vatNumber": zod.string(),
+  "vatPercent": zod.number().min(createQuoteBodyWorkflowVatPercentMin).max(createQuoteBodyWorkflowVatPercentMax),
+  "deposit": zod.object({
+  "mode": zod.enum(['none', 'materials', 'fixed', 'percentage']),
+  "value": zod.number().min(createQuoteBodyWorkflowDepositValueMin)
+}),
+  "sections": zod.array(zod.object({
+  "id": zod.string(),
+  "title": zod.string().max(createQuoteBodyWorkflowSectionsItemTitleMax),
+  "items": zod.array(zod.object({
+  "id": zod.string(),
+  "type": zod.enum(['materials', 'labour', 'subcontractor', 'plant', 'other']),
+  "description": zod.string().max(createQuoteBodyWorkflowSectionsItemItemsItemDescriptionMax),
+  "quantity": zod.number().min(createQuoteBodyWorkflowSectionsItemItemsItemQuantityMin).max(createQuoteBodyWorkflowSectionsItemItemsItemQuantityMax),
+  "unit": zod.string().max(createQuoteBodyWorkflowSectionsItemItemsItemUnitMax),
+  "costPrice": zod.number().min(createQuoteBodyWorkflowSectionsItemItemsItemCostPriceMin).max(createQuoteBodyWorkflowSectionsItemItemsItemCostPriceMax),
+  "sellPrice": zod.number().min(createQuoteBodyWorkflowSectionsItemItemsItemSellPriceMin).max(createQuoteBodyWorkflowSectionsItemItemsItemSellPriceMax),
+  "source": zod.string().optional(),
+  "sourceUrl": zod.string().optional(),
+  "pricedAt": zod.string().optional(),
+  "priceVerified": zod.boolean().optional()
+})).max(createQuoteBodyWorkflowSectionsItemItemsMax)
+})).max(createQuoteBodyWorkflowSectionsMax)
+}).optional(),
   "title": zod.string(),
   "materials": zod.array(zod.object({
+  "type": zod.string().optional(),
   "name": zod.string(),
   "quantity": zod.number(),
   "unit": zod.string(),
@@ -839,7 +1240,7 @@ export const CreateQuoteBody = zod.object({
   "total": zod.number().nullish()
 })),
   "grandTotal": zod.number().optional(),
-  "jobId": zod.number().int().optional(),
+  "jobId": zod.number().optional(),
   "marginPercent": zod.number().optional(),
   "vatPercent": zod.number().optional(),
   "marginAmount": zod.number().optional(),
@@ -847,10 +1248,114 @@ export const CreateQuoteBody = zod.object({
   "totalIncVat": zod.number().optional()
 })
 
+export const createQuoteResponseWorkflowOneCustomerNameMax = 300;
+
+export const createQuoteResponseWorkflowOneCustomerEmailMax = 300;
+
+export const createQuoteResponseWorkflowOneCustomerPhoneMax = 100;
+
+export const createQuoteResponseWorkflowOneBillingAddressMax = 2000;
+
+export const createQuoteResponseWorkflowOneSiteAddressMax = 2000;
+
+export const createQuoteResponseWorkflowOneScopeMax = 20000;
+
+export const createQuoteResponseWorkflowOneAssumptionsMax = 10000;
+
+export const createQuoteResponseWorkflowOneExclusionsMax = 10000;
+
+export const createQuoteResponseWorkflowOnePaymentTermsMax = 10000;
+
+export const createQuoteResponseWorkflowOneVatPercentMin = 0;
+export const createQuoteResponseWorkflowOneVatPercentMax = 100;
+
+export const createQuoteResponseWorkflowOneDepositValueMin = 0;
+
+export const createQuoteResponseWorkflowOneSectionsItemTitleMax = 300;
+
+export const createQuoteResponseWorkflowOneSectionsItemItemsItemDescriptionMax = 2000;
+
+export const createQuoteResponseWorkflowOneSectionsItemItemsItemQuantityMin = 0;
+export const createQuoteResponseWorkflowOneSectionsItemItemsItemQuantityMax = 1000000;
+
+export const createQuoteResponseWorkflowOneSectionsItemItemsItemUnitMax = 100;
+
+export const createQuoteResponseWorkflowOneSectionsItemItemsItemCostPriceMin = 0;
+export const createQuoteResponseWorkflowOneSectionsItemItemsItemCostPriceMax = 10000000;
+
+export const createQuoteResponseWorkflowOneSectionsItemItemsItemSellPriceMin = 0;
+export const createQuoteResponseWorkflowOneSectionsItemItemsItemSellPriceMax = 10000000;
+
+export const createQuoteResponseWorkflowOneSectionsItemItemsMax = 500;
+
+export const createQuoteResponseWorkflowOneSectionsMax = 100;
+
+
+
 export const CreateQuoteResponse = zod.object({
+  "contactId": zod.number().nullish(),
+  "callId": zod.number().nullish(),
+  "status": zod.enum(['draft', 'reviewed', 'accepted']).optional(),
+  "revision": zod.number().optional(),
+  "reviewedAt": zod.string().nullish(),
+  "acceptedAt": zod.string().nullish(),
+  "workflow": zod.union([zod.object({
+  "customerName": zod.string().max(createQuoteResponseWorkflowOneCustomerNameMax),
+  "customerEmail": zod.string().max(createQuoteResponseWorkflowOneCustomerEmailMax),
+  "customerPhone": zod.string().max(createQuoteResponseWorkflowOneCustomerPhoneMax),
+  "billingAddress": zod.string().max(createQuoteResponseWorkflowOneBillingAddressMax),
+  "siteAddress": zod.string().max(createQuoteResponseWorkflowOneSiteAddressMax),
+  "scope": zod.string().max(createQuoteResponseWorkflowOneScopeMax),
+  "assumptions": zod.string().max(createQuoteResponseWorkflowOneAssumptionsMax),
+  "exclusions": zod.string().max(createQuoteResponseWorkflowOneExclusionsMax),
+  "paymentTerms": zod.string().max(createQuoteResponseWorkflowOnePaymentTermsMax),
+  "validUntil": zod.string(),
+  "vatRegistered": zod.boolean(),
+  "vatNumber": zod.string(),
+  "vatPercent": zod.number().min(createQuoteResponseWorkflowOneVatPercentMin).max(createQuoteResponseWorkflowOneVatPercentMax),
+  "deposit": zod.object({
+  "mode": zod.enum(['none', 'materials', 'fixed', 'percentage']),
+  "value": zod.number().min(createQuoteResponseWorkflowOneDepositValueMin)
+}),
+  "sections": zod.array(zod.object({
+  "id": zod.string(),
+  "title": zod.string().max(createQuoteResponseWorkflowOneSectionsItemTitleMax),
+  "items": zod.array(zod.object({
+  "id": zod.string(),
+  "type": zod.enum(['materials', 'labour', 'subcontractor', 'plant', 'other']),
+  "description": zod.string().max(createQuoteResponseWorkflowOneSectionsItemItemsItemDescriptionMax),
+  "quantity": zod.number().min(createQuoteResponseWorkflowOneSectionsItemItemsItemQuantityMin).max(createQuoteResponseWorkflowOneSectionsItemItemsItemQuantityMax),
+  "unit": zod.string().max(createQuoteResponseWorkflowOneSectionsItemItemsItemUnitMax),
+  "costPrice": zod.number().min(createQuoteResponseWorkflowOneSectionsItemItemsItemCostPriceMin).max(createQuoteResponseWorkflowOneSectionsItemItemsItemCostPriceMax),
+  "sellPrice": zod.number().min(createQuoteResponseWorkflowOneSectionsItemItemsItemSellPriceMin).max(createQuoteResponseWorkflowOneSectionsItemItemsItemSellPriceMax),
+  "source": zod.string().optional(),
+  "sourceUrl": zod.string().optional(),
+  "pricedAt": zod.string().optional(),
+  "priceVerified": zod.boolean().optional()
+})).max(createQuoteResponseWorkflowOneSectionsItemItemsMax)
+})).max(createQuoteResponseWorkflowOneSectionsMax)
+}),zod.null()]).optional(),
+  "companySnapshot": zod.union([zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "phone": zod.string(),
+  "email": zod.string().nullish(),
+  "website": zod.string().nullish(),
+  "address": zod.string().nullish(),
+  "timezone": zod.string(),
+  "logoUrl": zod.string().nullish(),
+  "quoteTemplate": zod.enum(['classic', 'modern', 'minimal']).optional(),
+  "quoteAccentColor": zod.string().optional(),
+  "quoteTagline": zod.string().nullish(),
+  "paymentTerms": zod.string().nullish(),
+  "quoteFooterText": zod.string().nullish(),
+  "emailAutoSend": zod.boolean().optional(),
+  "createdAt": zod.coerce.date()
+}),zod.null()]).optional(),
   "id": zod.number(),
   "title": zod.string(),
   "materials": zod.array(zod.object({
+  "type": zod.string().optional(),
   "name": zod.string(),
   "quantity": zod.number(),
   "unit": zod.string(),
@@ -860,7 +1365,7 @@ export const CreateQuoteResponse = zod.object({
   "total": zod.number().nullish()
 })),
   "grandTotal": zod.number(),
-  "jobId": zod.number().int().nullish(),
+  "jobId": zod.number().nullish(),
   "marginPercent": zod.number().nullish(),
   "vatPercent": zod.number().nullish(),
   "marginAmount": zod.number().nullish(),
@@ -877,10 +1382,114 @@ export const GetQuoteParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const getQuoteResponseWorkflowOneCustomerNameMax = 300;
+
+export const getQuoteResponseWorkflowOneCustomerEmailMax = 300;
+
+export const getQuoteResponseWorkflowOneCustomerPhoneMax = 100;
+
+export const getQuoteResponseWorkflowOneBillingAddressMax = 2000;
+
+export const getQuoteResponseWorkflowOneSiteAddressMax = 2000;
+
+export const getQuoteResponseWorkflowOneScopeMax = 20000;
+
+export const getQuoteResponseWorkflowOneAssumptionsMax = 10000;
+
+export const getQuoteResponseWorkflowOneExclusionsMax = 10000;
+
+export const getQuoteResponseWorkflowOnePaymentTermsMax = 10000;
+
+export const getQuoteResponseWorkflowOneVatPercentMin = 0;
+export const getQuoteResponseWorkflowOneVatPercentMax = 100;
+
+export const getQuoteResponseWorkflowOneDepositValueMin = 0;
+
+export const getQuoteResponseWorkflowOneSectionsItemTitleMax = 300;
+
+export const getQuoteResponseWorkflowOneSectionsItemItemsItemDescriptionMax = 2000;
+
+export const getQuoteResponseWorkflowOneSectionsItemItemsItemQuantityMin = 0;
+export const getQuoteResponseWorkflowOneSectionsItemItemsItemQuantityMax = 1000000;
+
+export const getQuoteResponseWorkflowOneSectionsItemItemsItemUnitMax = 100;
+
+export const getQuoteResponseWorkflowOneSectionsItemItemsItemCostPriceMin = 0;
+export const getQuoteResponseWorkflowOneSectionsItemItemsItemCostPriceMax = 10000000;
+
+export const getQuoteResponseWorkflowOneSectionsItemItemsItemSellPriceMin = 0;
+export const getQuoteResponseWorkflowOneSectionsItemItemsItemSellPriceMax = 10000000;
+
+export const getQuoteResponseWorkflowOneSectionsItemItemsMax = 500;
+
+export const getQuoteResponseWorkflowOneSectionsMax = 100;
+
+
+
 export const GetQuoteResponse = zod.object({
+  "contactId": zod.number().nullish(),
+  "callId": zod.number().nullish(),
+  "status": zod.enum(['draft', 'reviewed', 'accepted']).optional(),
+  "revision": zod.number().optional(),
+  "reviewedAt": zod.string().nullish(),
+  "acceptedAt": zod.string().nullish(),
+  "workflow": zod.union([zod.object({
+  "customerName": zod.string().max(getQuoteResponseWorkflowOneCustomerNameMax),
+  "customerEmail": zod.string().max(getQuoteResponseWorkflowOneCustomerEmailMax),
+  "customerPhone": zod.string().max(getQuoteResponseWorkflowOneCustomerPhoneMax),
+  "billingAddress": zod.string().max(getQuoteResponseWorkflowOneBillingAddressMax),
+  "siteAddress": zod.string().max(getQuoteResponseWorkflowOneSiteAddressMax),
+  "scope": zod.string().max(getQuoteResponseWorkflowOneScopeMax),
+  "assumptions": zod.string().max(getQuoteResponseWorkflowOneAssumptionsMax),
+  "exclusions": zod.string().max(getQuoteResponseWorkflowOneExclusionsMax),
+  "paymentTerms": zod.string().max(getQuoteResponseWorkflowOnePaymentTermsMax),
+  "validUntil": zod.string(),
+  "vatRegistered": zod.boolean(),
+  "vatNumber": zod.string(),
+  "vatPercent": zod.number().min(getQuoteResponseWorkflowOneVatPercentMin).max(getQuoteResponseWorkflowOneVatPercentMax),
+  "deposit": zod.object({
+  "mode": zod.enum(['none', 'materials', 'fixed', 'percentage']),
+  "value": zod.number().min(getQuoteResponseWorkflowOneDepositValueMin)
+}),
+  "sections": zod.array(zod.object({
+  "id": zod.string(),
+  "title": zod.string().max(getQuoteResponseWorkflowOneSectionsItemTitleMax),
+  "items": zod.array(zod.object({
+  "id": zod.string(),
+  "type": zod.enum(['materials', 'labour', 'subcontractor', 'plant', 'other']),
+  "description": zod.string().max(getQuoteResponseWorkflowOneSectionsItemItemsItemDescriptionMax),
+  "quantity": zod.number().min(getQuoteResponseWorkflowOneSectionsItemItemsItemQuantityMin).max(getQuoteResponseWorkflowOneSectionsItemItemsItemQuantityMax),
+  "unit": zod.string().max(getQuoteResponseWorkflowOneSectionsItemItemsItemUnitMax),
+  "costPrice": zod.number().min(getQuoteResponseWorkflowOneSectionsItemItemsItemCostPriceMin).max(getQuoteResponseWorkflowOneSectionsItemItemsItemCostPriceMax),
+  "sellPrice": zod.number().min(getQuoteResponseWorkflowOneSectionsItemItemsItemSellPriceMin).max(getQuoteResponseWorkflowOneSectionsItemItemsItemSellPriceMax),
+  "source": zod.string().optional(),
+  "sourceUrl": zod.string().optional(),
+  "pricedAt": zod.string().optional(),
+  "priceVerified": zod.boolean().optional()
+})).max(getQuoteResponseWorkflowOneSectionsItemItemsMax)
+})).max(getQuoteResponseWorkflowOneSectionsMax)
+}),zod.null()]).optional(),
+  "companySnapshot": zod.union([zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "phone": zod.string(),
+  "email": zod.string().nullish(),
+  "website": zod.string().nullish(),
+  "address": zod.string().nullish(),
+  "timezone": zod.string(),
+  "logoUrl": zod.string().nullish(),
+  "quoteTemplate": zod.enum(['classic', 'modern', 'minimal']).optional(),
+  "quoteAccentColor": zod.string().optional(),
+  "quoteTagline": zod.string().nullish(),
+  "paymentTerms": zod.string().nullish(),
+  "quoteFooterText": zod.string().nullish(),
+  "emailAutoSend": zod.boolean().optional(),
+  "createdAt": zod.coerce.date()
+}),zod.null()]).optional(),
   "id": zod.number(),
   "title": zod.string(),
   "materials": zod.array(zod.object({
+  "type": zod.string().optional(),
   "name": zod.string(),
   "quantity": zod.number(),
   "unit": zod.string(),
@@ -890,7 +1499,7 @@ export const GetQuoteResponse = zod.object({
   "total": zod.number().nullish()
 })),
   "grandTotal": zod.number(),
-  "jobId": zod.number().int().nullish(),
+  "jobId": zod.number().nullish(),
   "marginPercent": zod.number().nullish(),
   "vatPercent": zod.number().nullish(),
   "marginAmount": zod.number().nullish(),
@@ -907,9 +1516,94 @@ export const UpdateQuoteParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const updateQuoteBodyWorkflowCustomerNameMax = 300;
+
+export const updateQuoteBodyWorkflowCustomerEmailMax = 300;
+
+export const updateQuoteBodyWorkflowCustomerPhoneMax = 100;
+
+export const updateQuoteBodyWorkflowBillingAddressMax = 2000;
+
+export const updateQuoteBodyWorkflowSiteAddressMax = 2000;
+
+export const updateQuoteBodyWorkflowScopeMax = 20000;
+
+export const updateQuoteBodyWorkflowAssumptionsMax = 10000;
+
+export const updateQuoteBodyWorkflowExclusionsMax = 10000;
+
+export const updateQuoteBodyWorkflowPaymentTermsMax = 10000;
+
+export const updateQuoteBodyWorkflowVatPercentMin = 0;
+export const updateQuoteBodyWorkflowVatPercentMax = 100;
+
+export const updateQuoteBodyWorkflowDepositValueMin = 0;
+
+export const updateQuoteBodyWorkflowSectionsItemTitleMax = 300;
+
+export const updateQuoteBodyWorkflowSectionsItemItemsItemDescriptionMax = 2000;
+
+export const updateQuoteBodyWorkflowSectionsItemItemsItemQuantityMin = 0;
+export const updateQuoteBodyWorkflowSectionsItemItemsItemQuantityMax = 1000000;
+
+export const updateQuoteBodyWorkflowSectionsItemItemsItemUnitMax = 100;
+
+export const updateQuoteBodyWorkflowSectionsItemItemsItemCostPriceMin = 0;
+export const updateQuoteBodyWorkflowSectionsItemItemsItemCostPriceMax = 10000000;
+
+export const updateQuoteBodyWorkflowSectionsItemItemsItemSellPriceMin = 0;
+export const updateQuoteBodyWorkflowSectionsItemItemsItemSellPriceMax = 10000000;
+
+export const updateQuoteBodyWorkflowSectionsItemItemsMax = 500;
+
+export const updateQuoteBodyWorkflowSectionsMax = 100;
+
+
+
 export const UpdateQuoteBody = zod.object({
+  "contactId": zod.number().nullish(),
+  "callId": zod.number().nullish(),
+  "status": zod.enum(['draft', 'reviewed', 'accepted']).optional(),
+  "revision": zod.number().optional().describe('Expected current revision for optimistic concurrency'),
+  "workflow": zod.object({
+  "customerName": zod.string().max(updateQuoteBodyWorkflowCustomerNameMax),
+  "customerEmail": zod.string().max(updateQuoteBodyWorkflowCustomerEmailMax),
+  "customerPhone": zod.string().max(updateQuoteBodyWorkflowCustomerPhoneMax),
+  "billingAddress": zod.string().max(updateQuoteBodyWorkflowBillingAddressMax),
+  "siteAddress": zod.string().max(updateQuoteBodyWorkflowSiteAddressMax),
+  "scope": zod.string().max(updateQuoteBodyWorkflowScopeMax),
+  "assumptions": zod.string().max(updateQuoteBodyWorkflowAssumptionsMax),
+  "exclusions": zod.string().max(updateQuoteBodyWorkflowExclusionsMax),
+  "paymentTerms": zod.string().max(updateQuoteBodyWorkflowPaymentTermsMax),
+  "validUntil": zod.string(),
+  "vatRegistered": zod.boolean(),
+  "vatNumber": zod.string(),
+  "vatPercent": zod.number().min(updateQuoteBodyWorkflowVatPercentMin).max(updateQuoteBodyWorkflowVatPercentMax),
+  "deposit": zod.object({
+  "mode": zod.enum(['none', 'materials', 'fixed', 'percentage']),
+  "value": zod.number().min(updateQuoteBodyWorkflowDepositValueMin)
+}),
+  "sections": zod.array(zod.object({
+  "id": zod.string(),
+  "title": zod.string().max(updateQuoteBodyWorkflowSectionsItemTitleMax),
+  "items": zod.array(zod.object({
+  "id": zod.string(),
+  "type": zod.enum(['materials', 'labour', 'subcontractor', 'plant', 'other']),
+  "description": zod.string().max(updateQuoteBodyWorkflowSectionsItemItemsItemDescriptionMax),
+  "quantity": zod.number().min(updateQuoteBodyWorkflowSectionsItemItemsItemQuantityMin).max(updateQuoteBodyWorkflowSectionsItemItemsItemQuantityMax),
+  "unit": zod.string().max(updateQuoteBodyWorkflowSectionsItemItemsItemUnitMax),
+  "costPrice": zod.number().min(updateQuoteBodyWorkflowSectionsItemItemsItemCostPriceMin).max(updateQuoteBodyWorkflowSectionsItemItemsItemCostPriceMax),
+  "sellPrice": zod.number().min(updateQuoteBodyWorkflowSectionsItemItemsItemSellPriceMin).max(updateQuoteBodyWorkflowSectionsItemItemsItemSellPriceMax),
+  "source": zod.string().optional(),
+  "sourceUrl": zod.string().optional(),
+  "pricedAt": zod.string().optional(),
+  "priceVerified": zod.boolean().optional()
+})).max(updateQuoteBodyWorkflowSectionsItemItemsMax)
+})).max(updateQuoteBodyWorkflowSectionsMax)
+}).optional(),
   "title": zod.string().optional(),
   "materials": zod.array(zod.object({
+  "type": zod.string().optional(),
   "name": zod.string(),
   "quantity": zod.number(),
   "unit": zod.string(),
@@ -919,7 +1613,7 @@ export const UpdateQuoteBody = zod.object({
   "total": zod.number().nullish()
 })).optional(),
   "grandTotal": zod.number().optional(),
-  "jobId": zod.number().int().nullish(),
+  "jobId": zod.number().nullish(),
   "marginPercent": zod.number().nullish(),
   "vatPercent": zod.number().nullish(),
   "marginAmount": zod.number().nullish(),
@@ -927,10 +1621,114 @@ export const UpdateQuoteBody = zod.object({
   "totalIncVat": zod.number().nullish()
 })
 
+export const updateQuoteResponseWorkflowOneCustomerNameMax = 300;
+
+export const updateQuoteResponseWorkflowOneCustomerEmailMax = 300;
+
+export const updateQuoteResponseWorkflowOneCustomerPhoneMax = 100;
+
+export const updateQuoteResponseWorkflowOneBillingAddressMax = 2000;
+
+export const updateQuoteResponseWorkflowOneSiteAddressMax = 2000;
+
+export const updateQuoteResponseWorkflowOneScopeMax = 20000;
+
+export const updateQuoteResponseWorkflowOneAssumptionsMax = 10000;
+
+export const updateQuoteResponseWorkflowOneExclusionsMax = 10000;
+
+export const updateQuoteResponseWorkflowOnePaymentTermsMax = 10000;
+
+export const updateQuoteResponseWorkflowOneVatPercentMin = 0;
+export const updateQuoteResponseWorkflowOneVatPercentMax = 100;
+
+export const updateQuoteResponseWorkflowOneDepositValueMin = 0;
+
+export const updateQuoteResponseWorkflowOneSectionsItemTitleMax = 300;
+
+export const updateQuoteResponseWorkflowOneSectionsItemItemsItemDescriptionMax = 2000;
+
+export const updateQuoteResponseWorkflowOneSectionsItemItemsItemQuantityMin = 0;
+export const updateQuoteResponseWorkflowOneSectionsItemItemsItemQuantityMax = 1000000;
+
+export const updateQuoteResponseWorkflowOneSectionsItemItemsItemUnitMax = 100;
+
+export const updateQuoteResponseWorkflowOneSectionsItemItemsItemCostPriceMin = 0;
+export const updateQuoteResponseWorkflowOneSectionsItemItemsItemCostPriceMax = 10000000;
+
+export const updateQuoteResponseWorkflowOneSectionsItemItemsItemSellPriceMin = 0;
+export const updateQuoteResponseWorkflowOneSectionsItemItemsItemSellPriceMax = 10000000;
+
+export const updateQuoteResponseWorkflowOneSectionsItemItemsMax = 500;
+
+export const updateQuoteResponseWorkflowOneSectionsMax = 100;
+
+
+
 export const UpdateQuoteResponse = zod.object({
+  "contactId": zod.number().nullish(),
+  "callId": zod.number().nullish(),
+  "status": zod.enum(['draft', 'reviewed', 'accepted']).optional(),
+  "revision": zod.number().optional(),
+  "reviewedAt": zod.string().nullish(),
+  "acceptedAt": zod.string().nullish(),
+  "workflow": zod.union([zod.object({
+  "customerName": zod.string().max(updateQuoteResponseWorkflowOneCustomerNameMax),
+  "customerEmail": zod.string().max(updateQuoteResponseWorkflowOneCustomerEmailMax),
+  "customerPhone": zod.string().max(updateQuoteResponseWorkflowOneCustomerPhoneMax),
+  "billingAddress": zod.string().max(updateQuoteResponseWorkflowOneBillingAddressMax),
+  "siteAddress": zod.string().max(updateQuoteResponseWorkflowOneSiteAddressMax),
+  "scope": zod.string().max(updateQuoteResponseWorkflowOneScopeMax),
+  "assumptions": zod.string().max(updateQuoteResponseWorkflowOneAssumptionsMax),
+  "exclusions": zod.string().max(updateQuoteResponseWorkflowOneExclusionsMax),
+  "paymentTerms": zod.string().max(updateQuoteResponseWorkflowOnePaymentTermsMax),
+  "validUntil": zod.string(),
+  "vatRegistered": zod.boolean(),
+  "vatNumber": zod.string(),
+  "vatPercent": zod.number().min(updateQuoteResponseWorkflowOneVatPercentMin).max(updateQuoteResponseWorkflowOneVatPercentMax),
+  "deposit": zod.object({
+  "mode": zod.enum(['none', 'materials', 'fixed', 'percentage']),
+  "value": zod.number().min(updateQuoteResponseWorkflowOneDepositValueMin)
+}),
+  "sections": zod.array(zod.object({
+  "id": zod.string(),
+  "title": zod.string().max(updateQuoteResponseWorkflowOneSectionsItemTitleMax),
+  "items": zod.array(zod.object({
+  "id": zod.string(),
+  "type": zod.enum(['materials', 'labour', 'subcontractor', 'plant', 'other']),
+  "description": zod.string().max(updateQuoteResponseWorkflowOneSectionsItemItemsItemDescriptionMax),
+  "quantity": zod.number().min(updateQuoteResponseWorkflowOneSectionsItemItemsItemQuantityMin).max(updateQuoteResponseWorkflowOneSectionsItemItemsItemQuantityMax),
+  "unit": zod.string().max(updateQuoteResponseWorkflowOneSectionsItemItemsItemUnitMax),
+  "costPrice": zod.number().min(updateQuoteResponseWorkflowOneSectionsItemItemsItemCostPriceMin).max(updateQuoteResponseWorkflowOneSectionsItemItemsItemCostPriceMax),
+  "sellPrice": zod.number().min(updateQuoteResponseWorkflowOneSectionsItemItemsItemSellPriceMin).max(updateQuoteResponseWorkflowOneSectionsItemItemsItemSellPriceMax),
+  "source": zod.string().optional(),
+  "sourceUrl": zod.string().optional(),
+  "pricedAt": zod.string().optional(),
+  "priceVerified": zod.boolean().optional()
+})).max(updateQuoteResponseWorkflowOneSectionsItemItemsMax)
+})).max(updateQuoteResponseWorkflowOneSectionsMax)
+}),zod.null()]).optional(),
+  "companySnapshot": zod.union([zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "phone": zod.string(),
+  "email": zod.string().nullish(),
+  "website": zod.string().nullish(),
+  "address": zod.string().nullish(),
+  "timezone": zod.string(),
+  "logoUrl": zod.string().nullish(),
+  "quoteTemplate": zod.enum(['classic', 'modern', 'minimal']).optional(),
+  "quoteAccentColor": zod.string().optional(),
+  "quoteTagline": zod.string().nullish(),
+  "paymentTerms": zod.string().nullish(),
+  "quoteFooterText": zod.string().nullish(),
+  "emailAutoSend": zod.boolean().optional(),
+  "createdAt": zod.coerce.date()
+}),zod.null()]).optional(),
   "id": zod.number(),
   "title": zod.string(),
   "materials": zod.array(zod.object({
+  "type": zod.string().optional(),
   "name": zod.string(),
   "quantity": zod.number(),
   "unit": zod.string(),
@@ -940,7 +1738,7 @@ export const UpdateQuoteResponse = zod.object({
   "total": zod.number().nullish()
 })),
   "grandTotal": zod.number(),
-  "jobId": zod.number().int().nullish(),
+  "jobId": zod.number().nullish(),
   "marginPercent": zod.number().nullish(),
   "vatPercent": zod.number().nullish(),
   "marginAmount": zod.number().nullish(),
@@ -970,8 +1768,8 @@ export const ListInvoicesQueryParams = zod.object({
 export const ListInvoicesResponseItem = zod.object({
   "id": zod.number(),
   "invoiceNumber": zod.string(),
-  "quoteId": zod.number().int().nullish(),
-  "jobId": zod.number().int().nullish(),
+  "quoteId": zod.number().nullish(),
+  "jobId": zod.number().nullish(),
   "status": zod.enum(['draft', 'sent', 'paid']),
   "issueDate": zod.string(),
   "dueDate": zod.string(),
@@ -997,8 +1795,8 @@ export const ListInvoicesResponse = zod.array(ListInvoicesResponseItem)
  * @summary Create a new invoice
  */
 export const CreateInvoiceBody = zod.object({
-  "quoteId": zod.number().int().optional(),
-  "jobId": zod.number().int().optional(),
+  "quoteId": zod.number().optional(),
+  "jobId": zod.number().optional(),
   "issueDate": zod.string(),
   "dueDate": zod.string(),
   "lineItems": zod.array(zod.object({
@@ -1019,8 +1817,8 @@ export const CreateInvoiceBody = zod.object({
 export const CreateInvoiceResponse = zod.object({
   "id": zod.number(),
   "invoiceNumber": zod.string(),
-  "quoteId": zod.number().int().nullish(),
-  "jobId": zod.number().int().nullish(),
+  "quoteId": zod.number().nullish(),
+  "jobId": zod.number().nullish(),
   "status": zod.enum(['draft', 'sent', 'paid']),
   "issueDate": zod.string(),
   "dueDate": zod.string(),
@@ -1051,8 +1849,8 @@ export const GetInvoiceParams = zod.object({
 export const GetInvoiceResponse = zod.object({
   "id": zod.number(),
   "invoiceNumber": zod.string(),
-  "quoteId": zod.number().int().nullish(),
-  "jobId": zod.number().int().nullish(),
+  "quoteId": zod.number().nullish(),
+  "jobId": zod.number().nullish(),
   "status": zod.enum(['draft', 'sent', 'paid']),
   "issueDate": zod.string(),
   "dueDate": zod.string(),
@@ -1102,8 +1900,8 @@ export const UpdateInvoiceBody = zod.object({
 export const UpdateInvoiceResponse = zod.object({
   "id": zod.number(),
   "invoiceNumber": zod.string(),
-  "quoteId": zod.number().int().nullish(),
-  "jobId": zod.number().int().nullish(),
+  "quoteId": zod.number().nullish(),
+  "jobId": zod.number().nullish(),
   "status": zod.enum(['draft', 'sent', 'paid']),
   "issueDate": zod.string(),
   "dueDate": zod.string(),
@@ -1308,7 +2106,7 @@ export const ListEmailThreadsResponseItem = zod.object({
   "status": zod.enum(['pending', 'sent', 'dismissed']),
   "aiReply": zod.string().nullish(),
   "editedReply": zod.string().nullish(),
-  "contactId": zod.number().int().nullish(),
+  "contactId": zod.number().nullish(),
   "messageId": zod.string().nullish(),
   "createdAt": zod.coerce.date()
 })
@@ -1335,7 +2133,7 @@ export const CreateEmailThreadResponse = zod.object({
   "status": zod.enum(['pending', 'sent', 'dismissed']),
   "aiReply": zod.string().nullish(),
   "editedReply": zod.string().nullish(),
-  "contactId": zod.number().int().nullish(),
+  "contactId": zod.number().nullish(),
   "messageId": zod.string().nullish(),
   "createdAt": zod.coerce.date()
 })
@@ -1358,7 +2156,7 @@ export const GetEmailThreadResponse = zod.object({
   "status": zod.enum(['pending', 'sent', 'dismissed']),
   "aiReply": zod.string().nullish(),
   "editedReply": zod.string().nullish(),
-  "contactId": zod.number().int().nullish(),
+  "contactId": zod.number().nullish(),
   "messageId": zod.string().nullish(),
   "createdAt": zod.coerce.date()
 })
@@ -1385,7 +2183,7 @@ export const UpdateEmailThreadResponse = zod.object({
   "status": zod.enum(['pending', 'sent', 'dismissed']),
   "aiReply": zod.string().nullish(),
   "editedReply": zod.string().nullish(),
-  "contactId": zod.number().int().nullish(),
+  "contactId": zod.number().nullish(),
   "messageId": zod.string().nullish(),
   "createdAt": zod.coerce.date()
 })
@@ -1418,7 +2216,7 @@ export const ApproveEmailThreadResponse = zod.object({
   "status": zod.enum(['pending', 'sent', 'dismissed']),
   "aiReply": zod.string().nullish(),
   "editedReply": zod.string().nullish(),
-  "contactId": zod.number().int().nullish(),
+  "contactId": zod.number().nullish(),
   "messageId": zod.string().nullish(),
   "createdAt": zod.coerce.date()
 })
@@ -1441,7 +2239,7 @@ export const DismissEmailThreadResponse = zod.object({
   "status": zod.enum(['pending', 'sent', 'dismissed']),
   "aiReply": zod.string().nullish(),
   "editedReply": zod.string().nullish(),
-  "contactId": zod.number().int().nullish(),
+  "contactId": zod.number().nullish(),
   "messageId": zod.string().nullish(),
   "createdAt": zod.coerce.date()
 })
@@ -1495,7 +2293,7 @@ export const GetDashboardSummaryResponse = zod.object({
  * @summary Count of unreviewed widget chat leads
  */
 export const GetUnreviewedWidgetCountResponse = zod.object({
-  "count": zod.number().int()
+  "count": zod.number()
 })
 
 
@@ -1503,13 +2301,13 @@ export const GetUnreviewedWidgetCountResponse = zod.object({
  * @summary List all tasks
  */
 export const ListTasksResponseItem = zod.object({
-  "id": zod.number().int(),
+  "id": zod.number(),
   "title": zod.string(),
   "priority": zod.enum(['high', 'medium', 'low']),
   "status": zod.enum(['pending', 'completed', 'dismissed']),
   "source": zod.enum(['ai', 'manual']),
   "dueDate": zod.string().nullish(),
-  "companyId": zod.number().int().nullish(),
+  "companyId": zod.number().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
@@ -1528,13 +2326,13 @@ export const CreateTaskBody = zod.object({
 })
 
 export const CreateTaskResponse = zod.object({
-  "id": zod.number().int(),
+  "id": zod.number(),
   "title": zod.string(),
   "priority": zod.enum(['high', 'medium', 'low']),
   "status": zod.enum(['pending', 'completed', 'dismissed']),
   "source": zod.enum(['ai', 'manual']),
   "dueDate": zod.string().nullish(),
-  "companyId": zod.number().int().nullish(),
+  "companyId": zod.number().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
@@ -1544,13 +2342,13 @@ export const CreateTaskResponse = zod.object({
  * @summary AI-generate tasks from recent calls, emails and jobs
  */
 export const GenerateTasksResponseItem = zod.object({
-  "id": zod.number().int(),
+  "id": zod.number(),
   "title": zod.string(),
   "priority": zod.enum(['high', 'medium', 'low']),
   "status": zod.enum(['pending', 'completed', 'dismissed']),
   "source": zod.enum(['ai', 'manual']),
   "dueDate": zod.string().nullish(),
-  "companyId": zod.number().int().nullish(),
+  "companyId": zod.number().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
@@ -1561,7 +2359,7 @@ export const GenerateTasksResponse = zod.array(GenerateTasksResponseItem)
  * @summary Update a task
  */
 export const UpdateTaskParams = zod.object({
-  "id": zod.coerce.number().int()
+  "id": zod.coerce.number()
 })
 
 export const UpdateTaskBody = zod.object({
@@ -1572,13 +2370,13 @@ export const UpdateTaskBody = zod.object({
 })
 
 export const UpdateTaskResponse = zod.object({
-  "id": zod.number().int(),
+  "id": zod.number(),
   "title": zod.string(),
   "priority": zod.enum(['high', 'medium', 'low']),
   "status": zod.enum(['pending', 'completed', 'dismissed']),
   "source": zod.enum(['ai', 'manual']),
   "dueDate": zod.string().nullish(),
-  "companyId": zod.number().int().nullish(),
+  "companyId": zod.number().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
@@ -1588,7 +2386,7 @@ export const UpdateTaskResponse = zod.object({
  * @summary Delete a task
  */
 export const DeleteTaskParams = zod.object({
-  "id": zod.coerce.number().int()
+  "id": zod.coerce.number()
 })
 
 export const DeleteTaskResponse = zod.void()
@@ -1602,8 +2400,8 @@ export const ListMarketingDraftsQueryParams = zod.object({
 })
 
 export const ListMarketingDraftsResponseItem = zod.object({
-  "id": zod.number().int(),
-  "jobId": zod.number().int().nullish(),
+  "id": zod.number(),
+  "jobId": zod.number().nullish(),
   "jobTitle": zod.string(),
   "clientName": zod.string(),
   "clientPhone": zod.string().nullish(),
@@ -1621,7 +2419,7 @@ export const ListMarketingDraftsResponse = zod.array(ListMarketingDraftsResponse
  * @summary Generate marketing drafts for a completed job
  */
 export const GenerateMarketingDraftsBody = zod.object({
-  "jobId": zod.number().int(),
+  "jobId": zod.number(),
   "jobTitle": zod.string(),
   "clientName": zod.string(),
   "clientPhone": zod.string().optional(),
@@ -1629,8 +2427,8 @@ export const GenerateMarketingDraftsBody = zod.object({
 })
 
 export const GenerateMarketingDraftsResponseItem = zod.object({
-  "id": zod.number().int(),
-  "jobId": zod.number().int().nullish(),
+  "id": zod.number(),
+  "jobId": zod.number().nullish(),
   "jobTitle": zod.string(),
   "clientName": zod.string(),
   "clientPhone": zod.string().nullish(),
@@ -1648,7 +2446,7 @@ export const GenerateMarketingDraftsResponse = zod.array(GenerateMarketingDrafts
  * @summary Edit the message on a draft
  */
 export const UpdateMarketingDraftParams = zod.object({
-  "id": zod.coerce.number().int()
+  "id": zod.coerce.number()
 })
 
 export const UpdateMarketingDraftBody = zod.object({
@@ -1656,8 +2454,8 @@ export const UpdateMarketingDraftBody = zod.object({
 })
 
 export const UpdateMarketingDraftResponse = zod.object({
-  "id": zod.number().int(),
-  "jobId": zod.number().int().nullish(),
+  "id": zod.number(),
+  "jobId": zod.number().nullish(),
   "jobTitle": zod.string(),
   "clientName": zod.string(),
   "clientPhone": zod.string().nullish(),
@@ -1674,7 +2472,7 @@ export const UpdateMarketingDraftResponse = zod.object({
  * @summary Delete a marketing draft
  */
 export const DeleteMarketingDraftParams = zod.object({
-  "id": zod.coerce.number().int()
+  "id": zod.coerce.number()
 })
 
 export const DeleteMarketingDraftResponse = zod.void()
@@ -1684,12 +2482,12 @@ export const DeleteMarketingDraftResponse = zod.void()
  * @summary Approve a marketing draft
  */
 export const ApproveMarketingDraftParams = zod.object({
-  "id": zod.coerce.number().int()
+  "id": zod.coerce.number()
 })
 
 export const ApproveMarketingDraftResponse = zod.object({
-  "id": zod.number().int(),
-  "jobId": zod.number().int().nullish(),
+  "id": zod.number(),
+  "jobId": zod.number().nullish(),
   "jobTitle": zod.string(),
   "clientName": zod.string(),
   "clientPhone": zod.string().nullish(),
@@ -1706,12 +2504,12 @@ export const ApproveMarketingDraftResponse = zod.object({
  * @summary Dismiss a marketing draft
  */
 export const DismissMarketingDraftParams = zod.object({
-  "id": zod.coerce.number().int()
+  "id": zod.coerce.number()
 })
 
 export const DismissMarketingDraftResponse = zod.object({
-  "id": zod.number().int(),
-  "jobId": zod.number().int().nullish(),
+  "id": zod.number(),
+  "jobId": zod.number().nullish(),
   "jobTitle": zod.string(),
   "clientName": zod.string(),
   "clientPhone": zod.string().nullish(),

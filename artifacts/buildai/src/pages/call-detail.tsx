@@ -111,6 +111,9 @@ export default function CallDetail() {
       }
       const data = await resp.json();
       sessionStorage.setItem("buildai_prefill_quote", JSON.stringify({
+        callId: call?.id,
+        contactId: call?.contactId,
+        scope: call?.outcome || "",
         title: data.suggestedTitle ?? "",
         materials: data.materials ?? [],
         callerName: call?.callerName ?? "",

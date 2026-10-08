@@ -7,6 +7,16 @@ import { pool } from "@workspace/db";
 // fail due to missing columns or tables. All migration SQL must use
 // IF NOT EXISTS / IF EXISTS guards.
 const MIGRATIONS = [
+  // Additive quote workflow: existing prices, customer records and links are untouched.
+  `ALTER TABLE quotes
+    ADD COLUMN IF NOT EXISTS contact_id integer,
+    ADD COLUMN IF NOT EXISTS call_id integer,
+    ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'draft',
+    ADD COLUMN IF NOT EXISTS revision integer NOT NULL DEFAULT 1,
+    ADD COLUMN IF NOT EXISTS workflow jsonb,
+    ADD COLUMN IF NOT EXISTS company_snapshot jsonb,
+    ADD COLUMN IF NOT EXISTS reviewed_at timestamptz,
+    ADD COLUMN IF NOT EXISTS accepted_at timestamptz`,
   // 003: Add company_id to jobs for per-company tenant scoping
   `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS company_id integer`,
   // 004: Create tasks table for AI-generated and manual to-do items

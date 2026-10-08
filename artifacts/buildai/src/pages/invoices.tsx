@@ -3,6 +3,8 @@ import {
   useListInvoices,
   useCreateInvoice,
   useGetInvoice,
+  useGetQuote,
+  getGetQuoteQueryKey,
   useUpdateInvoice,
   useDeleteInvoice,
   useGetIntegrationStatus,
@@ -381,6 +383,10 @@ function InvoiceDetail({
   onClose: () => void;
 }) {
   const { data: invoice, isLoading, refetch } = useGetInvoice(id);
+  const { data: linkedQuote } = useGetQuote(invoice?.quoteId ?? 0, {
+    query: { queryKey: getGetQuoteQueryKey(invoice?.quoteId ?? 0), enabled: Boolean(invoice?.quoteId) },
+  });
+  const quotePricesLocked = Boolean(linkedQuote?.workflow && linkedQuote.status === "accepted");
   const updateInvoice = useUpdateInvoice();
   const deleteInvoice = useDeleteInvoice();
   const queryClient = useQueryClient();
@@ -407,9 +413,9 @@ function InvoiceDetail({
   const isDirty = editNotes !== null || editLineItems !== null;
 
   const recomputeTotals = (items: typeof lineItems) => {
-    const subtotal = items.reduce((s, i) => s + (i.unitPrice * i.quantity), 0);
-    const vatAmount = subtotal * (invoice.vatPercent / 100);
-    const total = subtotal + vatAmount;
+    const subtotal = items.reduce((s, i) => s + Math.round(Math.round(i.unitPrice * 100) * Math.round(i.quantity * 10000) / 10000), 0) / 100;
+    const vatAmount = Math.round(subtotal * invoice.vatPercent) / 100;
+    const total = Math.round((subtotal + vatAmount) * 100) / 100;
     return { subtotal, vatAmount, total };
   };
 
@@ -443,6 +449,7 @@ function InvoiceDetail({
         subtotal,
         vatAmount,
         total,
+        ...(quotePricesLocked ? { lineItems: undefined, subtotal: undefined, vatAmount: undefined, total: undefined } : {}),
       }
     }, {
       onSuccess: () => {
@@ -476,7 +483,7 @@ function InvoiceDetail({
   };
 
   const { subtotal: displaySubtotal, vatAmount: displayVat, total: displayTotal } = recomputeTotals(lineItems);
-  const isReadOnly = invoice.status !== "draft";
+  const isReadOnly = invoice.status !== "draft" || quotePricesLocked;
 
   // externalId / externalProvider live in the raw invoice response but aren't
   // in the generated TypeScript type yet — cast to access them safely.
@@ -496,9 +503,10 @@ function InvoiceDetail({
         </div>
         <StatusBadge status={invoice.status} />
       </div>
+      {quotePricesLocked && <p className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm text-muted-foreground">Prices are fixed to the accepted quote. Create a revised quote for variations; the deposit remains part of the invoice total.</p>}
 
       {/* Status actions */}
-      {!isReadOnly && (
+      {invoice.status === "draft" && (
         <div className="flex gap-2">
           <Button size="sm" variant="outline" className="gap-2" onClick={() => updateStatus("sent")}>
             <Send className="h-3.5 w-3.5" /> Mark Sent

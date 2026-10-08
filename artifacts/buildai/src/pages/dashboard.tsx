@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import PilotReleaseGate from "@/components/pilot-release-gate";
 import {
   useGetDashboardSummary,
   useGetCallStats,
@@ -288,6 +289,7 @@ export default function Dashboard() {
         </div>
 
         {/* ── Stat cards ──────────────────────────────────────────────────── */}
+        <PilotReleaseGate />
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <StatCard
             label="Calls Today"

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { eq, desc } from "drizzle-orm";
 import { db, invoicesTable, quotesTable } from "@workspace/db";
+import { acceptedQuoteToInvoice, QuoteError } from "../lib/quote-workflow";
 import {
   ListInvoicesResponse,
   CreateInvoiceBody,
@@ -43,6 +44,19 @@ router.post("/invoices", async (req, res): Promise<void> => {
     return;
   }
   const { subtotal, vatPercent, vatAmount, total, lineItems, ...rest } = parsed.data;
+  if (rest.quoteId) {
+    const [quote] = await db.select().from(quotesTable).where(eq(quotesTable.id, rest.quoteId));
+    if (quote?.workflow) {
+      try {
+        const invoice = await acceptedQuoteToInvoice(quote.id);
+        res.status(201).json(CreateInvoiceResponse.parse(mapInvoice(invoice)));
+      } catch (error) {
+        if (error instanceof QuoteError) res.status(error.status).json({ error: error.message });
+        else throw error;
+      }
+      return;
+    }
+  }
 
   // Step 1: insert with a temporary placeholder invoice number
   const [draft] = await db
@@ -82,6 +96,15 @@ router.patch("/invoices/:id", async (req, res): Promise<void> => {
   if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
   const parsed = UpdateInvoiceBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+  const [existingInvoice] = await db.select().from(invoicesTable).where(eq(invoicesTable.id, params.data.id));
+  if (existingInvoice?.quoteId) {
+    const [quote] = await db.select().from(quotesTable).where(eq(quotesTable.id, existingInvoice.quoteId));
+    if (quote?.workflow && quote.status === "accepted" &&
+        ["lineItems", "subtotal", "vatPercent", "vatAmount", "total", "quoteId"].some(key => key in parsed.data)) {
+      res.status(409).json({ error: "This invoice retains its accepted quote prices. Create a revised quote for variations." });
+      return;
+    }
+  }
   const { subtotal, vatPercent, vatAmount, total, lineItems, ...rest } = parsed.data;
   const updateData: Record<string, unknown> = { ...rest };
   if (lineItems !== undefined) updateData.lineItems = lineItems;

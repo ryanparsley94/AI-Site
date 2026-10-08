@@ -750,7 +750,87 @@ paths:
         "204":
           description: Deleted
 
+  /pilot/readiness:
+    get:
+      operationId: getPilotReadiness
+      tags: [pilot]
+      summary: Honest V1 release gate; demos never count as verified live evidence
+      responses:
+        "200":
+          description: Current pilot blockers and verification requirements
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [pilotName, timezone, live, checks, missingSetup]
+                properties:
+                  pilotName: { type: string }
+                  timezone: { type: string }
+                  live: { type: boolean }
+                  checks:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, title, status, detail, path]
+                      properties:
+                        id: { type: string }
+                        title: { type: string }
+                        status: { type: string, enum: [blocked, not_verified, verified, failed] }
+                        detail: { type: string }
+                        path: { type: string }
+                  missingSetup:
+                    type: array
+                    items: { type: string }
+
   # ── Quotes ───────────────────────────────────────────────────────────────
+  /quotes/{id}/duplicate:
+    post:
+      operationId: duplicateQuote
+      tags: [quotes]
+      summary: Duplicate a quote as an editable draft
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "201":
+          description: Draft copy
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Quote" }
+  /quotes/{id}/convert-invoice:
+    post:
+      operationId: convertQuoteToInvoice
+      tags: [quotes]
+      summary: Convert an accepted quote, returning the existing invoice on retry
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Draft invoice with the accepted quote totals
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Invoice" }
+  /quotes/{id}/convert-job:
+    post:
+      operationId: convertQuoteToJob
+      tags: [quotes]
+      summary: Create or return the job linked to an accepted quote
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scheduledAt]
+              properties:
+                scheduledAt: { type: string, format: date-time }
+      responses:
+        "200":
+          description: Linked job
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Job" }
   /quotes:
     get:
       operationId: listQuotes
@@ -2109,6 +2189,8 @@ components:
       type: object
       required: [name, quantity, unit]
       properties:
+        type:
+          type: string
         name:
           type: string
         quantity:
@@ -2128,6 +2210,20 @@ components:
       type: object
       required: [id, title, materials, grandTotal, createdAt]
       properties:
+        contactId: { type: ["integer", "null"] }
+        callId: { type: ["integer", "null"] }
+        status: { type: string, enum: [draft, reviewed, accepted] }
+        revision: { type: integer }
+        reviewedAt: { type: ["string", "null"] }
+        acceptedAt: { type: ["string", "null"] }
+        workflow:
+          anyOf:
+            - { $ref: "#/components/schemas/QuoteWorkflow" }
+            - { type: "null" }
+        companySnapshot:
+          anyOf:
+            - { $ref: "#/components/schemas/Company" }
+            - { type: "null" }
         id:
           type: number
         title:
@@ -2158,6 +2254,10 @@ components:
       type: object
       required: [title, materials]
       properties:
+        contactId: { type: ["integer", "null"] }
+        callId: { type: ["integer", "null"] }
+        status: { type: string, enum: [draft, reviewed] }
+        workflow: { $ref: "#/components/schemas/QuoteWorkflow" }
         title:
           type: string
         materials:
@@ -2182,6 +2282,11 @@ components:
     QuoteUpdate:
       type: object
       properties:
+        contactId: { type: ["integer", "null"] }
+        callId: { type: ["integer", "null"] }
+        status: { type: string, enum: [draft, reviewed, accepted] }
+        revision: { type: integer, description: Expected current revision for optimistic concurrency }
+        workflow: { $ref: "#/components/schemas/QuoteWorkflow" }
         title:
           type: string
         materials:
@@ -2202,6 +2307,59 @@ components:
           type: ["number", "null"]
         totalIncVat:
           type: ["number", "null"]
+
+    QuoteWorkflow:
+      type: object
+      required: [customerName, customerEmail, customerPhone, billingAddress, siteAddress, scope, assumptions, exclusions, paymentTerms, validUntil, vatRegistered, vatNumber, vatPercent, deposit, sections]
+      properties:
+        customerName: { type: string, maxLength: 300 }
+        customerEmail: { type: string, maxLength: 300 }
+        customerPhone: { type: string, maxLength: 100 }
+        billingAddress: { type: string, maxLength: 2000 }
+        siteAddress: { type: string, maxLength: 2000 }
+        scope: { type: string, maxLength: 20000 }
+        assumptions: { type: string, maxLength: 10000 }
+        exclusions: { type: string, maxLength: 10000 }
+        paymentTerms: { type: string, maxLength: 10000 }
+        validUntil: { type: string }
+        vatRegistered: { type: boolean }
+        vatNumber: { type: string }
+        vatPercent: { type: number, minimum: 0, maximum: 100 }
+        deposit:
+          type: object
+          required: [mode, value]
+          properties:
+            mode: { type: string, enum: [none, materials, fixed, percentage] }
+            value: { type: number, minimum: 0 }
+        sections:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            required: [id, title, items]
+            properties:
+              id: { type: string }
+              title: { type: string, maxLength: 300 }
+              items:
+                type: array
+                maxItems: 500
+                items:
+                  $ref: "#/components/schemas/QuoteWorkflowItem"
+    QuoteWorkflowItem:
+      type: object
+      required: [id, type, description, quantity, unit, costPrice, sellPrice]
+      properties:
+        id: { type: string }
+        type: { type: string, enum: [materials, labour, subcontractor, plant, other] }
+        description: { type: string, maxLength: 2000 }
+        quantity: { type: number, minimum: 0, maximum: 1000000 }
+        unit: { type: string, maxLength: 100 }
+        costPrice: { type: number, minimum: 0, maximum: 10000000 }
+        sellPrice: { type: number, minimum: 0, maximum: 10000000 }
+        source: { type: string }
+        sourceUrl: { type: string }
+        pricedAt: { type: string }
+        priceVerified: { type: boolean }
 
     InvoiceLineItem:
       type: object
