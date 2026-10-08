@@ -582,7 +582,7 @@ export default function Landing() {
         </div>
       </footer>
 
-      <CallDemoModal open={demoOpen} onOpenChange={setDemoOpen} autoPlay />
+      <CallDemoModal open={demoOpen} onOpenChange={setDemoOpen} />
     </div>
   );
 }

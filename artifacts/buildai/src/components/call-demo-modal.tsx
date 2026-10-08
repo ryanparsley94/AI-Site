@@ -10,23 +10,23 @@ export const DEMO_CALL_SCRIPT: { from: "caller" | "oliver"; text: string; pauseM
   { from: "caller", text: "Hi there, yeah — I've got a bit of an electrical problem. My kitchen sockets have all stopped working.", pauseMs: 900 },
   { from: "oliver", text: "Good morning! You've reached Parsley Electrical, my name's Oliver. I'm sorry to hear that — sounds frustrating. Can I take your name, please?", pauseMs: 1400 },
   { from: "caller", text: "It's James. James Thornton.", pauseMs: 800 },
-  { from: "oliver", text: "Thanks, James. Could I get your postcode so I can confirm we cover your area?", pauseMs: 1000 },
+  { from: "oliver", text: "Thanks, James. Could I get your postcode so I can note the area for the office?", pauseMs: 1000 },
   { from: "caller", text: "Yeah — M14 7JB. Manchester.", pauseMs: 700 },
-  { from: "oliver", text: "Perfect, that's well within our area. So all the kitchen sockets have gone dead — have any trip switches on your fuse board flipped?", pauseMs: 1300 },
+  { from: "oliver", text: "Thanks, I've noted that. So all the kitchen sockets have gone dead — have any trip switches on your fuse board flipped?", pauseMs: 1300 },
   { from: "caller", text: "Yeah actually, one's flipped down. Looks like the ring main one.", pauseMs: 900 },
-  { from: "oliver", text: "Right, that's helpful. Sounds like a tripped circuit — possibly caused by a faulty appliance. Have you tried switching everything off and resetting the breaker?", pauseMs: 1400 },
+  { from: "oliver", text: "I'll note that the breaker trips again and ask the office to have an electrician review it. I can't diagnose the cause over the phone.", pauseMs: 1400 },
   { from: "caller", text: "I did, yeah — but it trips straight back off as soon as I flick it back up.", pauseMs: 1000 },
-  { from: "oliver", text: "That tells me there's a fault on the circuit itself. It'll need one of our electricians to come out and run a full test. We can usually get to most Manchester jobs within 24 to 48 hours — shall I book someone in for you?", pauseMs: 1600 },
+  { from: "oliver", text: "That needs an electrician to assess. I'll flag it for the office to follow up; I can't confirm a diagnosis or visit time just yet. What times usually work for you?", pauseMs: 1600 },
   { from: "caller", text: "Yes please, as soon as possible if you can.", pauseMs: 800 },
-  { from: "oliver", text: "Of course. Are you free tomorrow morning — 8am to 1pm? Or would the afternoon suit better, say 1 to 5?", pauseMs: 1200 },
-  { from: "caller", text: "Morning's better for me.", pauseMs: 600 },
-  { from: "oliver", text: "Brilliant — I'll book you in for tomorrow, 8am to 1pm. Could I take a mobile number to confirm the appointment?", pauseMs: 1100 },
-  { from: "caller", text: "Sure — 07712 345678.", pauseMs: 700 },
+  { from: "oliver", text: "Thanks. What days or times generally work best for you?", pauseMs: 1200 },
+  { from: "caller", text: "Mornings are usually better for me.", pauseMs: 600 },
+  { from: "oliver", text: "I'll pass that preference to the office so they can check availability. Could I take a mobile number for a callback?", pauseMs: 1100 },
+  { from: "caller", text: "Sure — 07700 900123.", pauseMs: 700 },
   { from: "oliver", text: "Got that. And the full address in M14?", pauseMs: 800 },
   { from: "caller", text: "42 Wilmslow Road, Didsbury.", pauseMs: 700 },
-  { from: "oliver", text: "Perfect. So that's 42 Wilmslow Road, Didsbury, M14 7JB. An electrician will be with you tomorrow morning. You'll get a text confirmation shortly, and a reminder the evening before. Is there anything else I can help with?", pauseMs: 1600 },
+  { from: "oliver", text: "I've noted 42 Wilmslow Road, Didsbury, M14 7JB. The office will review your enquiry and availability. No visit has been confirmed and no text has been sent from this demo. Is there anything else I can help with?", pauseMs: 1600 },
   { from: "caller", text: "No, that's brilliant. Thank you.", pauseMs: 700 },
-  { from: "oliver", text: "Wonderful — we'll see you tomorrow, James. Have a great day!", pauseMs: 1000 },
+  { from: "oliver", text: "Thanks for calling, James. The office will review those details and get back to you. Have a good day!", pauseMs: 1000 },
 ];
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -84,154 +84,133 @@ function CallTimer({ running }: { running: boolean }) {
   return <span className="font-mono text-sm tabular-nums text-white/80">{m}:{s}</span>;
 }
 
-// ─── Audio helpers ────────────────────────────────────────────────────────────
-
-async function fetchAudioBuffer(
-  text: string,
-  ctx: AudioContext,
-  voice: string = "onyx",
-): Promise<AudioBuffer | null> {
-  try {
-    const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
-    const resp = await fetch(`${base}/api/assistants/voice-preview`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ voice, text }),
-    });
-    if (!resp.ok) return null;
-    const arrayBuffer = await resp.arrayBuffer();
-    return await ctx.decodeAudioData(arrayBuffer);
-  } catch {
-    return null;
-  }
-}
-
 // ─── Modal ────────────────────────────────────────────────────────────────────
 
 export function CallDemoModal({
   open,
   onOpenChange,
-  autoPlay = false,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  autoPlay?: boolean;
 }) {
   const [visibleCount, setVisibleCount] = useState(0);
   const [typingFrom, setTypingFrom] = useState<"caller" | "oliver" | null>(null);
   const [started, setStarted] = useState(false);
   const [finished, setFinished] = useState(false);
   const [muted, setMuted] = useState(false);
-  const [audioReady, setAudioReady] = useState(false);
+  const [audioUnavailable, setAudioUnavailable] = useState(false);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
-  // AudioContext created on first Play click (inside user gesture → autoplay always works)
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  // Promise per Oliver script index → decoded AudioBuffer
-  const audioBufferPromisesRef = useRef<Map<number, Promise<AudioBuffer | null>>>(new Map());
-  const currentSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const playbackRunRef = useRef(0);
   const mutedRef = useRef(false);
 
-  const stopCurrentSource = () => {
-    try { currentSourceRef.current?.stop(); } catch { /* already stopped */ }
-    currentSourceRef.current = null;
-  };
-
   const clearAll = () => {
+    playbackRunRef.current += 1;
     timeoutsRef.current.forEach(clearTimeout);
     timeoutsRef.current = [];
-    stopCurrentSource();
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
   };
 
   const reset = () => {
     clearAll();
-    audioCtxRef.current?.close().catch(() => {});
-    audioCtxRef.current = null;
-    audioBufferPromisesRef.current.clear();
     setVisibleCount(0);
     setTypingFrom(null);
     setStarted(false);
     setFinished(false);
-    setAudioReady(false);
+    setMuted(false);
+    mutedRef.current = false;
+    setAudioUnavailable(false);
   };
 
   useEffect(() => {
     mutedRef.current = muted;
-    if (muted) stopCurrentSource();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [muted]);
+    if ("speechSynthesis" in window) {
+      if (muted) window.speechSynthesis.pause();
+      else if (started && !finished) window.speechSynthesis.resume();
+    }
+  }, [muted, started, finished]);
 
   useEffect(() => {
     if (!open) { reset(); return undefined; }
-    if (autoPlay) {
-      const t = setTimeout(startDemo, 350);
-      return () => clearTimeout(t);
-    }
     return undefined;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [visibleCount, typingFrom]);
 
-  // Awaits the pre-fetched buffer promise then plays it — works even if fetch isn't done yet
-  async function playAudio(index: number) {
-    if (mutedRef.current || !audioCtxRef.current) return;
-    const ctx = audioCtxRef.current;
-    const bufPromise = audioBufferPromisesRef.current.get(index);
-    if (!bufPromise) return;
-    const buffer = await bufPromise;
-    if (!buffer || mutedRef.current || !audioCtxRef.current) return;
-    stopCurrentSource();
-    const source = ctx.createBufferSource();
-    source.buffer = buffer;
-    source.connect(ctx.destination);
-    source.start();
-    currentSourceRef.current = source;
+  function runTranscriptOnly(startIndex: number, run: number) {
+    if (run !== playbackRunRef.current) return;
+    if (startIndex >= DEMO_CALL_SCRIPT.length) {
+      setTypingFrom(null);
+      setFinished(true);
+      return;
+    }
+    const item = DEMO_CALL_SCRIPT[startIndex];
+    setTypingFrom(item.from);
+    const readingMs = Math.min(7000, Math.max(1300, item.text.split(/\s+/).length * 260));
+    const showTimer = setTimeout(() => {
+      if (run !== playbackRunRef.current) return;
+      setVisibleCount(startIndex + 1);
+      setTypingFrom(null);
+      const nextTimer = setTimeout(
+        () => runTranscriptOnly(startIndex + 1, run),
+        item.pauseMs,
+      );
+      timeoutsRef.current.push(nextTimer);
+    }, readingMs);
+    timeoutsRef.current.push(showTimer);
   }
 
   function startDemo() {
+    clearAll();
+    const run = playbackRunRef.current;
+    setVisibleCount(0);
+    setTypingFrom(null);
+    setFinished(false);
     setStarted(true);
+    setAudioUnavailable(false);
+    setMuted(false);
+    mutedRef.current = false;
 
-    // AudioContext MUST be created inside a user-gesture handler — this is it.
-    const ctx = new AudioContext();
-    audioCtxRef.current = ctx;
+    if (!("speechSynthesis" in window) || typeof SpeechSynthesisUtterance === "undefined") {
+      setAudioUnavailable(true);
+      runTranscriptOnly(0, run);
+      return;
+    }
 
-    // Kick off all line fetches in parallel — oliver uses "onyx", caller uses "alloy".
-    // Store Promises so playAudio can await whichever it needs.
-    const allPromises: Promise<void>[] = [];
-    DEMO_CALL_SCRIPT.forEach((item, i) => {
-      const voice = item.from === "oliver" ? "onyx" : "alloy";
-      const p = fetchAudioBuffer(item.text, ctx, voice);
-      audioBufferPromisesRef.current.set(i, p);
-      allPromises.push(p.then(() => {}));
-    });
-    Promise.all(allPromises).then(() => setAudioReady(true));
-
-    let cursor = 0;
-
-    const schedule = (index: number) => {
-      if (index >= DEMO_CALL_SCRIPT.length) {
-        const t = setTimeout(() => setFinished(true), 600);
-        timeoutsRef.current.push(t);
-        return;
-      }
-      const item = DEMO_CALL_SCRIPT[index];
-      const t1 = setTimeout(() => setTypingFrom(item.from), cursor);
-      cursor += item.pauseMs;
-      const t2 = setTimeout(() => {
+    // Queue speech synchronously from the Play tap; mobile Safari blocks the
+    // old delayed autoplay and server TTS required an authenticated API route.
+    const britishVoice = window.speechSynthesis.getVoices().find((voice) =>
+      voice.lang.toLowerCase().startsWith("en-gb"),
+    );
+    DEMO_CALL_SCRIPT.forEach((item, index) => {
+      const utterance = new SpeechSynthesisUtterance(item.text);
+      utterance.lang = "en-GB";
+      if (britishVoice) utterance.voice = britishVoice;
+      utterance.rate = item.from === "oliver" ? 0.96 : 1;
+      utterance.pitch = item.from === "oliver" ? 0.92 : 1.08;
+      utterance.onstart = () => {
+        if (run !== playbackRunRef.current) return;
         setTypingFrom(null);
         setVisibleCount(index + 1);
-        playAudio(index);
-        schedule(index + 1);
-      }, cursor);
-      cursor += 400;
-      timeoutsRef.current.push(t1, t2);
-    };
-
-    schedule(0);
+      };
+      utterance.onend = () => {
+        if (run !== playbackRunRef.current) return;
+        setTypingFrom(null);
+        if (index === DEMO_CALL_SCRIPT.length - 1) setFinished(true);
+      };
+      utterance.onerror = (event) => {
+        if (run !== playbackRunRef.current || event.error === "canceled") return;
+        const fallbackRun = ++playbackRunRef.current;
+        window.speechSynthesis.cancel();
+        setAudioUnavailable(true);
+        setTypingFrom(null);
+        runTranscriptOnly(index, fallbackRun);
+      };
+      window.speechSynthesis.speak(utterance);
+    });
   }
 
   const activeOliver =
@@ -259,12 +238,12 @@ export function CallDemoModal({
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-white font-semibold leading-none">Oliver</p>
-              <p className="text-white/50 text-xs mt-1">AI Phone Operator · Parsley Electrical</p>
+              <p className="text-white/50 text-xs mt-1">AI Phone Operator · sample conversation</p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {started && !finished ? (
                 <span className="text-[10px] font-bold uppercase tracking-widest text-green-400 bg-green-400/10 px-2 py-0.5 rounded-full border border-green-400/30">
-                  Live
+                  Demo
                 </span>
               ) : finished ? (
                 <span className="text-[10px] font-bold uppercase tracking-widest text-white/40 bg-white/5 px-2 py-0.5 rounded-full border border-white/10">
@@ -285,7 +264,7 @@ export function CallDemoModal({
 
           <div className="flex items-center gap-2 bg-white/5 rounded-xl px-3 py-2 border border-white/10">
             <Phone size={12} className="text-white/50 shrink-0" />
-            <span className="text-white/70 text-xs truncate flex-1">Inbound · Kitchen socket fault · Manchester M14</span>
+            <span className="text-white/70 text-xs truncate flex-1">Sample · Kitchen sockets · Manchester M14</span>
             <Waveform active={started && !finished && activeOliver && !muted} />
             <CallTimer running={started && !finished} />
           </div>
@@ -299,9 +278,9 @@ export function CallDemoModal({
                 <Zap size={22} className="text-primary" />
               </div>
               <div>
-                <p className="font-semibold text-secondary text-sm">Electrical Enquiry · Live Demo</p>
+                <p className="font-semibold text-secondary text-sm">Scripted electrical enquiry</p>
                 <p className="text-xs text-muted-foreground mt-1 max-w-[220px]">
-                  Watch Oliver handle a real kitchen socket fault call, qualify the lead, and book the job — with voice.
+                  Hear a sample conversation. Tap play to hear your device read it aloud; no call, enquiry, or booking is created.
                 </p>
               </div>
               <Button size="sm" className="gap-2 mt-1" onClick={startDemo}>
@@ -376,7 +355,7 @@ export function CallDemoModal({
             <div className="flex justify-center pt-2">
               <div className="flex items-center gap-2 text-xs text-muted-foreground bg-white border rounded-full px-3 py-1.5 shadow-sm">
                 <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                Call ended · Job booked for tomorrow 8am–1pm
+                Demo ended · no enquiry or booking was created
               </div>
             </div>
           )}
@@ -394,9 +373,9 @@ export function CallDemoModal({
         <div className="bg-white border-t px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground min-w-0">
             <Bot size={12} className="text-primary shrink-0" />
-            <span className="truncate">Oliver · <span className="font-medium text-secondary">onyx</span> voice
-              {started && !audioReady && !finished && (
-                <span className="text-muted-foreground/60"> · loading audio…</span>
+            <span className="truncate">Oliver · <span className="font-medium text-secondary">device voice</span>
+              {audioUnavailable && (
+                <span className="text-muted-foreground/60"> · audio unavailable; transcript only</span>
               )}
             </span>
           </div>
