@@ -497,7 +497,7 @@ function OtherFormFields({
 
   const greetingPlaceholder =
     typeConfig.value === "chat" ? "Hi! How can I help you today?"
-    : typeConfig.value === "email" ? "Kind regards, the BuildAI team"
+    : typeConfig.value === "email" ? "Kind regards, the CREWON team"
     : "";
 
   return (

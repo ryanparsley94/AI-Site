@@ -68,10 +68,10 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
       <div className="w-full max-w-sm space-y-6 p-8">
         {/* Logo */}
         <div className="flex flex-col items-center gap-3 text-center">
-          <img src="/logo-mark.png" alt="BuildAI" className="w-12 h-12 object-contain" />
+          <img src="/logo-mark.png" alt="CREWON" className="w-12 h-12 object-contain" />
           <div>
             <h1 className="text-2xl font-bold text-white">
-              Build<span className="text-[#F97316]">AI</span>
+              CREW<span className="text-[#F97316]">ON</span>
             </h1>
             <p className="text-sm text-white/50 mt-1">Sign in to your dashboard</p>
           </div>

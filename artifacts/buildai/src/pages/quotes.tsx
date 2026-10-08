@@ -1012,7 +1012,7 @@ export default function Quotes() {
                     <CardTitle className="flex items-center gap-2">
                       Price Estimate Results
                     </CardTitle>
-                    <CardDescription>Live market estimates sourced by BuildAI.</CardDescription>
+                    <CardDescription>Live market estimates sourced by CREWON.</CardDescription>
                   </div>
                   {combinedTotal > 0 && (
                     <Button size="sm" onClick={() => setIsSaveOpen(true)} className="gap-2">

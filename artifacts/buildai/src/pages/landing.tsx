@@ -7,7 +7,7 @@ import { CallDemoModal } from "@/components/call-demo-modal";
 const FAQ_ITEMS = [
   {
     q: "What counts as a call-minute?",
-    a: "A call-minute is 60 seconds of active conversation between a caller and your BuildAI assistant. Calls are rounded up to the nearest minute. Your monthly allowance resets on your billing date, and you can see live usage in your dashboard at any time.",
+    a: "A call-minute is 60 seconds of active conversation between a caller and your CREWON assistant. Calls are rounded up to the nearest minute. Your monthly allowance resets on your billing date, and you can see live usage in your dashboard at any time.",
   },
   {
     q: "What happens when I hit my monthly allowance?",
@@ -22,12 +22,12 @@ const FAQ_ITEMS = [
     a: "Most contractors are live in under 10 minutes. You connect your number, tell the AI about your trade and service area, set your availability, and you're done. Our onboarding wizard walks you through each step — no technical knowledge needed.",
   },
   {
-    q: "Does BuildAI work for my trade?",
-    a: "Yes — BuildAI is trained across the full range of UK trades: plumbing, electrical, gas, roofing, plastering, groundworks, landscaping, and more. The AI asks the right qualifying questions for each trade type, and you can add your own custom instructions to fine-tune it further.",
+    q: "Does CREWON work for my trade?",
+    a: "Yes — CREWON is trained across the full range of UK trades: plumbing, electrical, gas, roofing, plastering, groundworks, landscaping, and more. The AI asks the right qualifying questions for each trade type, and you can add your own custom instructions to fine-tune it further.",
   },
   {
     q: "Is my data stored in the UK? (GDPR)",
-    a: "Yes. All call recordings, transcripts, and customer data are stored on UK-based servers. BuildAI Ltd is a registered UK company and we are fully GDPR compliant. You can request a Data Processing Agreement (DPA) at any time — just contact us.",
+    a: "Yes. All call recordings, transcripts, and customer data are stored on UK-based servers. You can request a Data Processing Agreement (DPA) from the CREWON team at any time — just contact us.",
   },
   {
     q: "Can I change plans later?",
@@ -35,7 +35,7 @@ const FAQ_ITEMS = [
   },
   {
     q: "Is there a free trial?",
-    a: "Yes — every new account starts with a 14-day free trial on the Starter plan, no credit card required. You get full access to all Starter features so you can see exactly what BuildAI does for your business before you commit.",
+    a: "Yes — every new account starts with a 14-day free trial on the Starter plan, no credit card required. You get full access to all Starter features so you can see exactly what CREWON does for your business before you commit.",
   },
 ];
 
@@ -77,8 +77,8 @@ export default function Landing() {
       {/* Navbar */}
       <header className="px-6 py-4 flex items-center justify-between sticky top-0 z-50 bg-[#0d1117]/90 backdrop-blur-md border-b border-white/10">
         <div className="flex items-center gap-2.5 font-bold text-xl">
-          <img src="/logo-mark.png" alt="BuildAI" className="w-8 h-8 object-contain" />
-          <span className="text-white">Build<span className="text-[#F97316]">AI</span></span>
+          <img src="/logo-mark.png" alt="CREWON" className="w-8 h-8 object-contain" />
+          <span className="text-white">CREW<span className="text-[#F97316]">ON</span></span>
         </div>
         <nav className="hidden md:flex gap-8 text-sm font-medium text-white/60">
           <a href="#features" className="hover:text-white transition-colors">Features</a>
@@ -129,7 +129,7 @@ export default function Landing() {
               </h1>
 
               <p className="text-lg md:text-xl text-white/70 max-w-lg leading-relaxed">
-                Stop losing jobs to voicemail. BuildAI answers the phone, books estimates, and schedules your crew 24/7 — so you can focus on the site, not the screen.
+                Stop losing jobs to voicemail. CREWON answers the phone, books estimates, and schedules your crew 24/7 — so you can focus on the site, not the screen.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4">
@@ -165,7 +165,7 @@ export default function Landing() {
                     <div className="w-3 h-3 rounded-full bg-yellow-500/80"></div>
                     <div className="w-3 h-3 rounded-full bg-green-500/80"></div>
                   </div>
-                  <div className="text-xs font-mono text-white/30 ml-2">buildai — live call</div>
+                  <div className="text-xs font-mono text-white/30 ml-2">CREWON — live call</div>
                   <div className="ml-auto flex items-center gap-1.5 text-xs text-green-400 font-medium">
                     <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
                     Active
@@ -177,7 +177,7 @@ export default function Landing() {
                     <p className="text-sm text-white">"Hi, I need a quote for re-roofing my semi-detached in Manchester…"</p>
                   </div>
                   <div className="bg-[#F97316]/15 border border-[#F97316]/30 p-3.5 rounded-xl self-end max-w-[78%]">
-                    <p className="text-xs font-semibold text-[#F97316] mb-1">BuildAI Assistant</p>
+                    <p className="text-xs font-semibold text-[#F97316] mb-1">CREWON Assistant</p>
                     <p className="text-sm text-white">"Of course! Is the roof currently leaking, or is this a planned replacement?"</p>
                   </div>
                   <div className="bg-white/5 border border-white/10 p-3.5 rounded-xl self-start max-w-[78%]">
@@ -185,7 +185,7 @@ export default function Landing() {
                     <p className="text-sm text-white">"No leaks — just 25 years old and looking rough."</p>
                   </div>
                   <div className="bg-[#F97316]/15 border border-[#F97316]/30 p-3.5 rounded-xl self-end max-w-[78%]">
-                    <p className="text-xs font-semibold text-[#F97316] mb-1">BuildAI Assistant</p>
+                    <p className="text-xs font-semibold text-[#F97316] mb-1">CREWON Assistant</p>
                     <p className="text-sm text-white">"Perfect. I have Thursday 2 PM or Friday 9 AM available for a free survey. Which suits you?"</p>
                   </div>
                   <div className="mt-auto bg-green-500/10 border border-green-500/30 text-green-400 p-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2">
@@ -224,7 +224,7 @@ export default function Landing() {
           <div className="max-w-7xl mx-auto px-6">
             <div className="text-center max-w-2xl mx-auto mb-16">
               <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Built for the reality of the job site.</h2>
-              <p className="text-white/50 text-lg">You can't answer the phone when you're 20 feet up a ladder. BuildAI is your dedicated front office, working 24/7.</p>
+              <p className="text-white/50 text-lg">You can't answer the phone when you're 20 feet up a ladder. CREWON is your dedicated front office, working 24/7.</p>
             </div>
 
             <div className="grid md:grid-cols-3 gap-6">
@@ -277,7 +277,7 @@ export default function Landing() {
           <div className="max-w-7xl mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
             {[
               { stat: "47%", label: "Of leads go to the first to respond" },
-              { stat: "0", label: "Missed calls with BuildAI" },
+              { stat: "0", label: "Missed calls with CREWON" },
               { stat: "12hrs", label: "Saved per week on average" },
               { stat: "3×", label: "Increase in booked estimates" },
             ].map((s) => (
@@ -599,10 +599,10 @@ export default function Landing() {
       <footer className="bg-[#0d1117] border-t border-white/10 py-10 px-6">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-2.5 font-bold text-lg">
-            <img src="/logo-mark.png" alt="BuildAI" className="w-7 h-7 object-contain" />
-            <span className="text-white">Build<span className="text-[#F97316]">AI</span></span>
+            <img src="/logo-mark.png" alt="CREWON" className="w-7 h-7 object-contain" />
+            <span className="text-white">CREW<span className="text-[#F97316]">ON</span></span>
           </div>
-          <p className="text-white/30 text-sm">© {new Date().getFullYear()} BuildAI Ltd. All rights reserved. UK company.</p>
+          <p className="text-white/30 text-sm">© {new Date().getFullYear()} CREWON. All rights reserved.</p>
         </div>
       </footer>
 
