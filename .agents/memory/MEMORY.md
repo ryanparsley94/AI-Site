@@ -1,2 +1,3 @@
 - [Codegen Zod v3 patch](codegen-zod-patch.md) — every Orval codegen run needs `sed -i 's/zod\.int()/zod.number().int()/g'` on the generated zod file before typecheck.
 - [OpenAI max_completion_tokens](openai-model-params.md) — gpt-5.6-luna requires `max_completion_tokens` not `max_tokens`; using `max_tokens` returns a 400 unsupported_parameter error.
+- [Call-to-quote safety](call-quote-safety.md) — enquiries must not produce guessed materials or quantities; contractor review is required before client delivery.

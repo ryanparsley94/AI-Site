@@ -682,6 +682,8 @@ export default function Quotes() {
   const [labourItems, setLabourItems] = useState<LabourItem[]>(initialLabour);
   const [results, setResults] = useState<PriceSearchResult | null>(null);
   const [prefillBanner, setPrefillBanner] = useState<string | null>(null);
+  const [isCallDraft, setIsCallDraft] = useState(false);
+  const [quoteReviewed, setQuoteReviewed] = useState(false);
 
   // Pricing state
   const [marginPercent, setMarginPercent] = useState(20);
@@ -694,6 +696,10 @@ export default function Quotes() {
   const [jobId, setJobId] = useState<string>("");
   const [jobSearch, setJobSearch] = useState("");
 
+  useEffect(() => {
+    setQuoteReviewed(false);
+  }, [inputs, labourItems, results, marginPercent, vatPercent, quoteTitle, jobId]);
+
   // Pre-fill from a "Create Quote from Call" action
   useEffect(() => {
     const raw = sessionStorage.getItem("buildai_prefill_quote");
@@ -701,15 +707,24 @@ export default function Quotes() {
     sessionStorage.removeItem("buildai_prefill_quote");
     try {
       const prefill = JSON.parse(raw);
+      setIsCallDraft(true);
+      setQuoteReviewed(false);
+      // An enquiry supplies no labour estimate; do not apply the builder's defaults.
+      setLabourItems([{ description: "", hours: 0, rate: 0 }]);
       if (prefill.materials?.length) {
         setInputs(prefill.materials.map((m: { name: string; quantity: number; unit: string }) => ({
           name: m.name ?? "",
-          quantity: Number(m.quantity) || 1,
+          quantity: Number(m.quantity),
           unit: m.unit ?? "each",
         })));
+      } else {
+        setInputs([{ name: "", quantity: 0, unit: "each" }]);
       }
       if (prefill.title) setQuoteTitle(prefill.title);
-      if (prefill.callerName) setPrefillBanner(`Pre-filled from call with ${prefill.callerName}`);
+      const source = prefill.callerName ? `Call draft for ${prefill.callerName}` : "Call draft";
+      setPrefillBanner(prefill.materials?.length
+        ? `${source} — only explicitly stated materials and quantities were added. Review scope, labour and prices before sending.`
+        : `${source} — the enquiry does not specify materials with clear quantities. Confirm the scope with the client and add the required items manually.`);
     } catch {}
   }, []);
 
@@ -757,6 +772,10 @@ export default function Quotes() {
 
   const handleSaveQuote = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (isCallDraft && !quoteReviewed) {
+      toast({ title: "Review the scope, quantities and prices before saving this call draft.", variant: "destructive" });
+      return;
+    }
     if (combinedTotal === 0) {
       toast({ title: "Please add materials or labour costs first", variant: "destructive" });
       return;
@@ -810,6 +829,7 @@ export default function Quotes() {
   };
 
   const handleDownloadPDF = async (quote: Quote) => {
+    if (!confirm("Before downloading this quote to send, confirm you have reviewed its scope, materials, quantities, labour, prices and VAT. Download the reviewed quote?")) return;
     try {
       await downloadQuotePDF(quote, company);
     } catch {
@@ -906,7 +926,7 @@ export default function Quotes() {
           {prefillBanner && (
             <div className="flex items-center gap-3 p-3 bg-primary/10 border border-primary/20 rounded-lg text-sm text-primary font-medium">
               <Calculator size={16} />
-              {prefillBanner} — materials pre-filled below. Review and click "Get AI Prices".
+              {prefillBanner}
               <button onClick={() => setPrefillBanner(null)} className="ml-auto text-primary/60 hover:text-primary">✕</button>
             </div>
           )}
@@ -1273,9 +1293,21 @@ export default function Quotes() {
               </div>
             )}
 
+            {isCallDraft && (
+              <label className="flex items-start gap-3 text-sm">
+                <input
+                  type="checkbox"
+                  checked={quoteReviewed}
+                  onChange={(e) => setQuoteReviewed(e.target.checked)}
+                  required
+                  className="mt-1 accent-orange-500"
+                />
+                <span>I have reviewed the scope, materials, quantities, labour, prices and VAT. This quote is ready to save for sending.</span>
+              </label>
+            )}
             <DialogFooter className="pt-4">
               <Button type="button" variant="outline" onClick={() => setIsSaveOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={createQuote.isPending} className="gap-2">
+              <Button type="submit" disabled={createQuote.isPending || (isCallDraft && !quoteReviewed)} className="gap-2">
                 <Save className="h-4 w-4" />
                 {createQuote.isPending ? "Saving..." : "Save Quote"}
               </Button>
