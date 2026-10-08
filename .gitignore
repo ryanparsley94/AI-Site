@@ -10,6 +10,8 @@ out-tsc
 
 # dependencies
 node_modules
+test-results
+playwright-report
 
 # IDEs and editors
 /.idea
