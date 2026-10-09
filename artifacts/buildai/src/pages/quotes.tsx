@@ -23,7 +23,7 @@ function callItems(ms: Extracted["materials"]) {
 }
 
 export default function Quotes() {
-  const quotesQ = useListQuotes();
+  const quotesQ = useListQuotes(undefined, { query: { queryKey: getListQuotesQueryKey(), refetchInterval: 15000 } });
   const { data: contacts = [] } = useListContacts();
   const { data: jobs = [] } = useListJobs();
   const { data: calls = [] } = useListCalls();

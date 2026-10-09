@@ -42,6 +42,7 @@ import type {
   ContactInput,
   ContactUpdate,
   ConvertQuoteToJobBody,
+  CreateQuoteAcceptanceLink200,
   CreateTaskBody,
   DashboardSummary,
   EmailInboundPayload,
@@ -78,9 +79,11 @@ import type {
   MarketingDraft,
   PriceSearchInput,
   PriceSearchResult,
+  PublicQuote,
   Quote,
   QuoteInput,
   QuoteUpdate,
+  RespondToPublicQuoteBody,
   RetryCallOwnerNotification200,
   Task,
   TestAssistantInput,
@@ -127,6 +130,214 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getCreateQuoteAcceptanceLinkUrl = (id: number,) => {
+
+
+
+
+  return `/api/quotes/${id}/acceptance-link`
+}
+
+/**
+ * @summary Generate a public link for a reviewed quote; replaces any older link
+ */
+export const createQuoteAcceptanceLink = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<CreateQuoteAcceptanceLink200> => {
+
+  return customFetch<CreateQuoteAcceptanceLink200>(getCreateQuoteAcceptanceLinkUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCreateQuoteAcceptanceLinkMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createQuoteAcceptanceLink>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createQuoteAcceptanceLink>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['createQuoteAcceptanceLink'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createQuoteAcceptanceLink>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  createQuoteAcceptanceLink(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateQuoteAcceptanceLinkMutationResult = NonNullable<Awaited<ReturnType<typeof createQuoteAcceptanceLink>>>
+
+    export type CreateQuoteAcceptanceLinkMutationError = ErrorType<void>
+
+    /**
+ * @summary Generate a public link for a reviewed quote; replaces any older link
+ */
+export const useCreateQuoteAcceptanceLink = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createQuoteAcceptanceLink>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createQuoteAcceptanceLink>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getCreateQuoteAcceptanceLinkMutationOptions(options));
+    }
+
+export const getGetPublicQuoteUrl = (token: string,) => {
+
+
+
+
+  return `/api/public/quotes/${token}`
+}
+
+export const getPublicQuote = async (token: string, options?: Parameters<typeof customFetch>[1]): Promise<PublicQuote> => {
+
+  return customFetch<PublicQuote>(getGetPublicQuoteUrl(token),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPublicQuoteQueryKey = (token: string,) => {
+    return [
+    `/api/public/quotes/${token}`
+    ] as const;
+    }
+
+
+export const getGetPublicQuoteQueryOptions = <TData = Awaited<ReturnType<typeof getPublicQuote>>, TError = ErrorType<void>>(token: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicQuote>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPublicQuoteQueryKey(token);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPublicQuote>>> = ({ signal }) => getPublicQuote(token, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: token !== null && token !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPublicQuote>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPublicQuoteQueryResult = NonNullable<Awaited<ReturnType<typeof getPublicQuote>>>
+export type GetPublicQuoteQueryError = ErrorType<void>
+
+
+
+export function useGetPublicQuote<TData = Awaited<ReturnType<typeof getPublicQuote>>, TError = ErrorType<void>>(
+ token: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicQuote>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPublicQuoteQueryOptions(token,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRespondToPublicQuoteUrl = (token: string,) => {
+
+
+
+
+  return `/api/public/quotes/${token}`
+}
+
+export const respondToPublicQuote = async (token: string,
+    respondToPublicQuoteBody: RespondToPublicQuoteBody, options?: Parameters<typeof customFetch>[1]): Promise<PublicQuote> => {
+
+  return customFetch<PublicQuote>(getRespondToPublicQuoteUrl(token),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(respondToPublicQuoteBody)
+  }
+);}
+
+
+
+
+
+export const getRespondToPublicQuoteMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof respondToPublicQuote>>, TError,{token: string;data: BodyType<RespondToPublicQuoteBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof respondToPublicQuote>>, TError,{token: string;data: BodyType<RespondToPublicQuoteBody>}, TContext> => {
+
+const mutationKey = ['respondToPublicQuote'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof respondToPublicQuote>>, {token: string;data: BodyType<RespondToPublicQuoteBody>}> = (props) => {
+          const {token,data} = props ?? {};
+
+          return  respondToPublicQuote(token,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RespondToPublicQuoteMutationResult = NonNullable<Awaited<ReturnType<typeof respondToPublicQuote>>>
+    export type RespondToPublicQuoteMutationBody = BodyType<RespondToPublicQuoteBody>
+    export type RespondToPublicQuoteMutationError = ErrorType<void>
+
+    export const useRespondToPublicQuote = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof respondToPublicQuote>>, TError,{token: string;data: BodyType<RespondToPublicQuoteBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof respondToPublicQuote>>,
+        TError,
+        {token: string;data: BodyType<RespondToPublicQuoteBody>},
+        TContext
+      > => {
+      return useMutation(getRespondToPublicQuoteMutationOptions(options));
+    }
 
 export const getSendInvoiceUrl = (id: number,) => {
 

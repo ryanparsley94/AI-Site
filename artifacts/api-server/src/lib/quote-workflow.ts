@@ -67,6 +67,7 @@ export async function companySnapshot() {
   if (!company) return null;
   return {
     id: company.id, name: company.name, phone: company.phone, email: company.email,
+    timezone: company.timezone,
     website: company.website, address: company.address, logoUrl: company.logoUrl,
     quoteTemplate: company.quoteTemplate, quoteAccentColor: company.quoteAccentColor,
     quoteTagline: company.quoteTagline, paymentTerms: company.paymentTerms,

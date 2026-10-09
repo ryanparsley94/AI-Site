@@ -29,6 +29,64 @@ tags:
   - name: email
     description: AI email responder inbox
 paths:
+  /quotes/{id}/acceptance-link:
+    post:
+      operationId: createQuoteAcceptanceLink
+      tags: [quotes]
+      summary: Generate a public link for a reviewed quote; replaces any older link
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: New token and relative client path
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [path]
+                properties:
+                  path: { type: string }
+        "401": { description: Admin session required }
+        "404": { description: Quote not found }
+        "409": { description: Quote must be reviewed and valid }
+  /public/quotes/{token}:
+    get:
+      operationId: getPublicQuote
+      tags: [quotes]
+      parameters:
+        - { name: token, in: path, required: true, schema: { type: string, pattern: "^[a-f0-9]{64}$" } }
+      responses:
+        "200":
+          description: Client-safe commercial snapshot, never internal costs
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicQuote" }
+        "404": { description: Invalid or revoked link }
+    post:
+      operationId: respondToPublicQuote
+      tags: [quotes]
+      parameters:
+        - { name: token, in: path, required: true, schema: { type: string, pattern: "^[a-f0-9]{64}$" } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action, revision]
+              properties:
+                action: { type: string, enum: [accept, request_changes] }
+                revision: { type: integer }
+                message: { type: string, maxLength: 5000 }
+      responses:
+        "200":
+          description: Recorded client response
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicQuote" }
+        "400": { description: Invalid response }
+        "404": { description: Invalid or revoked link }
+        "409": { description: "Expired, changed or already responded" }
   /invoices/{id}/send:
     post:
       operationId: sendInvoice
@@ -2406,7 +2464,10 @@ components:
       properties:
         contactId: { type: ["integer", "null"] }
         callId: { type: ["integer", "null"] }
-        status: { type: string, enum: [draft, reviewed, accepted] }
+        status: { type: string, enum: [draft, reviewed, accepted, changes_requested] }
+        sharedAt: { type: ["string", "null"] }
+        respondedAt: { type: ["string", "null"] }
+        changeRequest: { type: ["string", "null"] }
         revision: { type: integer }
         reviewedAt: { type: ["string", "null"] }
         acceptedAt: { type: ["string", "null"] }
@@ -2443,6 +2504,61 @@ components:
         createdAt:
           type: string
           format: date-time
+
+    PublicQuote:
+      type: object
+      required: [id, title, revision, status, customerName, siteAddress, scope, assumptions, exclusions, paymentTerms, validUntil, vatNumber, sections, subtotal, vatPercent, vatAmount, total, depositAmount, balance, company, expired, changeRequest]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        revision: { type: integer }
+        status: { type: string, enum: [reviewed, accepted, changes_requested] }
+        customerName: { type: string }
+        siteAddress: { type: string }
+        scope: { type: string }
+        assumptions: { type: string }
+        exclusions: { type: string }
+        paymentTerms: { type: string }
+        validUntil: { type: string }
+        vatNumber: { type: string }
+        expired: { type: boolean }
+        changeRequest: { type: ["string", "null"] }
+        subtotal: { type: number }
+        vatPercent: { type: number }
+        vatAmount: { type: number }
+        total: { type: number }
+        depositAmount: { type: number }
+        balance: { type: number }
+        company:
+          type: object
+          required: [name]
+          properties:
+            name: { type: string }
+            address: { type: ["string", "null"] }
+            phone: { type: ["string", "null"] }
+            email: { type: ["string", "null"] }
+            logoUrl: { type: ["string", "null"] }
+            quoteAccentColor: { type: ["string", "null"] }
+            quoteTagline: { type: ["string", "null"] }
+            quoteFooterText: { type: ["string", "null"] }
+        sections:
+          type: array
+          items:
+            type: object
+            required: [title, items]
+            properties:
+              title: { type: string }
+              items:
+                type: array
+                items:
+                  type: object
+                  required: [description, quantity, unit, unitPrice, total]
+                  properties:
+                    description: { type: string }
+                    quantity: { type: number }
+                    unit: { type: string }
+                    unitPrice: { type: number }
+                    total: { type: number }
 
     QuoteInput:
       type: object

@@ -16,6 +16,10 @@ export const quotesTable = pgTable("quotes", {
   companySnapshot: jsonb("company_snapshot"),
   reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
   acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+  acceptanceTokenHash: text("acceptance_token_hash").unique(),
+  sharedAt: timestamp("shared_at", { withTimezone: true }),
+  respondedAt: timestamp("responded_at", { withTimezone: true }),
+  changeRequest: text("change_request"),
   // Pricing breakdown
   marginPercent: numeric("margin_percent", { precision: 5, scale: 2 }),
   vatPercent: numeric("vat_percent", { precision: 5, scale: 2 }),

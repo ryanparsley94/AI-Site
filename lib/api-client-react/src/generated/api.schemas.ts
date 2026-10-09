@@ -646,6 +646,7 @@ export const QuoteStatus = {
   draft: 'draft',
   reviewed: 'reviewed',
   accepted: 'accepted',
+  changes_requested: 'changes_requested',
 } as const;
 
 export type QuoteWorkflowDepositMode = typeof QuoteWorkflowDepositMode[keyof typeof QuoteWorkflowDepositMode];
@@ -749,6 +750,12 @@ export interface Quote {
   /** @nullable */
   callId?: number | null;
   status?: QuoteStatus;
+  /** @nullable */
+  sharedAt?: string | null;
+  /** @nullable */
+  respondedAt?: string | null;
+  /** @nullable */
+  changeRequest?: string | null;
   revision?: number;
   /** @nullable */
   reviewedAt?: string | null;
@@ -773,6 +780,72 @@ export interface Quote {
   /** @nullable */
   totalIncVat?: number | null;
   createdAt: string;
+}
+
+export type PublicQuoteStatus = typeof PublicQuoteStatus[keyof typeof PublicQuoteStatus];
+
+
+export const PublicQuoteStatus = {
+  reviewed: 'reviewed',
+  accepted: 'accepted',
+  changes_requested: 'changes_requested',
+} as const;
+
+export type PublicQuoteCompany = {
+  name: string;
+  /** @nullable */
+  address?: string | null;
+  /** @nullable */
+  phone?: string | null;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  logoUrl?: string | null;
+  /** @nullable */
+  quoteAccentColor?: string | null;
+  /** @nullable */
+  quoteTagline?: string | null;
+  /** @nullable */
+  quoteFooterText?: string | null;
+};
+
+export type PublicQuoteSectionsItemItemsItem = {
+  description: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  total: number;
+};
+
+export type PublicQuoteSectionsItem = {
+  title: string;
+  items: PublicQuoteSectionsItemItemsItem[];
+};
+
+export interface PublicQuote {
+  id: number;
+  title: string;
+  revision: number;
+  status: PublicQuoteStatus;
+  customerName: string;
+  siteAddress: string;
+  scope: string;
+  assumptions: string;
+  exclusions: string;
+  paymentTerms: string;
+  validUntil: string;
+  vatNumber: string;
+  expired: boolean;
+  /** @nullable */
+  changeRequest: string | null;
+  subtotal: number;
+  vatPercent: number;
+  vatAmount: number;
+  total: number;
+  depositAmount: number;
+  balance: number;
+  company: PublicQuoteCompany;
+  sections: PublicQuoteSectionsItem[];
 }
 
 export type QuoteInputStatus = typeof QuoteInputStatus[keyof typeof QuoteInputStatus];
@@ -1262,6 +1335,25 @@ export type UpdateMarketingDraftResponse = MarketingDraft;
 export type ApproveMarketingDraftResponse = MarketingDraft;
 
 export type DismissMarketingDraftResponse = MarketingDraft;
+
+export type CreateQuoteAcceptanceLink200 = {
+  path: string;
+};
+
+export type RespondToPublicQuoteBodyAction = typeof RespondToPublicQuoteBodyAction[keyof typeof RespondToPublicQuoteBodyAction];
+
+
+export const RespondToPublicQuoteBodyAction = {
+  accept: 'accept',
+  request_changes: 'request_changes',
+} as const;
+
+export type RespondToPublicQuoteBody = {
+  action: RespondToPublicQuoteBodyAction;
+  revision: number;
+  /** @maxLength 5000 */
+  message?: string;
+};
 
 export type VoiceCommandBodyVoice = typeof VoiceCommandBodyVoice[keyof typeof VoiceCommandBodyVoice];
 

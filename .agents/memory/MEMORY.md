@@ -4,4 +4,7 @@
 - [CREWON branding](crewon-branding.md) — CREWON is the agreed platform name; preserve legacy technical identifiers when updating visible branding.
 - [V1 pilot release gate](v1-pilot-release-gate.md) — Parsley Electrical receptionist, email and unified enquiries must be real and verified before Pro modules or parity claims.
 - [Quote workflow safety](quote-workflow-decisions.md) — private costs stay internal; deposits are part of totals; accepted quotes and legacy records must be preserved.
+- [Online quote responses](quote-link-decisions.md) — client sharing requires contractor review; edits and replacement links revoke prior approvals links.
 - [Workflow ownership](workflow-ownership.md) — a responsive preview can be stale; workspace restarts may leave orphan listeners while managed workflows fail.
+- [Expo browser checks](expo-browser-checks.md) — retained tabs and Chromium connectivity emulation need care; intercepted UI checks do not prove native or live API behavior.
+- [Task carry-forward dates](task-carry-forward.md) — preserve original task deadlines; compare calendar dates against the contractor's local day.

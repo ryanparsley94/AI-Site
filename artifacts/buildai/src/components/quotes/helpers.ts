@@ -58,7 +58,7 @@ export function quoteTotal(q: Quote): number {
   return storedTotal(q);
 }
 
-export const statusLabel = (s?: string) => (s === "accepted" ? "Accepted" : s === "reviewed" ? "Reviewed" : "Draft");
+export const statusLabel = (s?: string, sharedAt?: string | null) => (s === "accepted" ? "Accepted" : s === "changes_requested" ? "Changes Requested" : s === "reviewed" ? (sharedAt ? "Pending" : "Reviewed") : "Draft");
 export const todayIso = () => new Date().toISOString().slice(0, 10);
 
 export function apiBase() {

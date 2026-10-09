@@ -33,8 +33,11 @@ const guarded = (handler: (req: Request, res: Response) => Promise<void>) => asy
 };
 
 function mapQuote(q: typeof quotesTable.$inferSelect) {
+  const { acceptanceTokenHash: _privateToken, ...safe } = q;
   return {
-    ...q,
+    ...safe,
+    // Earlier commercial snapshots predate the required timezone field.
+    companySnapshot: q.companySnapshot ? { timezone: "Europe/London", ...q.companySnapshot as object } : null,
     grandTotal: Number(q.grandTotal),
     marginPercent: q.marginPercent !== null ? Number(q.marginPercent) : null,
     vatPercent: q.vatPercent !== null ? Number(q.vatPercent) : null,
@@ -45,6 +48,8 @@ function mapQuote(q: typeof quotesTable.$inferSelect) {
     createdAt: q.createdAt.toISOString(),
     reviewedAt: q.reviewedAt?.toISOString() ?? null,
     acceptedAt: q.acceptedAt?.toISOString() ?? null,
+    sharedAt: q.sharedAt?.toISOString() ?? null,
+    respondedAt: q.respondedAt?.toISOString() ?? null,
   };
 }
 
@@ -222,10 +227,13 @@ router.patch("/quotes/:id", guarded(async (req, res): Promise<void> => {
   }
   const workflow = rest.workflow ?? current.workflow as QuoteWorkflow | null;
   let status = rest.status ?? current.status;
-  if (contentChanged && current.status === "reviewed" && rest.status !== "reviewed") status = "draft";
+   if ((contentChanged || moneyTouched) && ["reviewed", "changes_requested"].includes(current.status) && rest.status !== "reviewed") status = "draft";
   if (status !== "draft" && !workflow) throw new QuoteError("Open this legacy quote for editing and review it before acceptance.");
   if (workflow) validateWorkflow(workflow, status === "reviewed");
   const updateData: Record<string, unknown> = { ...rest, status, revision: current.revision + 1 };
+   if (contentChanged || moneyTouched || rest.status === "reviewed" || (rest.status !== undefined && rest.status !== current.status)) {
+     Object.assign(updateData, { acceptanceTokenHash: null, sharedAt: null, respondedAt: null, changeRequest: null });
+   }
   if (materials !== undefined) updateData.materials = materials;
   if (grandTotal !== undefined) updateData.grandTotal = String(grandTotal);
   if (marginPercent !== undefined) updateData.marginPercent = marginPercent !== null ? String(marginPercent) : null;
@@ -261,6 +269,7 @@ router.post("/quotes/:id/duplicate", guarded(async (req, res) => {
   const [draft] = await db.insert(quotesTable).values({
     ...copy, title: `${original.title} (copy)`, status: "draft", revision: 1,
     reviewedAt: null, acceptedAt: null, companySnapshot: null,
+     acceptanceTokenHash: null, sharedAt: null, respondedAt: null, changeRequest: null,
   }).returning();
   res.status(201).json(CreateQuoteResponse.parse(mapQuote(draft)));
 }));

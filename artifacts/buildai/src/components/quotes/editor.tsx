@@ -134,7 +134,7 @@ export function QuoteEditor({ init, company, onBack, onOpen }: {
       <div className="flex flex-wrap items-center gap-3">
         <Button variant="ghost" className="h-11" onClick={() => { if (!dirty || window.confirm("Leave without saving your changes?")) onBack(); }} data-testid="button-back-quotes"><ArrowLeft className="mr-1 h-4 w-4" />Quotes</Button>
         <h1 className="text-xl font-bold tracking-tight text-secondary">{title || "Untitled quote"}</h1>
-        <Badge variant="outline" data-testid="badge-quote-status">{locked && <Lock className="mr-1 h-3 w-3" />}{statusLabel(effective)}{dirty && quote ? " (unsaved changes)" : ""}</Badge>
+        <Badge variant="outline" data-testid="badge-quote-status">{locked && <Lock className="mr-1 h-3 w-3" />}{statusLabel(effective, quote?.sharedAt)}{dirty && quote ? " (unsaved changes)" : ""}</Badge>
         <span className="text-xs text-muted-foreground">{refText}</span>
       </div>
 
@@ -145,6 +145,7 @@ export function QuoteEditor({ init, company, onBack, onOpen }: {
           {Math.abs(init.legacyOldTotal - calc.total) > 0.005 ? ". These differ, so check every line before saving." : "."} Nothing is rewritten until you save.
         </p>
       )}
+      {quote?.status === "changes_requested" && quote.changeRequest && <p className="rounded-md border border-amber-400/40 bg-amber-400/10 p-3 text-sm" data-testid="notice-change-request">Client requested changes: {quote.changeRequest}</p>}
       {locked && <p className="rounded-md border border-primary/40 bg-primary/10 p-3 text-sm" data-testid="notice-locked">Accepted quotes are read-only. Duplicate it to make changes.</p>}
       {quote && status === "reviewed" && dirty && <p className="text-sm text-amber-300">Saving edits to a reviewed quote returns it to draft.</p>}
 
