@@ -1,7 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { BrandLogo } from "@/components/brand-logo";
 import { cn } from "@/lib/utils";
-import { useUnreviewedWidgetCount } from "@workspace/api-client-react";
+import { getListTasksQueryKey, useListTasks, useUnreviewedWidgetCount } from "@workspace/api-client-react";
 import { 
   LayoutDashboard, 
   Phone, 
@@ -26,6 +26,10 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   const [location] = useLocation();
   const { data: badgeData } = useUnreviewedWidgetCount();
   const unreviewedCount = badgeData?.count ?? 0;
+  const { data: tasks = [] } = useListTasks({
+    query: { queryKey: getListTasksQueryKey(), refetchInterval: 30_000, refetchOnWindowFocus: true },
+  });
+  const pendingTaskCount = tasks.filter((task) => task.status === "pending").length;
 
   const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -69,7 +73,8 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         </div>
         {navItems.map((item) => {
           const isActive = location === item.href || location.startsWith(`${item.href}/`);
-          const showBadge = item.href === "/calls" && unreviewedCount > 0;
+          const badgeCount = item.href === "/tasks" ? pendingTaskCount
+            : item.href === "/calls" ? unreviewedCount : 0;
           return (
             <Link
               key={item.href}
@@ -84,9 +89,14 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
             >
               <item.icon size={18} className={isActive ? "text-sidebar-primary" : "opacity-70"} />
               <span className="flex-1">{item.label}</span>
-              {showBadge && (
-                <span className="ml-auto min-w-[1.25rem] h-5 px-1 rounded-full bg-red-600 text-white text-xs font-bold flex items-center justify-center leading-none">
-                  {unreviewedCount > 99 ? "99+" : unreviewedCount}
+              {badgeCount > 0 && (
+                <span
+                  aria-label={item.href === "/tasks"
+                    ? `${badgeCount} pending task${badgeCount === 1 ? "" : "s"}`
+                    : `${badgeCount} unreviewed calls`}
+                  className="ml-auto min-w-[1.25rem] h-5 px-1 rounded-full bg-red-600 text-white text-xs font-bold flex items-center justify-center leading-none"
+                >
+                  {item.href === "/calls" && badgeCount > 99 ? "99+" : badgeCount}
                 </span>
               )}
             </Link>
