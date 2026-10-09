@@ -7,6 +7,7 @@ const { pipeline } = require('stream/promises');
 let metroProcess = null;
 
 const projectRoot = path.resolve(__dirname, '..');
+const METRO_STARTUP_TIMEOUT_SECONDS = 180;
 
 function findWorkspaceRoot(startDir) {
   let dir = startDir;
@@ -159,6 +160,15 @@ async function startMetro(expoPublicDomain, expoPublicReplId) {
     },
   );
 
+  let metroSpawnError = null;
+  let metroExit = null;
+  metroProcess.once('error', (error) => {
+    metroSpawnError = error;
+  });
+  metroProcess.once('exit', (code, signal) => {
+    metroExit = { code, signal };
+  });
+
   if (metroProcess.stdout) {
     metroProcess.stdout.on('data', (data) => {
       const output = data.toString().trim();
@@ -172,7 +182,7 @@ async function startMetro(expoPublicDomain, expoPublicReplId) {
     });
   }
 
-  for (let i = 0; i < 60; i++) {
+  for (let i = 0; i < METRO_STARTUP_TIMEOUT_SECONDS; i++) {
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
     const healthy = await checkMetroHealth();
@@ -180,10 +190,22 @@ async function startMetro(expoPublicDomain, expoPublicReplId) {
       console.log('Metro ready');
       return;
     }
+    if (metroSpawnError) {
+      exitWithError(`Failed to start Metro: ${metroSpawnError.message}`);
+      return;
+    }
+    if (metroExit) {
+      const reason = metroExit.signal
+        ? `signal ${metroExit.signal}`
+        : `exit code ${metroExit.code}`;
+      exitWithError(`Metro exited before becoming healthy (${reason})`);
+      return;
+    }
   }
 
-  console.error('Metro timeout');
-  process.exit(1);
+  exitWithError(
+    `Metro did not become healthy within ${METRO_STARTUP_TIMEOUT_SECONDS} seconds`,
+  );
 }
 
 async function downloadFile(url, outputPath) {
