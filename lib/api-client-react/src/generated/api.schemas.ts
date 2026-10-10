@@ -225,6 +225,22 @@ export const AssistantTwilioVoice = {
   'PollyBrian-Neural': 'Polly.Brian-Neural',
 } as const;
 
+export type AssistantRealtimeVoice = typeof AssistantRealtimeVoice[keyof typeof AssistantRealtimeVoice];
+
+
+export const AssistantRealtimeVoice = {
+  alloy: 'alloy',
+  ash: 'ash',
+  ballad: 'ballad',
+  coral: 'coral',
+  echo: 'echo',
+  sage: 'sage',
+  shimmer: 'shimmer',
+  verse: 'verse',
+  marin: 'marin',
+  cedar: 'cedar',
+} as const;
+
 export type AssistantPersonality = typeof AssistantPersonality[keyof typeof AssistantPersonality];
 
 
@@ -247,6 +263,8 @@ export interface Assistant {
   /** @nullable */
   businessName?: string | null;
   twilioVoice: AssistantTwilioVoice;
+  realtimeVoice: AssistantRealtimeVoice;
+  receptionistStyle: string;
   personality: AssistantPersonality;
   greeting?: string;
   /** @nullable */
@@ -290,6 +308,22 @@ export const AssistantInputTwilioVoice = {
   'PollyBrian-Neural': 'Polly.Brian-Neural',
 } as const;
 
+export type AssistantInputRealtimeVoice = typeof AssistantInputRealtimeVoice[keyof typeof AssistantInputRealtimeVoice];
+
+
+export const AssistantInputRealtimeVoice = {
+  alloy: 'alloy',
+  ash: 'ash',
+  ballad: 'ballad',
+  coral: 'coral',
+  echo: 'echo',
+  sage: 'sage',
+  shimmer: 'shimmer',
+  verse: 'verse',
+  marin: 'marin',
+  cedar: 'cedar',
+} as const;
+
 export type AssistantInputPersonality = typeof AssistantInputPersonality[keyof typeof AssistantInputPersonality];
 
 
@@ -311,6 +345,8 @@ export interface AssistantInput {
   /** @nullable */
   businessName?: string | null;
   twilioVoice?: AssistantInputTwilioVoice;
+  realtimeVoice?: AssistantInputRealtimeVoice;
+  receptionistStyle?: string;
   personality: AssistantInputPersonality;
   greeting?: string;
   instructions?: string;
@@ -402,6 +438,22 @@ export const AssistantUpdateVoice = {
   shimmer: 'shimmer',
 } as const;
 
+export type AssistantUpdateRealtimeVoice = typeof AssistantUpdateRealtimeVoice[keyof typeof AssistantUpdateRealtimeVoice];
+
+
+export const AssistantUpdateRealtimeVoice = {
+  alloy: 'alloy',
+  ash: 'ash',
+  ballad: 'ballad',
+  coral: 'coral',
+  echo: 'echo',
+  sage: 'sage',
+  shimmer: 'shimmer',
+  verse: 'verse',
+  marin: 'marin',
+  cedar: 'cedar',
+} as const;
+
 export type AssistantUpdatePersonality = typeof AssistantUpdatePersonality[keyof typeof AssistantUpdatePersonality];
 
 
@@ -415,6 +467,8 @@ export interface AssistantUpdate {
   name?: string;
   type?: AssistantUpdateType;
   voice?: AssistantUpdateVoice;
+  realtimeVoice?: AssistantUpdateRealtimeVoice;
+  receptionistStyle?: string;
   personality?: AssistantUpdatePersonality;
   greeting?: string;
   instructions?: string;

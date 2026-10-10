@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { createHmac } from "node:crypto";
 import { db, jobsTable, quotesTable, invoicesTable } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { convertToWav, speechToText } from "@workspace/integrations-openai-ai-server/audio";
@@ -146,6 +147,8 @@ type Session = {
   voice_id: string;
   bot_greeting: string;
   bot_instructions: string;
+  realtime_voice: string;
+  receptionist_style: string;
   call_id: number | null;
   step: number;
   retries: number;
@@ -156,6 +159,10 @@ type Session = {
 };
 
 export const phoneRouter = PhoneRouter();
+
+function xmlEscape(value: string): string {
+  return value.replace(/[<>&"']/g, ch => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&apos;" })[ch]!);
+}
 
 function twiml(res: Response, body: string): void {
   res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?><Response>${body}</Response>`);
@@ -174,18 +181,21 @@ phoneRouter.use(["/voice/incoming", "/voice/answer", "/voice/status"], (req, res
 });
 
 type SelectedPhoneBot = {
+  id: number;
   name: string;
   business_name: string | null;
   twilio_voice: string;
   greeting: string;
   instructions: string | null;
+  realtime_voice: string;
+  receptionist_style: string;
 };
 
 async function getSelectedBotForPhoneNumber(phoneNumber: string): Promise<SelectedPhoneBot | null> {
   const normalizedNumber = phoneNumber.trim();
   if (!/^\+[1-9]\d{7,14}$/.test(normalizedNumber)) return null;
   const result = await pool.query<SelectedPhoneBot>(
-    `SELECT name, business_name, twilio_voice, greeting, instructions
+    `SELECT id, name, business_name, twilio_voice, greeting, instructions, realtime_voice, receptionist_style
      FROM assistants
      WHERE type='phone' AND active=true AND twilio_phone_number=$1
      LIMIT 1`,
@@ -204,8 +214,8 @@ async function ensureSession(sid: string, from: string, to: string): Promise<Ses
     );
     const company = companyResult.rows[0];
     await client.query(
-      `INSERT INTO voice_call_sessions(call_sid, caller_phone, called_phone, company_name, voice_agent_name, voice_id, bot_greeting, bot_instructions)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO NOTHING`,
+      `INSERT INTO voice_call_sessions(call_sid, caller_phone, called_phone, company_name, voice_agent_name, voice_id, bot_greeting, bot_instructions, realtime_voice, receptionist_style, realtime_mode, assistant_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,true,$11) ON CONFLICT DO NOTHING`,
       [
         sid,
         from,
@@ -215,6 +225,9 @@ async function ensureSession(sid: string, from: string, to: string): Promise<Ses
         selectedBot?.twilio_voice || DEFAULT_TWILIO_VOICE,
         selectedBot?.greeting || "",
         selectedBot?.instructions || "",
+        selectedBot?.realtime_voice || "marin",
+        selectedBot?.receptionist_style || "Warm, professional, concise and naturally British where appropriate.",
+        selectedBot?.id ?? null,
       ],
     );
     const result = await client.query<Session>("SELECT * FROM voice_call_sessions WHERE call_sid=$1 FOR UPDATE", [sid]);
@@ -397,7 +410,7 @@ async function confirmToCaller(sid: string): Promise<void> {
   }
 }
 
-async function finish(sid: string): Promise<void> {
+export async function finish(sid: string): Promise<void> {
   const client = await pool.connect();
   let shouldNotify = false;
   try {
@@ -451,12 +464,14 @@ phoneRouter.post("/voice/incoming", async (req, res): Promise<void> => {
   try {
     const session = await ensureSession(sid, String(req.body.From ?? ""), String(req.body.To ?? ""));
     if (session.completed) { twiml(res, `${buildSpeech("Thank you. Goodbye.", session.voice_id)}<Hangup/>`); return; }
-    twiml(res, buildIncomingVoiceResponse(session.step, "How can I help with your enquiry?", {
-      businessName: session.company_name,
-      agentName: session.voice_agent_name,
-      voiceId: session.voice_id,
-      greeting: session.bot_greeting,
-    }));
+    if (!process.env.OPENAI_API_KEY) {
+      twiml(res, `<Say voice="Polly.Amy-Neural" language="en-GB">Our phone assistant is not configured yet. Please call again later.</Say><Hangup/>`);
+      return;
+    }
+    const base = new URL(process.env.VOICE_PUBLIC_BASE_URL!);
+    const streamUrl = `wss://${base.host}/api/voice/stream`;
+    const token = createHmac("sha256", process.env.TWILIO_AUTH_TOKEN!).update(sid).digest("hex");
+    twiml(res, `<Connect><Stream url="${xmlEscape(streamUrl)}"><Parameter name="callSid" value="${xmlEscape(sid)}"/><Parameter name="auth" value="${token}"/></Stream></Connect>`);
   } catch (error) { logger.error({ err: error }, "Voice incoming failed"); res.status(500).end(); }
 });
 
@@ -552,7 +567,12 @@ phoneRouter.post("/voice/status", async (req, res): Promise<void> => {
   const sid = String(req.body.CallSid ?? "");
   if (!/^CA[a-fA-F0-9]{32}$/.test(sid)) { res.status(400).end(); return; }
   if (["completed", "busy", "failed", "no-answer"].includes(String(req.body.CallStatus ?? ""))) {
-    try { await finish(sid); } catch (error) { logger.error({ err: error, sid }, "Voice status failed"); res.status(500).end(); return; }
+    try {
+      const result = await pool.query<{ realtime_mode: boolean }>("SELECT realtime_mode FROM voice_call_sessions WHERE call_sid=$1", [sid]);
+      // For media streams, the WebSocket finalizer first flushes the asynchronous
+      // transcript and extraction, then calls finish(). Avoid racing it here.
+      if (!result.rows[0]?.realtime_mode) await finish(sid);
+    } catch (error) { logger.error({ err: error, sid }, "Voice status failed"); res.status(500).end(); return; }
   }
   res.status(204).end();
 });

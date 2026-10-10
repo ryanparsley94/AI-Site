@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   useListAssistants,
   useCreateAssistant,
@@ -11,8 +11,10 @@ import {
   useDeleteAssistantTraining,
   useTestAssistant,
   AssistantInputVoice,
+  AssistantInputRealtimeVoice,
   AssistantInputPersonality,
   AssistantUpdateVoice,
+  AssistantUpdateRealtimeVoice,
   AssistantUpdatePersonality,
   AssistantInputType,
   useListMarketingDrafts,
@@ -439,6 +441,32 @@ function PhoneFormFields({
   template: TradeTemplate | null;
   onTemplateSelect: (t: TradeTemplate) => void;
 }) {
+  const [previewVoice, setPreviewVoice] = useState(defaults?.realtimeVoice || "marin");
+  const [previewing, setPreviewing] = useState(false);
+  const { toast } = useToast();
+  const playRealtimePreview = async () => {
+    setPreviewing(true);
+    try {
+      const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+      const response = await fetch(`${base}/api/assistants/voice-preview`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ voice: previewVoice, text: "Hello, you've reached Parsley Electrical. How can I help?" }),
+      });
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}));
+        throw new Error(result.error || "Could not create a voice preview.");
+      }
+      const url = URL.createObjectURL(await response.blob());
+      const audio = new Audio(url);
+      audio.onended = () => { URL.revokeObjectURL(url); setPreviewing(false); };
+      audio.onerror = () => { URL.revokeObjectURL(url); setPreviewing(false); };
+      await audio.play();
+    } catch (error) {
+      toast({ title: error instanceof Error ? error.message : "Could not play voice preview", variant: "destructive" });
+      setPreviewing(false);
+    }
+  };
   return (
     <div className="space-y-4">
       <input type="hidden" name="voice" value={voice} />
@@ -466,7 +494,7 @@ function PhoneFormFields({
             <Input name="businessName" placeholder="Parsley Electrical" defaultValue={defaults?.businessName} />
           </div>
           <div className="space-y-2 sm:col-span-2">
-            <Label>Twilio British neural voice</Label>
+            <Label>Legacy Twilio voice (not used for Realtime calls)</Label>
             <select
               name="twilioVoice"
               defaultValue={defaults?.twilioVoice || "Polly.Amy-Neural"}
@@ -477,6 +505,43 @@ function PhoneFormFields({
               <option value="Polly.Arthur-Neural">Arthur · Male</option>
               <option value="Polly.Brian-Neural">Brian · Male</option>
             </select>
+          </div>
+          <div className="space-y-2">
+            <Label>OpenAI Realtime voice</Label>
+            <select
+              name="realtimeVoice"
+              value={previewVoice}
+              onChange={e => setPreviewVoice(e.target.value)}
+              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+            >
+              <option value="marin">Marin · warm, natural</option>
+              <option value="cedar">Cedar · clear, grounded</option>
+              <option value="coral">Coral · expressive</option>
+              <option value="sage">Sage · composed</option>
+              <option value="alloy">Alloy · balanced</option>
+              <option value="ash">Ash · direct</option>
+              <option value="ballad">Ballad · gentle</option>
+              <option value="echo">Echo · bright</option>
+              <option value="shimmer">Shimmer · light</option>
+              <option value="verse">Verse · animated</option>
+            </select>
+          </div>
+          <div className="flex items-end">
+            <Button type="button" variant="outline" disabled={previewing} onClick={playRealtimePreview} className="w-full gap-2">
+              {previewing ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+              Preview selected voice
+            </Button>
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label>Receptionist speaking style</Label>
+            <Textarea
+              name="receptionistStyle"
+              rows={2}
+              maxLength={500}
+              defaultValue={defaults?.receptionistStyle || "Warm, professional, concise and naturally British where appropriate."}
+              placeholder="Warm, professional, concise and naturally British where appropriate."
+            />
+            <p className="text-xs text-muted-foreground">The selected Realtime voice and style apply to every call to this bot.</p>
           </div>
         </div>
 
@@ -933,6 +998,8 @@ function AssistantEditDialog({
           twilioPhoneNumber: String(fd.get("twilioPhoneNumber") || "").trim() || null,
           businessName: String(fd.get("businessName") || "").trim() || null,
           twilioVoice: String(fd.get("twilioVoice") || "Polly.Amy-Neural") as "Polly.Amy-Neural" | "Polly.Emma-Neural" | "Polly.Arthur-Neural" | "Polly.Brian-Neural",
+            realtimeVoice: String(fd.get("realtimeVoice") || "marin") as AssistantUpdateRealtimeVoice,
+            receptionistStyle: String(fd.get("receptionistStyle") || "Warm, professional, concise and naturally British where appropriate."),
         } : {}),
         personality: fd.get("personality") as AssistantUpdatePersonality,
         greeting: fd.get("greeting") as string || undefined,
@@ -979,6 +1046,8 @@ function AssistantEditDialog({
                       twilioPhoneNumber: assistant.twilioPhoneNumber ?? "",
                       businessName: assistant.businessName ?? "",
                       twilioVoice: assistant.twilioVoice,
+                      realtimeVoice: assistant.realtimeVoice,
+                      receptionistStyle: assistant.receptionistStyle,
                     }}
                     voice={voice}
                     onVoiceChange={setVoice}
@@ -1168,6 +1237,8 @@ function CreateDialog({
           twilioPhoneNumber: String(fd.get("twilioPhoneNumber") || "").trim() || null,
           businessName: String(fd.get("businessName") || "").trim() || null,
           twilioVoice: String(fd.get("twilioVoice") || "Polly.Amy-Neural") as "Polly.Amy-Neural" | "Polly.Emma-Neural" | "Polly.Arthur-Neural" | "Polly.Brian-Neural",
+            realtimeVoice: String(fd.get("realtimeVoice") || "marin") as AssistantInputRealtimeVoice,
+            receptionistStyle: String(fd.get("receptionistStyle") || "Warm, professional, concise and naturally British where appropriate."),
         } : {}),
         personality: fd.get("personality") as AssistantInputPersonality,
         greeting: fd.get("greeting") as string || undefined,
@@ -1500,6 +1571,13 @@ export default function Assistants() {
   const deleteAssistant = useDeleteAssistant();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [voiceSetup, setVoiceSetup] = useState<{ openAiApiKey: boolean; twilioAuthToken: boolean; voicePublicBaseUrl: boolean } | null>(null);
+  useEffect(() => {
+    const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+    fetch(`${base}/api/assistants/realtime-status`).then(r => r.ok ? r.json() : null)
+      .then(data => setVoiceSetup(data))
+      .catch(() => setVoiceSetup(null));
+  }, []);
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -1548,6 +1626,15 @@ export default function Assistants() {
 
       <div className="flex-1 overflow-auto p-4 sm:p-6">
         <div className="max-w-6xl mx-auto">
+          <div className={cn("mb-5 rounded-lg border p-4 text-sm", voiceSetup?.openAiApiKey && voiceSetup?.twilioAuthToken && voiceSetup?.voicePublicBaseUrl ? "border-emerald-500/40 bg-emerald-500/5" : "border-amber-500/40 bg-amber-500/5")}>
+            <div className="font-semibold">Realtime phone setup</div>
+            <ul className="mt-2 space-y-1 text-muted-foreground">
+              <li>{voiceSetup?.openAiApiKey ? "Ready" : "Needed"} · Add <code className="rounded bg-muted px-1">OPENAI_API_KEY</code> in Replit Secrets for voice previews and live calls.</li>
+              <li>{voiceSetup?.twilioAuthToken ? "Ready" : "Needed"} · Add <code className="rounded bg-muted px-1">TWILIO_AUTH_TOKEN</code> in Replit Secrets to verify Twilio requests and secure the media stream.</li>
+              <li>{voiceSetup?.voicePublicBaseUrl ? "Ready" : "Needed"} · Set <code className="rounded bg-muted px-1">VOICE_PUBLIC_BASE_URL</code> to this app’s public HTTPS base URL.</li>
+            </ul>
+            <p className="mt-2 text-muted-foreground">Secret values stay server-side and are never shown. Configure the Twilio number’s voice webhook to POST to <code>/api/voice/incoming</code>.</p>
+          </div>
           {isLoading ? (
             <div className="text-center py-20 text-muted-foreground">Loading assistants…</div>
           ) : assistants.length === 0 ? (

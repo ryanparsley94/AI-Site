@@ -10,6 +10,8 @@ export const assistantsTable = pgTable("assistants", {
   twilioPhoneNumber: text("twilio_phone_number"),
   businessName: text("business_name"),
   twilioVoice: text("twilio_voice").notNull().default("Polly.Amy-Neural"),
+  realtimeVoice: text("realtime_voice").notNull().default("marin"),
+  receptionistStyle: text("receptionist_style").notNull().default("Warm, professional, concise and naturally British where appropriate."),
   personality: text("personality").notNull().default("professional"),
   greeting: text("greeting").notNull().default("Thank you for calling. How can I help you today?"),
   instructions: text("instructions"),
