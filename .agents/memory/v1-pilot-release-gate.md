@@ -11,6 +11,12 @@ CREWON V1 must first prove the Parsley Electrical receptionist-to-office loop. P
 
 Real incoming call, real inbound email, actual outbound confirmation, correct contact/enquiry linking and correct booking are release checks, not demo labels or manually fabricated successes. Do not claim the pilot is live or competitive parity until those real paths have been verified. Phone reception must not live-transfer or forward the caller. Preserve existing business/customer data and other modules.
 
+For Phase 1 implementation, use the connected GitHub `crewon-v1-phase1` branch as the source of truth. Merge it into the Replit workspace rather than resetting local history. Preserve its Twilio bidirectional Media Stream to OpenAI Realtime path, the voice picker, legacy Gather fallback, and post-call CRM finalisation; limit local changes to operational defects needed to run the supplied branch.
+
+**Why:** The user explicitly chose this branch as the baseline and asked that its architecture and the current product remain intact.
+
+**How to apply:** Compare branch and workspace history before syncing, preserve unrelated committed product work, update the pnpm lockfile, then run repository typechecks/builds/tests and verify the development workflow.
+
 The user chose Twilio for phone/SMS and identified https://parsleyelectrical.co.uk as the pilot's business website.
 
 **Why:** These were explicitly supplied for the Parsley pilot rather than inferred from sample app data.
