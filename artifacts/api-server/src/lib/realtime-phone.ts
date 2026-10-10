@@ -237,6 +237,10 @@ export function attachRealtimePhone(server: HttpServer): void {
     const transcript: TranscriptEntry[] = [];
     let persistChain: Promise<void> = Promise.resolve();
     let toolChain: Promise<void> = Promise.resolve();
+    let playbackGeneration = 0;
+    let currentOutputItemId = "";
+    let sentAudioMs = 0;
+    let playedAudioMs = 0;
 
     const queuePersist = () => {
       if (!callId) return;
@@ -269,7 +273,28 @@ export function attachRealtimePhone(server: HttpServer): void {
 
     const clearTwilioPlayback = () => {
       if (!streamSid || twilio.readyState !== WebSocket.OPEN) return;
+
+      const interruptedItemId = currentOutputItemId;
+      const truncateAtMs = Math.max(0, Math.floor(playedAudioMs));
+
+      // Twilio returns outstanding mark events after a clear. Advance the
+      // generation first so those cleared marks cannot be mistaken for audio
+      // the caller actually heard.
+      playbackGeneration += 1;
       twilio.send(JSON.stringify({ event: "clear", streamSid }));
+
+      if (interruptedItemId && isOpen(openai)) {
+        sendToOpenAI({
+          type: "conversation.item.truncate",
+          item_id: interruptedItemId,
+          content_index: 0,
+          audio_end_ms: truncateAtMs,
+        });
+      }
+
+      currentOutputItemId = "";
+      sentAudioMs = 0;
+      playedAudioMs = 0;
     };
 
     const returnToolResult = (callIdValue: string, result: unknown) => {
@@ -514,11 +539,30 @@ export function attachRealtimePhone(server: HttpServer): void {
 
         if (event.type === "response.output_audio.delta" && typeof event.delta === "string") {
           if (streamSid && twilio.readyState === WebSocket.OPEN) {
+            const itemId = typeof event.item_id === "string" ? event.item_id : "";
+            if (itemId && itemId !== currentOutputItemId) {
+              playbackGeneration += 1;
+              currentOutputItemId = itemId;
+              sentAudioMs = 0;
+              playedAudioMs = 0;
+            }
+
+            // PCMU is 8 kHz, 8-bit: 8 decoded bytes = 1 ms of audio.
+            sentAudioMs += Buffer.from(event.delta, "base64").length / 8;
             twilio.send(
               JSON.stringify({
                 event: "media",
                 streamSid,
                 media: { payload: event.delta },
+              }),
+            );
+            twilio.send(
+              JSON.stringify({
+                event: "mark",
+                streamSid,
+                mark: {
+                  name: `ai:${playbackGeneration}:${Math.round(sentAudioMs)}`,
+                },
               }),
             );
           }
@@ -626,6 +670,14 @@ export function attachRealtimePhone(server: HttpServer): void {
           sendToOpenAI({ type: "input_audio_buffer.append", audio: message.media.payload });
         } else if (pendingAudio.length < MAX_PENDING_AUDIO) {
           pendingAudio.push(message.media.payload);
+        }
+        return;
+      }
+
+      if (message.event === "mark" && typeof message.mark?.name === "string") {
+        const match = /^ai:(\d+):(\d+)$/.exec(message.mark.name);
+        if (match && Number(match[1]) === playbackGeneration) {
+          playedAudioMs = Math.max(playedAudioMs, Number(match[2]));
         }
         return;
       }
