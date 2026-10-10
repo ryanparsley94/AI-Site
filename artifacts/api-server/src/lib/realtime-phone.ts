@@ -427,7 +427,6 @@ export function attachRealtimePhone(server: HttpServer): void {
         {
           headers: {
             Authorization: `Bearer ${apiKey}`,
-            "OpenAI-Beta": "realtime=v1",
           },
         },
       );
