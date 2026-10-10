@@ -405,11 +405,17 @@ export const UpdateCompanyResponse = zod.object({
 /**
  * @summary List all AI assistants
  */
+export const listAssistantsResponseTwilioPhoneNumberRegExp = new RegExp('^\\+[1-9][0-9]{7,14}$');
+
+
 export const ListAssistantsResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "type": zod.enum(['phone', 'email', 'chat', 'marketing', 'scheduling']),
   "voice": zod.enum(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']),
+  "twilioPhoneNumber": zod.string().regex(listAssistantsResponseTwilioPhoneNumberRegExp).nullish(),
+  "businessName": zod.string().nullish(),
+  "twilioVoice": zod.enum(['Polly.Amy-Neural', 'Polly.Emma-Neural', 'Polly.Arthur-Neural', 'Polly.Brian-Neural']),
   "personality": zod.enum(['professional', 'friendly', 'direct']),
   "greeting": zod.string().optional(),
   "instructions": zod.string().nullish(),
@@ -424,21 +430,33 @@ export const ListAssistantsResponse = zod.array(ListAssistantsResponseItem)
 /**
  * @summary Create a new AI assistant
  */
+export const createAssistantBodyTwilioPhoneNumberRegExp = new RegExp('^\\+[1-9][0-9]{7,14}$');
+
+
 export const CreateAssistantBody = zod.object({
   "name": zod.string(),
   "type": zod.enum(['phone', 'email', 'chat', 'marketing', 'scheduling']),
   "voice": zod.enum(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']),
+  "twilioPhoneNumber": zod.string().regex(createAssistantBodyTwilioPhoneNumberRegExp).nullish(),
+  "businessName": zod.string().nullish(),
+  "twilioVoice": zod.enum(['Polly.Amy-Neural', 'Polly.Emma-Neural', 'Polly.Arthur-Neural', 'Polly.Brian-Neural']).optional(),
   "personality": zod.enum(['professional', 'friendly', 'direct']),
   "greeting": zod.string().optional(),
   "instructions": zod.string().optional(),
   "active": zod.boolean().optional()
 })
 
+export const createAssistantResponseTwilioPhoneNumberRegExp = new RegExp('^\\+[1-9][0-9]{7,14}$');
+
+
 export const CreateAssistantResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "type": zod.enum(['phone', 'email', 'chat', 'marketing', 'scheduling']),
   "voice": zod.enum(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']),
+  "twilioPhoneNumber": zod.string().regex(createAssistantResponseTwilioPhoneNumberRegExp).nullish(),
+  "businessName": zod.string().nullish(),
+  "twilioVoice": zod.enum(['Polly.Amy-Neural', 'Polly.Emma-Neural', 'Polly.Arthur-Neural', 'Polly.Brian-Neural']),
   "personality": zod.enum(['professional', 'friendly', 'direct']),
   "greeting": zod.string().optional(),
   "instructions": zod.string().nullish(),
@@ -456,11 +474,17 @@ export const GetAssistantParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const getAssistantResponseTwilioPhoneNumberRegExp = new RegExp('^\\+[1-9][0-9]{7,14}$');
+
+
 export const GetAssistantResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "type": zod.enum(['phone', 'email', 'chat', 'marketing', 'scheduling']),
   "voice": zod.enum(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']),
+  "twilioPhoneNumber": zod.string().regex(getAssistantResponseTwilioPhoneNumberRegExp).nullish(),
+  "businessName": zod.string().nullish(),
+  "twilioVoice": zod.enum(['Polly.Amy-Neural', 'Polly.Emma-Neural', 'Polly.Arthur-Neural', 'Polly.Brian-Neural']),
   "personality": zod.enum(['professional', 'friendly', 'direct']),
   "greeting": zod.string().optional(),
   "instructions": zod.string().nullish(),
@@ -488,11 +512,17 @@ export const UpdateAssistantBody = zod.object({
   "active": zod.boolean().optional()
 })
 
+export const updateAssistantResponseTwilioPhoneNumberRegExp = new RegExp('^\\+[1-9][0-9]{7,14}$');
+
+
 export const UpdateAssistantResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "type": zod.enum(['phone', 'email', 'chat', 'marketing', 'scheduling']),
   "voice": zod.enum(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']),
+  "twilioPhoneNumber": zod.string().regex(updateAssistantResponseTwilioPhoneNumberRegExp).nullish(),
+  "businessName": zod.string().nullish(),
+  "twilioVoice": zod.enum(['Polly.Amy-Neural', 'Polly.Emma-Neural', 'Polly.Arthur-Neural', 'Polly.Brian-Neural']),
   "personality": zod.enum(['professional', 'friendly', 'direct']),
   "greeting": zod.string().optional(),
   "instructions": zod.string().nullish(),

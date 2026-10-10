@@ -180,7 +180,27 @@ function ask(step: number, prefix = "", voiceId = DEFAULT_TWILIO_VOICE): string 
   return buildVoiceQuestion(step, questions[step]?.[1], prefix, voiceId);
 }
 
+type SelectedPhoneBot = {
+  name: string;
+  business_name: string | null;
+  twilio_voice: string;
+};
+
+async function getSelectedBotForPhoneNumber(phoneNumber: string): Promise<SelectedPhoneBot | null> {
+  const normalizedNumber = phoneNumber.trim();
+  if (!/^\+[1-9]\d{7,14}$/.test(normalizedNumber)) return null;
+  const result = await pool.query<SelectedPhoneBot>(
+    `SELECT name, business_name, twilio_voice
+     FROM assistants
+     WHERE type='phone' AND active=true AND twilio_phone_number=$1
+     LIMIT 1`,
+    [normalizedNumber],
+  );
+  return result.rows[0] ?? null;
+}
+
 async function ensureSession(sid: string, from: string, to: string): Promise<Session> {
+  const selectedBot = await getSelectedBotForPhoneNumber(to);
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -191,7 +211,14 @@ async function ensureSession(sid: string, from: string, to: string): Promise<Ses
     await client.query(
       `INSERT INTO voice_call_sessions(call_sid, caller_phone, called_phone, company_name, voice_agent_name, voice_id)
        VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING`,
-      [sid, from, to, company?.name || "Parsley Electrical", company?.voice_agent_name || null, company?.voice_id || DEFAULT_TWILIO_VOICE],
+      [
+        sid,
+        from,
+        to,
+        selectedBot?.business_name?.trim() || company?.name || "Parsley Electrical",
+        selectedBot?.name?.trim() || null,
+        selectedBot?.twilio_voice || DEFAULT_TWILIO_VOICE,
+      ],
     );
     const result = await client.query<Session>("SELECT * FROM voice_call_sessions WHERE call_sid=$1 FOR UPDATE", [sid]);
     const session = result.rows[0];

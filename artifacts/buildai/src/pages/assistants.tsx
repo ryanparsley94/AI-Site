@@ -448,6 +448,38 @@ function PhoneFormFields({
       <div className="border-t pt-4 space-y-4">
         <CommonFields defaults={defaults} typeConfig={ASSISTANT_TYPES[0]} />
 
+        <div className="grid gap-3 rounded-lg border border-border p-3 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label>Twilio number for this bot</Label>
+            <Input
+              name="twilioPhoneNumber"
+              type="tel"
+              inputMode="tel"
+              pattern={"\\+[1-9][0-9]{7,14}"}
+              placeholder="+441234567890"
+              defaultValue={defaults?.twilioPhoneNumber}
+            />
+            <p className="text-xs text-muted-foreground">Use E.164 format. Calls to this number select this bot.</p>
+          </div>
+          <div className="space-y-2">
+            <Label>Business name callers hear</Label>
+            <Input name="businessName" placeholder="Parsley Electrical" defaultValue={defaults?.businessName} />
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label>Twilio British neural voice</Label>
+            <select
+              name="twilioVoice"
+              defaultValue={defaults?.twilioVoice || "Polly.Amy-Neural"}
+              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+            >
+              <option value="Polly.Amy-Neural">Amy · Female</option>
+              <option value="Polly.Emma-Neural">Emma · Female</option>
+              <option value="Polly.Arthur-Neural">Arthur · Male</option>
+              <option value="Polly.Brian-Neural">Brian · Male</option>
+            </select>
+          </div>
+        </div>
+
         <div className="space-y-2">
           <Label className="flex items-center gap-2">
             <Volume2 size={14} /> Voice Profile
@@ -890,12 +922,18 @@ function AssistantEditDialog({
 
   const handleUpdate = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!assistant) return;
     const fd = new FormData(e.currentTarget);
     updateAssistant.mutate({
       id,
       data: {
         name: fd.get("name") as string,
         voice: fd.get("voice") as AssistantUpdateVoice,
+        ...(assistant.type === "phone" ? {
+          twilioPhoneNumber: String(fd.get("twilioPhoneNumber") || "").trim() || null,
+          businessName: String(fd.get("businessName") || "").trim() || null,
+          twilioVoice: String(fd.get("twilioVoice") || "Polly.Amy-Neural") as "Polly.Amy-Neural" | "Polly.Emma-Neural" | "Polly.Arthur-Neural" | "Polly.Brian-Neural",
+        } : {}),
         personality: fd.get("personality") as AssistantUpdatePersonality,
         greeting: fd.get("greeting") as string || undefined,
         instructions: fd.get("instructions") as string || undefined,
@@ -938,6 +976,9 @@ function AssistantEditDialog({
                       personality: assistant.personality,
                       greeting: assistant.greeting ?? "",
                       instructions: assistant.instructions ?? "",
+                      twilioPhoneNumber: assistant.twilioPhoneNumber ?? "",
+                      businessName: assistant.businessName ?? "",
+                      twilioVoice: assistant.twilioVoice,
                     }}
                     voice={voice}
                     onVoiceChange={setVoice}
@@ -1123,6 +1164,11 @@ function CreateDialog({
         name: fd.get("name") as string,
         type: selectedType,
         voice: fd.get("voice") as AssistantInputVoice,
+        ...(selectedType === "phone" ? {
+          twilioPhoneNumber: String(fd.get("twilioPhoneNumber") || "").trim() || null,
+          businessName: String(fd.get("businessName") || "").trim() || null,
+          twilioVoice: String(fd.get("twilioVoice") || "Polly.Amy-Neural") as "Polly.Amy-Neural" | "Polly.Emma-Neural" | "Polly.Arthur-Neural" | "Polly.Brian-Neural",
+        } : {}),
         personality: fd.get("personality") as AssistantInputPersonality,
         greeting: fd.get("greeting") as string || undefined,
         instructions: fd.get("instructions") as string || undefined,

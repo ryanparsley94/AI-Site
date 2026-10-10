@@ -82,6 +82,12 @@ const MIGRATIONS = [
      ADD COLUMN IF NOT EXISTS company_name text NOT NULL DEFAULT '',
      ADD COLUMN IF NOT EXISTS voice_agent_name text,
      ADD COLUMN IF NOT EXISTS voice_id text NOT NULL DEFAULT 'Polly.Amy-Neural'`,
+  `ALTER TABLE assistants
+     ADD COLUMN IF NOT EXISTS twilio_phone_number text,
+     ADD COLUMN IF NOT EXISTS business_name text,
+     ADD COLUMN IF NOT EXISTS twilio_voice text NOT NULL DEFAULT 'Polly.Amy-Neural'`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS assistants_twilio_phone_number_unique
+     ON assistants (twilio_phone_number) WHERE twilio_phone_number IS NOT NULL`,
 ];
 
 async function runMigrations(): Promise<void> {
