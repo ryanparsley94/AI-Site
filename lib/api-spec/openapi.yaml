@@ -2025,7 +2025,7 @@ components:
     # ── Assistants ──────────────────────────────────────────────────────────
     Assistant:
       type: object
-      required: [id, name, type, voice, personality, active, createdAt]
+      required: [id, name, type, voice, twilioVoice, personality, active, createdAt]
       properties:
         id:
           type: number
@@ -2037,6 +2037,14 @@ components:
         voice:
           type: string
           enum: [alloy, echo, fable, onyx, nova, shimmer]
+        twilioPhoneNumber:
+          type: ["string", "null"]
+          pattern: "^\\+[1-9][0-9]{7,14}$"
+        businessName:
+          type: ["string", "null"]
+        twilioVoice:
+          type: string
+          enum: [Polly.Amy-Neural, Polly.Emma-Neural, Polly.Arthur-Neural, Polly.Brian-Neural]
         personality:
           type: string
           enum: [professional, friendly, direct]
@@ -2066,6 +2074,14 @@ components:
         voice:
           type: string
           enum: [alloy, echo, fable, onyx, nova, shimmer]
+        twilioPhoneNumber:
+          type: ["string", "null"]
+          pattern: "^\\+[1-9][0-9]{7,14}$"
+        businessName:
+          type: ["string", "null"]
+        twilioVoice:
+          type: string
+          enum: [Polly.Amy-Neural, Polly.Emma-Neural, Polly.Arthur-Neural, Polly.Brian-Neural]
         personality:
           type: string
           enum: [professional, friendly, direct]

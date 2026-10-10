@@ -21,4 +21,4 @@ The caller-facing phone agent uses the business-selected display name and voice;
 
 **Why:** The user clarified that the receptionist should sound like a helpful employee and that each business controls its spoken agent name and voice.
 
-**How to apply:** Read the saved business profile for phone greetings and speech. If no agent name is set, greet callers without inventing one; keep the saved voice consistent through the call.
+**How to apply:** Resolve the receptionist by the incoming Twilio number's explicit bot assignment, never by whichever phone bot happens to be first or active. Read that bot's saved name and voice for the greeting, then keep the voice consistent through the call. If no name is selected, greet callers without inventing one.

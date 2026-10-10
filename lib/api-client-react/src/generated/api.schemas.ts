@@ -215,6 +215,16 @@ export const AssistantVoice = {
   shimmer: 'shimmer',
 } as const;
 
+export type AssistantTwilioVoice = typeof AssistantTwilioVoice[keyof typeof AssistantTwilioVoice];
+
+
+export const AssistantTwilioVoice = {
+  'PollyAmy-Neural': 'Polly.Amy-Neural',
+  'PollyEmma-Neural': 'Polly.Emma-Neural',
+  'PollyArthur-Neural': 'Polly.Arthur-Neural',
+  'PollyBrian-Neural': 'Polly.Brian-Neural',
+} as const;
+
 export type AssistantPersonality = typeof AssistantPersonality[keyof typeof AssistantPersonality];
 
 
@@ -229,6 +239,14 @@ export interface Assistant {
   name: string;
   type: AssistantType;
   voice: AssistantVoice;
+  /**
+     * @nullable
+     * @pattern ^\+[1-9][0-9]{7,14}$
+     */
+  twilioPhoneNumber?: string | null;
+  /** @nullable */
+  businessName?: string | null;
+  twilioVoice: AssistantTwilioVoice;
   personality: AssistantPersonality;
   greeting?: string;
   /** @nullable */
@@ -262,6 +280,16 @@ export const AssistantInputVoice = {
   shimmer: 'shimmer',
 } as const;
 
+export type AssistantInputTwilioVoice = typeof AssistantInputTwilioVoice[keyof typeof AssistantInputTwilioVoice];
+
+
+export const AssistantInputTwilioVoice = {
+  'PollyAmy-Neural': 'Polly.Amy-Neural',
+  'PollyEmma-Neural': 'Polly.Emma-Neural',
+  'PollyArthur-Neural': 'Polly.Arthur-Neural',
+  'PollyBrian-Neural': 'Polly.Brian-Neural',
+} as const;
+
 export type AssistantInputPersonality = typeof AssistantInputPersonality[keyof typeof AssistantInputPersonality];
 
 
@@ -275,6 +303,14 @@ export interface AssistantInput {
   name: string;
   type: AssistantInputType;
   voice: AssistantInputVoice;
+  /**
+     * @nullable
+     * @pattern ^\+[1-9][0-9]{7,14}$
+     */
+  twilioPhoneNumber?: string | null;
+  /** @nullable */
+  businessName?: string | null;
+  twilioVoice?: AssistantInputTwilioVoice;
   personality: AssistantInputPersonality;
   greeting?: string;
   instructions?: string;
