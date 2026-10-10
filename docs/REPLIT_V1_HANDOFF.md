@@ -60,6 +60,14 @@ After the audio call finishes:
 - notify the owner by email when configured;
 - send caller confirmation SMS when configured.
 
+### Business Setup
+- Public website preview with local/private-network rejection and capped page reads.
+- Website text is treated as untrusted source material, not instructions.
+- OpenAI extracts a factual proposed profile only.
+- Owner can edit the proposed business details, services, service areas, opening hours and greeting.
+- Nothing updates the live receptionist until the owner explicitly applies the reviewed preview.
+- Applying updates the business profile and approved receptionist knowledge.
+
 ### CRM and migration
 - Company-owned contacts.
 - Multiple customer job sites.
