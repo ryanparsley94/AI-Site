@@ -115,12 +115,16 @@ function getTypeConfig(type: string): AssistantTypeConfig {
 // ─── Voice constants ──────────────────────────────────────────────────────────
 
 const VOICES: { value: AssistantInputVoice; label: string; description: string }[] = [
-  { value: "alloy",   label: "Alice",    description: "Neutral, professional" },
-  { value: "echo",    label: "Edward",   description: "Warm, authoritative" },
-  { value: "fable",   label: "Florence", description: "Friendly, approachable" },
-  { value: "onyx",    label: "Oliver",   description: "Deep, confident" },
-  { value: "nova",    label: "Nora",     description: "Energetic, clear" },
-  { value: "shimmer", label: "Sophie",   description: "Bright, reassuring" },
+  { value: "marin",   label: "Marin",   description: "Recommended · warm, natural" },
+  { value: "cedar",   label: "Cedar",   description: "Recommended · clear, grounded" },
+  { value: "coral",   label: "Coral",   description: "Friendly, balanced" },
+  { value: "sage",    label: "Sage",    description: "Calm, professional" },
+  { value: "verse",   label: "Verse",   description: "Expressive, conversational" },
+  { value: "shimmer", label: "Shimmer", description: "Bright, reassuring" },
+  { value: "alloy",   label: "Alloy",   description: "Neutral, versatile" },
+  { value: "ash",     label: "Ash",     description: "Direct, clear" },
+  { value: "ballad",  label: "Ballad",  description: "Warm, expressive" },
+  { value: "echo",    label: "Echo",    description: "Steady, confident" },
 ];
 
 // ─── Trade templates (phone only) ─────────────────────────────────────────────
@@ -152,7 +156,7 @@ const TRADE_TEMPLATES: TradeTemplate[] = [
   {
     label: "Gas Engineer",
     icon: "🔥",
-    voice: "onyx",
+    voice: "cedar",
     personality: "professional",
     greeting: "Hello, you've reached our gas and heating team. What can I help you with today?",
     instructions: `You are a receptionist for a UK Gas Safe registered heating and gas company. You understand:
@@ -166,7 +170,7 @@ const TRADE_TEMPLATES: TradeTemplate[] = [
   {
     label: "Electrician",
     icon: "⚡",
-    voice: "nova",
+    voice: "marin",
     personality: "professional",
     greeting: "Hi there, you've reached our electrical team. How can I help?",
     instructions: `You are a receptionist for a UK NICEIC/NAPIT registered electrical contractor. You understand:
@@ -202,7 +206,7 @@ const TRADE_TEMPLATES: TradeTemplate[] = [
   {
     label: "Painter & Decorator",
     icon: "🎨",
-    voice: "fable",
+    voice: "coral",
     personality: "friendly",
     greeting: "Hi, thanks for calling our decorating team! How can I help you today?",
     instructions: `You are a receptionist for a UK painting and decorating company. You understand:
