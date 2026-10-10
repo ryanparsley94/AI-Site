@@ -77,13 +77,16 @@ const MIGRATIONS = [
     updated_at timestamptz NOT NULL DEFAULT now()
   )`,
   `ALTER TABLE voice_call_sessions ADD COLUMN IF NOT EXISTS customer_confirmation_status text NOT NULL DEFAULT 'pending'`,
-  // 008: Multi-company routing required by the realtime receptionist.
+  // 008: Multi-company phone routing and additive tenant ownership.
+  // Columns stay nullable while legacy data is backfilled; strict tenant auth is
+  // a separate release gate before unrelated companies can be onboarded.
   `ALTER TABLE assistants ADD COLUMN IF NOT EXISTS company_id integer`,
   `ALTER TABLE calls ADD COLUMN IF NOT EXISTS company_id integer`,
   `ALTER TABLE contacts ADD COLUMN IF NOT EXISTS company_id integer`,
   `ALTER TABLE voice_call_sessions
      ADD COLUMN IF NOT EXISTS company_id integer,
-     ADD COLUMN IF NOT EXISTS assistant_id integer`,
+     ADD COLUMN IF NOT EXISTS assistant_id integer,
+     ADD COLUMN IF NOT EXISTS mode text NOT NULL DEFAULT 'gather'`,
   `CREATE TABLE IF NOT EXISTS phone_numbers (
      id serial PRIMARY KEY,
      company_id integer NOT NULL,
@@ -99,27 +102,15 @@ const MIGRATIONS = [
   `CREATE INDEX IF NOT EXISTS phone_numbers_company_idx ON phone_numbers(company_id)`,
   `CREATE INDEX IF NOT EXISTS assistants_company_idx ON assistants(company_id)`,
   `CREATE INDEX IF NOT EXISTS calls_company_idx ON calls(company_id)`,
-  `CREATE INDEX IF NOT EXISTS contacts_company_idx ON contacts(company_id)`,
-  // Preserve the pilot data by attaching pre-existing rows to the first company.
+  `CREATE INDEX IF NOT EXISTS contacts_company_phone_idx ON contacts(company_id,phone)`,
+  `CREATE INDEX IF NOT EXISTS voice_call_sessions_company_idx ON voice_call_sessions(company_id)`,
+  // Preserve the current Parsley pilot rows when the new ownership columns appear.
   `UPDATE assistants SET company_id=(SELECT id FROM companies ORDER BY id LIMIT 1)
      WHERE company_id IS NULL AND EXISTS (SELECT 1 FROM companies)`,
   `UPDATE calls SET company_id=(SELECT id FROM companies ORDER BY id LIMIT 1)
      WHERE company_id IS NULL AND EXISTS (SELECT 1 FROM companies)`,
   `UPDATE contacts SET company_id=(SELECT id FROM companies ORDER BY id LIMIT 1)
      WHERE company_id IS NULL AND EXISTS (SELECT 1 FROM companies)`,
-  // 008: Additive tenant ownership for the phone/CRM pilot. Columns remain nullable
-  // while legacy records are backfilled; tenant route enforcement is a separate release gate.
-  `ALTER TABLE assistants ADD COLUMN IF NOT EXISTS company_id integer`,
-  `ALTER TABLE contacts ADD COLUMN IF NOT EXISTS company_id integer`,
-  `ALTER TABLE calls ADD COLUMN IF NOT EXISTS company_id integer`,
-  `ALTER TABLE voice_call_sessions
-     ADD COLUMN IF NOT EXISTS company_id integer,
-     ADD COLUMN IF NOT EXISTS assistant_id integer,
-     ADD COLUMN IF NOT EXISTS mode text NOT NULL DEFAULT 'gather'`,
-  `CREATE INDEX IF NOT EXISTS assistants_company_id_idx ON assistants(company_id)`,
-  `CREATE INDEX IF NOT EXISTS contacts_company_phone_idx ON contacts(company_id, phone)`,
-  `CREATE INDEX IF NOT EXISTS calls_company_id_idx ON calls(company_id)`,
-  `CREATE INDEX IF NOT EXISTS voice_call_sessions_company_id_idx ON voice_call_sessions(company_id)`,
 
 ];
 
