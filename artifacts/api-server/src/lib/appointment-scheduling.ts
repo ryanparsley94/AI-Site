@@ -280,7 +280,7 @@ export async function bookRealtimeAppointment(
       );
     }
 
-    const inserted = await client.query<typeof job extends infer _T ? {
+    const inserted = await client.query<{
       id: number;
       title: string;
       contact_name: string;
@@ -288,7 +288,7 @@ export async function bookRealtimeAppointment(
       service_type: string;
       scheduled_at: Date;
       estimated_duration: number | null;
-    } : never>(
+    }>(
       `INSERT INTO jobs(
          title,description,status,scheduled_at,estimated_duration,
          contact_name,contact_phone,contact_id,company_id,service_type,address,notes
