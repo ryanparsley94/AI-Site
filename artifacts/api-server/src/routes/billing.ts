@@ -245,8 +245,12 @@ function subscriptionPriceId(object: StripeObject): string | null {
     object.items && typeof object.items === "object"
       ? (object.items as StripeObject)
       : null;
-  const data = Array.isArray(items?.data) ? items!.data : [];
-  const first = data[0] as StripeObject | undefined;
+  const data: unknown[] =
+    items && Array.isArray(items.data) ? items.data : [];
+  const first =
+    data[0] && typeof data[0] === "object"
+      ? (data[0] as StripeObject)
+      : undefined;
   const price =
     first?.price && typeof first.price === "object"
       ? (first.price as StripeObject)
