@@ -16,3 +16,9 @@ The approved palette is deep graphite #0D171C, structure #203038, active cyan #3
 **Why:** The user explicitly approved this logo arrangement and palette and requested that the existing app use it, with tight, legible spacing on phones.
 
 **How to apply:** Keep this identity consistent across web/mobile headers, sign-in, app icons and sharing graphics. Avoid unsupported company-registration or compliance guarantees in marketing copy. Respect saved customer/company branding rather than overwriting their data to apply platform branding.
+
+The caller-facing phone agent uses the business-selected display name and voice; CREWON is the platform name, not the agent's spoken identity. Do not identify the agent as CREWON or as an AI receptionist in its greeting.
+
+**Why:** The user clarified that the receptionist should sound like a helpful employee and that each business controls its spoken agent name and voice.
+
+**How to apply:** Read the saved business profile for phone greetings and speech. If no agent name is set, greet callers without inventing one; keep the saved voice consistent through the call.

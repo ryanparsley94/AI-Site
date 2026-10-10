@@ -328,6 +328,10 @@ export const UpdateWidgetSettingsResponse = zod.object({
 /**
  * @summary Get company profile
  */
+export const getCompanyResponseVoiceAgentNameMax = 50;
+
+
+
 export const GetCompanyResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
@@ -343,6 +347,8 @@ export const GetCompanyResponse = zod.object({
   "paymentTerms": zod.string().nullish(),
   "quoteFooterText": zod.string().nullish(),
   "emailAutoSend": zod.boolean().optional(),
+  "voiceAgentName": zod.string().max(getCompanyResponseVoiceAgentNameMax).nullish(),
+  "voiceId": zod.enum(['Polly.Amy-Neural', 'Polly.Emma-Neural', 'Polly.Arthur-Neural', 'Polly.Brian-Neural']).optional(),
   "createdAt": zod.coerce.date()
 })
 
@@ -350,6 +356,10 @@ export const GetCompanyResponse = zod.object({
 /**
  * @summary Update company profile
  */
+export const updateCompanyBodyVoiceAgentNameMax = 50;
+
+
+
 export const UpdateCompanyBody = zod.object({
   "name": zod.string().optional(),
   "phone": zod.string().optional(),
@@ -362,8 +372,14 @@ export const UpdateCompanyBody = zod.object({
   "quoteAccentColor": zod.string().optional(),
   "quoteTagline": zod.string().optional(),
   "paymentTerms": zod.string().optional(),
-  "quoteFooterText": zod.string().optional()
+  "quoteFooterText": zod.string().optional(),
+  "voiceAgentName": zod.string().max(updateCompanyBodyVoiceAgentNameMax).nullish(),
+  "voiceId": zod.enum(['Polly.Amy-Neural', 'Polly.Emma-Neural', 'Polly.Arthur-Neural', 'Polly.Brian-Neural']).optional()
 })
+
+export const updateCompanyResponseVoiceAgentNameMax = 50;
+
+
 
 export const UpdateCompanyResponse = zod.object({
   "id": zod.number(),
@@ -380,6 +396,8 @@ export const UpdateCompanyResponse = zod.object({
   "paymentTerms": zod.string().nullish(),
   "quoteFooterText": zod.string().nullish(),
   "emailAutoSend": zod.boolean().optional(),
+  "voiceAgentName": zod.string().max(updateCompanyResponseVoiceAgentNameMax).nullish(),
+  "voiceId": zod.enum(['Polly.Amy-Neural', 'Polly.Emma-Neural', 'Polly.Arthur-Neural', 'Polly.Brian-Neural']).optional(),
   "createdAt": zod.coerce.date()
 })
 
@@ -1097,6 +1115,8 @@ export const duplicateQuoteResponseWorkflowOneSectionsItemItemsMax = 500;
 
 export const duplicateQuoteResponseWorkflowOneSectionsMax = 100;
 
+export const duplicateQuoteResponseCompanySnapshotOneVoiceAgentNameMax = 50;
+
 
 
 export const DuplicateQuoteResponse = zod.object({
@@ -1160,6 +1180,8 @@ export const DuplicateQuoteResponse = zod.object({
   "paymentTerms": zod.string().nullish(),
   "quoteFooterText": zod.string().nullish(),
   "emailAutoSend": zod.boolean().optional(),
+  "voiceAgentName": zod.string().max(duplicateQuoteResponseCompanySnapshotOneVoiceAgentNameMax).nullish(),
+  "voiceId": zod.enum(['Polly.Amy-Neural', 'Polly.Emma-Neural', 'Polly.Arthur-Neural', 'Polly.Brian-Neural']).optional(),
   "createdAt": zod.coerce.date()
 }),zod.null()]).optional(),
   "id": zod.number(),
@@ -1295,6 +1317,8 @@ export const listQuotesResponseWorkflowOneSectionsItemItemsMax = 500;
 
 export const listQuotesResponseWorkflowOneSectionsMax = 100;
 
+export const listQuotesResponseCompanySnapshotOneVoiceAgentNameMax = 50;
+
 
 
 export const ListQuotesResponseItem = zod.object({
@@ -1358,6 +1382,8 @@ export const ListQuotesResponseItem = zod.object({
   "paymentTerms": zod.string().nullish(),
   "quoteFooterText": zod.string().nullish(),
   "emailAutoSend": zod.boolean().optional(),
+  "voiceAgentName": zod.string().max(listQuotesResponseCompanySnapshotOneVoiceAgentNameMax).nullish(),
+  "voiceId": zod.enum(['Polly.Amy-Neural', 'Polly.Emma-Neural', 'Polly.Arthur-Neural', 'Polly.Brian-Neural']).optional(),
   "createdAt": zod.coerce.date()
 }),zod.null()]).optional(),
   "id": zod.number(),
@@ -1533,6 +1559,8 @@ export const createQuoteResponseWorkflowOneSectionsItemItemsMax = 500;
 
 export const createQuoteResponseWorkflowOneSectionsMax = 100;
 
+export const createQuoteResponseCompanySnapshotOneVoiceAgentNameMax = 50;
+
 
 
 export const CreateQuoteResponse = zod.object({
@@ -1596,6 +1624,8 @@ export const CreateQuoteResponse = zod.object({
   "paymentTerms": zod.string().nullish(),
   "quoteFooterText": zod.string().nullish(),
   "emailAutoSend": zod.boolean().optional(),
+  "voiceAgentName": zod.string().max(createQuoteResponseCompanySnapshotOneVoiceAgentNameMax).nullish(),
+  "voiceId": zod.enum(['Polly.Amy-Neural', 'Polly.Emma-Neural', 'Polly.Arthur-Neural', 'Polly.Brian-Neural']).optional(),
   "createdAt": zod.coerce.date()
 }),zod.null()]).optional(),
   "id": zod.number(),
@@ -1670,6 +1700,8 @@ export const getQuoteResponseWorkflowOneSectionsItemItemsMax = 500;
 
 export const getQuoteResponseWorkflowOneSectionsMax = 100;
 
+export const getQuoteResponseCompanySnapshotOneVoiceAgentNameMax = 50;
+
 
 
 export const GetQuoteResponse = zod.object({
@@ -1733,6 +1765,8 @@ export const GetQuoteResponse = zod.object({
   "paymentTerms": zod.string().nullish(),
   "quoteFooterText": zod.string().nullish(),
   "emailAutoSend": zod.boolean().optional(),
+  "voiceAgentName": zod.string().max(getQuoteResponseCompanySnapshotOneVoiceAgentNameMax).nullish(),
+  "voiceId": zod.enum(['Polly.Amy-Neural', 'Polly.Emma-Neural', 'Polly.Arthur-Neural', 'Polly.Brian-Neural']).optional(),
   "createdAt": zod.coerce.date()
 }),zod.null()]).optional(),
   "id": zod.number(),
@@ -1912,6 +1946,8 @@ export const updateQuoteResponseWorkflowOneSectionsItemItemsMax = 500;
 
 export const updateQuoteResponseWorkflowOneSectionsMax = 100;
 
+export const updateQuoteResponseCompanySnapshotOneVoiceAgentNameMax = 50;
+
 
 
 export const UpdateQuoteResponse = zod.object({
@@ -1975,6 +2011,8 @@ export const UpdateQuoteResponse = zod.object({
   "paymentTerms": zod.string().nullish(),
   "quoteFooterText": zod.string().nullish(),
   "emailAutoSend": zod.boolean().optional(),
+  "voiceAgentName": zod.string().max(updateQuoteResponseCompanySnapshotOneVoiceAgentNameMax).nullish(),
+  "voiceId": zod.enum(['Polly.Amy-Neural', 'Polly.Emma-Neural', 'Polly.Arthur-Neural', 'Polly.Brian-Neural']).optional(),
   "createdAt": zod.coerce.date()
 }),zod.null()]).optional(),
   "id": zod.number(),

@@ -130,21 +130,25 @@ import { Resend } from "resend";
 import { pool } from "@workspace/db";
 import { logger } from "../lib/logger";
 import { validTwilioRequest } from "../lib/voice-security";
+import { buildIncomingVoiceResponse, buildSpeech, buildVoiceQuestion, DEFAULT_TWILIO_VOICE } from "../lib/voice-twiml";
 
 /** The first pilot uses a controlled interview so a failed AI request cannot lose a caller's message. */
 const questions = [
-  ["name", "Please tell me your full name."],
-  ["phone", "What is the best number to call you back on? You can also say, this number."],
-  ["work", "Please describe the work you need, with as much detail as you can."],
-  ["address", "What is the job address and postcode?"],
-  ["urgency", "Is this urgent or dangerous, or is it a routine enquiry?"],
-  ["availability", "When would you be available for a call or visit?"],
+  ["name", "What's your full name?"],
+  ["phone", "What's the best number to call you back on? You can say, “this number.”"],
+  ["work", "What work do you need done?"],
+  ["address", "What's the job address and postcode?"],
+  ["urgency", "Is it urgent or dangerous, or is it routine?"],
+  ["availability", "When are you available for a call or visit?"],
 ] as const;
 type Field = (typeof questions)[number][0];
 type Answers = Partial<Record<Field, string>>;
 type Session = {
   call_sid: string;
   caller_phone: string;
+  company_name: string;
+  voice_agent_name: string | null;
+  voice_id: string;
   call_id: number | null;
   step: number;
   retries: number;
@@ -155,10 +159,6 @@ type Session = {
 };
 
 export const phoneRouter = PhoneRouter();
-
-function xml(s: string): string {
-  return s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[c]!);
-}
 
 function twiml(res: Response, body: string): void {
   res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?><Response>${body}</Response>`);
@@ -176,27 +176,29 @@ phoneRouter.use(["/voice/incoming", "/voice/answer", "/voice/status"], (req, res
   next();
 });
 
-function ask(step: number, prefix = ""): string {
-  const question = questions[step]?.[1];
-  if (!question) return "<Say>Thank you. We have your message and will be in touch.</Say><Hangup/>";
-  return `<Gather input="speech" language="en-GB" speechTimeout="auto" timeout="6" actionOnEmptyResult="true" method="POST" action="/api/voice/answer?step=${step}"><Say voice="alice" language="en-GB">${xml(prefix + question)}</Say></Gather>`;
+function ask(step: number, prefix = "", voiceId = DEFAULT_TWILIO_VOICE): string {
+  return buildVoiceQuestion(step, questions[step]?.[1], prefix, voiceId);
 }
 
 async function ensureSession(sid: string, from: string, to: string): Promise<Session> {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    const companyResult = await client.query<{ name: string; voice_agent_name: string | null; voice_id: string }>(
+      "SELECT name, voice_agent_name, voice_id FROM companies ORDER BY id LIMIT 1",
+    );
+    const company = companyResult.rows[0];
     await client.query(
-      "INSERT INTO voice_call_sessions(call_sid, caller_phone, called_phone) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING",
-      [sid, from, to],
+      `INSERT INTO voice_call_sessions(call_sid, caller_phone, called_phone, company_name, voice_agent_name, voice_id)
+       VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING`,
+      [sid, from, to, company?.name || "Parsley Electrical", company?.voice_agent_name || null, company?.voice_id || DEFAULT_TWILIO_VOICE],
     );
     const result = await client.query<Session>("SELECT * FROM voice_call_sessions WHERE call_sid=$1 FOR UPDATE", [sid]);
     const session = result.rows[0];
     if (!session.call_id) {
-      const assistant = await client.query<{ name: string }>("SELECT name FROM assistants WHERE active=true AND type='phone' ORDER BY created_at LIMIT 1");
       const call = await client.query<{ id: number }>(
         "INSERT INTO calls(caller_name,caller_phone,assistant_name,status,outcome,notes,transcript) VALUES ($1,$2,$3,'unresolved','New phone enquiry','Call in progress','[]'::jsonb) RETURNING id",
-        ["Unknown caller", from, assistant.rows[0]?.name ?? "CREWON Receptionist"],
+        ["Unknown caller", from, session.voice_agent_name?.trim() || "Phone receptionist"],
       );
       session.call_id = call.rows[0].id;
       await client.query("UPDATE voice_call_sessions SET call_id=$2 WHERE call_sid=$1", [sid, session.call_id]);
@@ -346,8 +348,12 @@ phoneRouter.post("/voice/incoming", async (req, res): Promise<void> => {
   if (!/^CA[a-fA-F0-9]{32}$/.test(sid)) { res.status(400).end(); return; }
   try {
     const session = await ensureSession(sid, String(req.body.From ?? ""), String(req.body.To ?? ""));
-    if (session.completed) { twiml(res, "<Say>Thank you. Goodbye.</Say><Hangup/>"); return; }
-    twiml(res, ask(session.step, session.step === 0 ? "Thank you for calling. I'll take your full message so the team can get back to you. " : ""));
+    if (session.completed) { twiml(res, `${buildSpeech("Thank you. Goodbye.", session.voice_id)}<Hangup/>`); return; }
+    twiml(res, buildIncomingVoiceResponse(session.step, questions[session.step]?.[1], {
+      businessName: session.company_name,
+      agentName: session.voice_agent_name,
+      voiceId: session.voice_id,
+    }));
   } catch (error) { logger.error({ err: error }, "Voice incoming failed"); res.status(500).end(); }
 });
 
@@ -361,12 +367,14 @@ phoneRouter.post("/voice/answer", async (req, res): Promise<void> => {
   let nextStep = 0;
   let done = false;
   let prefix = "";
+  let voiceId = DEFAULT_TWILIO_VOICE;
   try {
     await client.query("BEGIN");
     const result = await client.query<Session>("SELECT * FROM voice_call_sessions WHERE call_sid=$1 FOR UPDATE", [sid]);
     const session = result.rows[0];
     if (!session) { await client.query("ROLLBACK"); res.status(404).end(); return; }
-    if (session.completed) { await client.query("COMMIT"); twiml(res, "<Say>Thank you. Goodbye.</Say><Hangup/>"); return; }
+    voiceId = session.voice_id || DEFAULT_TWILIO_VOICE;
+    if (session.completed) { await client.query("COMMIT"); twiml(res, `${buildSpeech("Thank you. Goodbye.", voiceId)}<Hangup/>`); return; }
     if (session.step === expectedStep) {
       const speech = typeof req.body.SpeechResult === "string" ? req.body.SpeechResult.trim().slice(0, 1000) : "";
       if (speech) {
@@ -399,8 +407,8 @@ phoneRouter.post("/voice/answer", async (req, res): Promise<void> => {
   } finally { client.release(); }
   if (done) {
     try { await finish(sid); } catch (error) { logger.error({ err: error, sid }, "Voice finalisation failed"); res.status(500).end(); return; }
-    twiml(res, "<Say voice=\"alice\" language=\"en-GB\">Thank you. We have your message and the team will be in touch.</Say><Hangup/>");
-  } else twiml(res, ask(nextStep, prefix));
+    twiml(res, `${buildSpeech("Thank you. We have your message and the team will be in touch.", voiceId)}<Hangup/>`);
+  } else twiml(res, ask(nextStep, prefix, voiceId));
 });
 
 // Configure this URL as the Twilio number's status callback (completed event).

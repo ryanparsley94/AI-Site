@@ -21,6 +21,8 @@ export const companiesTable = pgTable("companies", {
   widgetGreeting: text("widget_greeting").default("Hi! How can I help you today?"),
   widgetLeadNotify: boolean("widget_lead_notify").notNull().default(true),
   emailAutoSend: boolean("email_auto_send").notNull().default(false),
+  voiceAgentName: text("voice_agent_name"),
+  voiceId: text("voice_id").notNull().default("Polly.Amy-Neural"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
