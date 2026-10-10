@@ -130,6 +130,7 @@ import { Resend } from "resend";
 import { pool } from "@workspace/db";
 import { logger } from "../lib/logger";
 import { validTwilioRequest } from "../lib/voice-security";
+import { realtimePhoneStreamUrl } from "../lib/realtime-phone";
 
 /** The first pilot uses a controlled interview so a failed AI request cannot lose a caller's message. */
 const questions = [
@@ -347,6 +348,23 @@ phoneRouter.post("/voice/incoming", async (req, res): Promise<void> => {
   try {
     const session = await ensureSession(sid, String(req.body.From ?? ""), String(req.body.To ?? ""));
     if (session.completed) { twiml(res, "<Say>Thank you. Goodbye.</Say><Hangup/>"); return; }
+
+    const realtimeUrl = realtimePhoneStreamUrl();
+    const realtimeEnabled =
+      process.env.VOICE_REALTIME_ENABLED === "true" &&
+      Boolean(process.env.OPENAI_API_KEY) &&
+      Boolean(process.env.VOICE_STREAM_TOKEN) &&
+      Boolean(realtimeUrl);
+
+    if (realtimeEnabled && realtimeUrl) {
+      const streamToken = process.env.VOICE_STREAM_TOKEN ?? "";
+      twiml(
+        res,
+        `<Connect><Stream url="${xml(realtimeUrl)}"><Parameter name="streamToken" value="${xml(streamToken)}" /></Stream></Connect>`,
+      );
+      return;
+    }
+
     twiml(res, ask(session.step, session.step === 0 ? "Thank you for calling. I'll take your full message so the team can get back to you. " : ""));
   } catch (error) { logger.error({ err: error }, "Voice incoming failed"); res.status(500).end(); }
 });
