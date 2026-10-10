@@ -243,7 +243,9 @@ export default function Settings() {
     email: "",
     address: "",
     website: "",
-    timezone: "America/New_York"
+    timezone: "America/New_York",
+    voiceAgentName: "",
+    voiceId: "Polly.Amy-Neural" as "Polly.Amy-Neural" | "Polly.Emma-Neural" | "Polly.Arthur-Neural" | "Polly.Brian-Neural",
   });
 
   const [brandingData, setBrandingData] = useState({
@@ -276,7 +278,9 @@ export default function Settings() {
         email: company.email || "",
         address: company.address || "",
         website: company.website || "",
-        timezone: company.timezone || "America/New_York"
+        timezone: company.timezone || "America/New_York",
+        voiceAgentName: company.voiceAgentName || "",
+        voiceId: company.voiceId || "Polly.Amy-Neural",
       });
       setBrandingData({
         logoUrl: company.logoUrl || "",
@@ -344,7 +348,10 @@ export default function Settings() {
   };
 
   const handleSave = () => {
-    updateCompany.mutate({ data: formData }, {
+    updateCompany.mutate({ data: {
+      ...formData,
+      voiceAgentName: formData.voiceAgentName.trim() || null,
+    } }, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ['/api/company'] });
         toast({ title: "Company profile updated" });
@@ -489,6 +496,37 @@ export default function Settings() {
                       </SelectContent>
                     </Select>
                     <p className="text-[10px] text-muted-foreground">Used for scheduling jobs and after-hours routing.</p>
+                  </div>
+                  <div className="space-y-2 md:col-span-2 rounded-xl border border-border p-4">
+                    <h3 className="font-semibold">Phone receptionist</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Choose the name and natural UK voice callers hear. Leave the name blank to use a greeting without a name.
+                    </p>
+                    <div className="grid md:grid-cols-2 gap-4 pt-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="voiceAgentName">Receptionist name (optional)</Label>
+                        <Input
+                          id="voiceAgentName"
+                          name="voiceAgentName"
+                          value={formData.voiceAgentName}
+                          onChange={handleChange}
+                          maxLength={50}
+                          placeholder="e.g. Olivia"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="voiceId">British English voice</Label>
+                        <Select value={formData.voiceId} onValueChange={(voiceId) => setFormData(prev => ({ ...prev, voiceId: voiceId as typeof prev.voiceId }))}>
+                          <SelectTrigger id="voiceId"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Polly.Amy-Neural">Amy · Female</SelectItem>
+                            <SelectItem value="Polly.Emma-Neural">Emma · Female</SelectItem>
+                            <SelectItem value="Polly.Arthur-Neural">Arthur · Male</SelectItem>
+                            <SelectItem value="Polly.Brian-Neural">Brian · Male</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </CardContent>

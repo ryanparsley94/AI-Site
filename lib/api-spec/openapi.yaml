@@ -1977,6 +1977,12 @@ components:
           type: ["string", "null"]
         emailAutoSend:
           type: boolean
+        voiceAgentName:
+          type: ["string", "null"]
+          maxLength: 50
+        voiceId:
+          type: string
+          enum: [Polly.Amy-Neural, Polly.Emma-Neural, Polly.Arthur-Neural, Polly.Brian-Neural]
         createdAt:
           type: string
           format: date-time
@@ -2009,6 +2015,12 @@ components:
           type: string
         quoteFooterText:
           type: string
+        voiceAgentName:
+          type: ["string", "null"]
+          maxLength: 50
+        voiceId:
+          type: string
+          enum: [Polly.Amy-Neural, Polly.Emma-Neural, Polly.Arthur-Neural, Polly.Brian-Neural]
 
     # ── Assistants ──────────────────────────────────────────────────────────
     Assistant:

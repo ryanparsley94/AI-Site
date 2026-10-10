@@ -111,6 +111,16 @@ export const CompanyQuoteTemplate = {
   minimal: 'minimal',
 } as const;
 
+export type CompanyVoiceId = typeof CompanyVoiceId[keyof typeof CompanyVoiceId];
+
+
+export const CompanyVoiceId = {
+  'PollyAmy-Neural': 'Polly.Amy-Neural',
+  'PollyEmma-Neural': 'Polly.Emma-Neural',
+  'PollyArthur-Neural': 'Polly.Arthur-Neural',
+  'PollyBrian-Neural': 'Polly.Brian-Neural',
+} as const;
+
 export interface Company {
   id: number;
   name: string;
@@ -133,6 +143,12 @@ export interface Company {
   /** @nullable */
   quoteFooterText?: string | null;
   emailAutoSend?: boolean;
+  /**
+     * @maxLength 50
+     * @nullable
+     */
+  voiceAgentName?: string | null;
+  voiceId?: CompanyVoiceId;
   createdAt: string;
 }
 
@@ -143,6 +159,16 @@ export const CompanyInputQuoteTemplate = {
   classic: 'classic',
   modern: 'modern',
   minimal: 'minimal',
+} as const;
+
+export type CompanyInputVoiceId = typeof CompanyInputVoiceId[keyof typeof CompanyInputVoiceId];
+
+
+export const CompanyInputVoiceId = {
+  'PollyAmy-Neural': 'Polly.Amy-Neural',
+  'PollyEmma-Neural': 'Polly.Emma-Neural',
+  'PollyArthur-Neural': 'Polly.Arthur-Neural',
+  'PollyBrian-Neural': 'Polly.Brian-Neural',
 } as const;
 
 export interface CompanyInput {
@@ -158,6 +184,12 @@ export interface CompanyInput {
   quoteTagline?: string;
   paymentTerms?: string;
   quoteFooterText?: string;
+  /**
+     * @maxLength 50
+     * @nullable
+     */
+  voiceAgentName?: string | null;
+  voiceId?: CompanyInputVoiceId;
 }
 
 export type AssistantType = typeof AssistantType[keyof typeof AssistantType];

@@ -75,6 +75,13 @@ const MIGRATIONS = [
     updated_at timestamptz NOT NULL DEFAULT now()
   )`,
   `ALTER TABLE voice_call_sessions ADD COLUMN IF NOT EXISTS customer_confirmation_status text NOT NULL DEFAULT 'pending'`,
+  `ALTER TABLE companies
+     ADD COLUMN IF NOT EXISTS voice_agent_name text,
+     ADD COLUMN IF NOT EXISTS voice_id text NOT NULL DEFAULT 'Polly.Amy-Neural'`,
+  `ALTER TABLE voice_call_sessions
+     ADD COLUMN IF NOT EXISTS company_name text NOT NULL DEFAULT '',
+     ADD COLUMN IF NOT EXISTS voice_agent_name text,
+     ADD COLUMN IF NOT EXISTS voice_id text NOT NULL DEFAULT 'Polly.Amy-Neural'`,
 ];
 
 async function runMigrations(): Promise<void> {
