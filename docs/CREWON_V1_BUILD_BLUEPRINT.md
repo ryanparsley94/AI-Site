@@ -33,7 +33,7 @@ Quotes and invoices already exist in the repo. They can remain available during 
 - Opening hours.
 - Emergency wording and safety rules.
 - Preferred appointment windows.
-- Website knowledge import may assist onboarding but must never be an unrestricted server-side scraper.
+- The implemented website-preview/apply flow reads only public HTTP/HTTPS content, rejects private/local network targets, caps page size, treats page text as untrusted data, and requires owner review before applying company/receptionist knowledge.
 
 ### 2. CRM
 Customer record:
