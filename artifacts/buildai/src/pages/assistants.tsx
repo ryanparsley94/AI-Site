@@ -886,7 +886,7 @@ function AssistantEditDialog({
   const updateAssistant = useUpdateAssistant();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [voice, setVoice] = useState<AssistantInputVoice>("alloy");
+  const [voice, setVoice] = useState<AssistantInputVoice>("marin");
 
   if (assistant && voice !== assistant.voice && !updateAssistant.isPending) {
     setVoice(assistant.voice as AssistantInputVoice);
@@ -1098,7 +1098,7 @@ function CreateDialog({
   const reset = () => {
     setStep("type");
     setSelectedType("phone");
-    setVoice("alloy");
+    setVoice("marin");
     setTemplate(null);
     setFormKey((k) => k + 1);
   };
