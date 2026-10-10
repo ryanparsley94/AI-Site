@@ -202,6 +202,13 @@ router.patch("/assistants/:id/training/:trainingId", async (req, res): Promise<v
   const parsed = UpdateAssistantTrainingBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
+  const companyId = await currentCompanyId();
+  const [owned] = await db
+    .select({ id: assistantsTable.id })
+    .from(assistantsTable)
+    .where(and(eq(assistantsTable.id, params.data.id), eq(assistantsTable.companyId, companyId)));
+  if (!owned) { res.status(404).json({ error: "Assistant not found" }); return; }
+
   const [row] = await db
     .update(assistantTrainingTable)
     .set(parsed.data)
@@ -222,6 +229,12 @@ router.delete("/assistants/:id/training/:trainingId", async (req, res): Promise<
     trainingId: Number(req.params.trainingId),
   });
   if (!params.success) { res.status(400).json({ error: "Invalid params" }); return; }
+  const companyId = await currentCompanyId();
+  const [owned] = await db
+    .select({ id: assistantsTable.id })
+    .from(assistantsTable)
+    .where(and(eq(assistantsTable.id, params.data.id), eq(assistantsTable.companyId, companyId)));
+  if (!owned) { res.status(404).json({ error: "Assistant not found" }); return; }
   await db
     .delete(assistantTrainingTable)
     .where(
