@@ -312,7 +312,7 @@ router.post("/assistants/:id/test", async (req, res): Promise<void> => {
   const systemPrompt = buildSystemPrompt(assistant, trainingEntries);
 
   const completion = await openai.chat.completions.create({
-    model: "gpt-5.6-luna",
+    model: process.env.OPENAI_ASSISTANT_TEST_MODEL || process.env.OPENAI_POSTCALL_MODEL || "gpt-4o-mini",
     max_completion_tokens: 400,
     messages: [
       { role: "system", content: systemPrompt },
