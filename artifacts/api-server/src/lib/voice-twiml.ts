@@ -29,26 +29,38 @@ export function buildVoiceQuestion(step: number, question: string | undefined, p
   return `<Gather input="speech" language="en-GB" speechTimeout="auto" timeout="6" actionOnEmptyResult="true" method="POST" action="/api/voice/answer?step=${step}">${buildSpeech(prefix + question, voiceId)}</Gather>`;
 }
 
+function buildListeningGather(step: number): string {
+  return `<Gather input="speech" language="en-GB" speechTimeout="auto" timeout="6" actionOnEmptyResult="true" method="POST" action="/api/voice/answer?step=${step}"></Gather>`;
+}
+
 function spokenBusinessName(value: string | null | undefined): string {
   const name = value?.trim() || "Parsley Electrical";
   return name.replace(/\s+(?:limited|ltd\.?)$/i, "").trim() || "Parsley Electrical";
 }
 
+function greetingBody(value: string | null | undefined): string {
+  const withoutSalutation = (value ?? "").trim().replace(/^(?:hello|hi(?: there)?|good morning|good afternoon|thanks for calling)[,\s—-]*/i, "");
+  const withoutDuplicateIdentity = withoutSalutation.replace(/^(?:you(?:'ve| have) reached (?:our|the) [^.!?]+[.!?]\s*)/i, "").trim();
+  return withoutDuplicateIdentity || "How can I help?";
+}
+
 export function buildIncomingVoiceResponse(
   step: number,
   question: string | undefined,
-  settings: { businessName?: string | null; agentName?: string | null; voiceId?: string | null } = {},
+  settings: {
+    businessName?: string | null;
+    agentName?: string | null;
+    voiceId?: string | null;
+    greeting?: string | null;
+  } = {},
 ): string {
   const voiceId = resolveTwilioUkNeuralVoice(settings.voiceId);
   const businessName = spokenBusinessName(settings.businessName);
   const agentName = settings.agentName?.trim();
+  const configuredGreeting = greetingBody(settings.greeting);
+  const identity = `Hello, you've reached ${businessName}.${agentName ? ` This is ${agentName}.` : ""}`;
   const greeting = step === 0
-    ? buildSpeech(
-        agentName
-          ? `Hello, you've reached ${businessName}. This is ${agentName}. How can I help?`
-          : `Hello, you've reached ${businessName}. How can I help?`,
-        voiceId,
-      )
+    ? buildSpeech(`${identity} ${configuredGreeting || "How can I help?"}`, voiceId)
     : "";
-  return `${greeting}${buildVoiceQuestion(step, question, "", voiceId)}`;
+  return step === 0 ? `${greeting}${buildListeningGather(step)}` : buildVoiceQuestion(step, question, "", voiceId);
 }

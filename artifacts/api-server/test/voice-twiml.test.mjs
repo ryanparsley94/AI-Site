@@ -13,8 +13,10 @@ test("initial greeting uses the selected agent name, or the unnamed fallback", (
     businessName: "Parsley Electrical",
     agentName: "Olivia",
     voiceId: "Polly.Emma-Neural",
+    greeting: "Hello, you've reached our electrical team. How can I help?",
   });
   assert.match(named, /Hello, you&apos;ve reached Parsley Electrical\. This is Olivia\. How can I help\?/);
+  assert.doesNotMatch(named, /our electrical team/);
   assert.ok(named.indexOf("<Say") < named.indexOf("<Gather"));
   assert.match(named, /voice="Polly\.Emma-Neural" language="en-GB"/);
   assert.doesNotMatch(named, /CREWON|AI receptionist/);
@@ -47,7 +49,7 @@ test("saved voice selection is used for greeting, every prompt, retries, and spo
       `${buildSpeech("Thank you. Goodbye.", voiceId)}<Hangup/>`,
     ];
     const sayTags = turns.flatMap(turn => turn.match(/<Say\b[^>]*>/g) ?? []);
-    assert.equal(sayTags.length, 10);
+    assert.equal(sayTags.length, 9);
     assert.ok(sayTags.every(tag => tag.includes(`voice="${voiceId}"`) && tag.includes('language="en-GB"')));
   }
 });

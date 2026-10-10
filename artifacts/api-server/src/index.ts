@@ -81,7 +81,9 @@ const MIGRATIONS = [
   `ALTER TABLE voice_call_sessions
      ADD COLUMN IF NOT EXISTS company_name text NOT NULL DEFAULT '',
      ADD COLUMN IF NOT EXISTS voice_agent_name text,
-     ADD COLUMN IF NOT EXISTS voice_id text NOT NULL DEFAULT 'Polly.Amy-Neural'`,
+     ADD COLUMN IF NOT EXISTS voice_id text NOT NULL DEFAULT 'Polly.Amy-Neural',
+     ADD COLUMN IF NOT EXISTS bot_greeting text NOT NULL DEFAULT '',
+     ADD COLUMN IF NOT EXISTS bot_instructions text NOT NULL DEFAULT ''`,
   `ALTER TABLE assistants
      ADD COLUMN IF NOT EXISTS twilio_phone_number text,
      ADD COLUMN IF NOT EXISTS business_name text,
