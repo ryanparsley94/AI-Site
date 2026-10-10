@@ -9,7 +9,7 @@ export const companiesTable = pgTable("companies", {
   email: text("email"),
   website: text("website"),
   address: text("address"),
-  timezone: text("timezone").notNull().default("America/New_York"),
+  timezone: text("timezone").notNull().default("Europe/London"),
   logoUrl: text("logo_url"),
   quoteTemplate: text("quote_template").notNull().default("classic"),
   quoteAccentColor: text("quote_accent_color").notNull().default("#f97316"),
