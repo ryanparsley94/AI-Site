@@ -21,6 +21,7 @@ import supportQuestionsRouter from "./support-questions";
 import pilotRouter from "./pilot";
 import importsRouter from "./imports";
 import billingRouter, { billingWebhookRouter } from "./billing";
+import businessSetupRouter from "./business-setup";
 import voiceRouter, { phoneRouter } from "./voice";
 import { adminOnly } from "../lib/adminAuth";
 
@@ -61,6 +62,7 @@ router.use(tasksRouter);
 router.use(pilotRouter);
 router.use(importsRouter);
 router.use(billingRouter);
+router.use(businessSetupRouter);
 router.use(voiceRouter);
 
 export default router;
