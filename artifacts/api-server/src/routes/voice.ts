@@ -150,6 +150,7 @@ type Session = {
   call_id: number | null;
   company_id: number | null;
   assistant_id: number | null;
+  mode: string;
   step: number;
   retries: number;
   answers: Answers;
@@ -436,6 +437,10 @@ phoneRouter.post("/voice/incoming", async (req, res): Promise<void> => {
       Boolean(session.assistant_id);
 
     if (realtimeEnabled && realtimeUrl && session.call_id && session.company_id && session.assistant_id) {
+      await pool.query(
+        "UPDATE voice_call_sessions SET mode='realtime',updated_at=now() WHERE call_sid=$1",
+        [sid],
+      );
       twiml(
         res,
         `<Connect><Stream url="${xml(realtimeUrl)}">` +
@@ -449,6 +454,10 @@ phoneRouter.post("/voice/incoming", async (req, res): Promise<void> => {
 
     // Resilient fallback: if Realtime or credentials are unavailable, capture
     // the enquiry with the existing speech interview rather than dropping calls.
+    await pool.query(
+      "UPDATE voice_call_sessions SET mode='gather',updated_at=now() WHERE call_sid=$1",
+      [sid],
+    );
     twiml(
       res,
       ask(
@@ -522,7 +531,20 @@ phoneRouter.post("/voice/status", async (req, res): Promise<void> => {
   const sid = String(req.body.CallSid ?? "");
   if (!/^CA[a-fA-F0-9]{32}$/.test(sid)) { res.status(400).end(); return; }
   if (["completed", "busy", "failed", "no-answer"].includes(String(req.body.CallStatus ?? ""))) {
-    try { await finish(sid); } catch (error) { logger.error({ err: error, sid }, "Voice status failed"); res.status(500).end(); return; }
+    try {
+      const state = await pool.query<{ mode: string; completed: boolean }>(
+        "SELECT mode,completed FROM voice_call_sessions WHERE call_sid=$1 LIMIT 1",
+        [sid],
+      );
+      // Realtime owns its own transcript/CRM finalisation. Never pass a Realtime
+      // session through the old Gather finaliser, which would replace the genuine
+      // transcript with synthetic question/answer turns.
+      if (state.rows[0]?.mode !== "realtime") await finish(sid);
+    } catch (error) {
+      logger.error({ err: error, sid }, "Voice status failed");
+      res.status(500).end();
+      return;
+    }
   }
   res.status(204).end();
 });
