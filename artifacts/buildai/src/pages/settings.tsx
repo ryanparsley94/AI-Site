@@ -243,7 +243,7 @@ export default function Settings() {
     email: "",
     address: "",
     website: "",
-    timezone: "America/New_York"
+    timezone: "Europe/London"
   });
 
   const [brandingData, setBrandingData] = useState({
@@ -276,7 +276,7 @@ export default function Settings() {
         email: company.email || "",
         address: company.address || "",
         website: company.website || "",
-        timezone: company.timezone || "America/New_York"
+        timezone: company.timezone || "Europe/London"
       });
       setBrandingData({
         logoUrl: company.logoUrl || "",
@@ -420,7 +420,7 @@ export default function Settings() {
       <div className="max-w-4xl mx-auto space-y-6">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-secondary">Settings</h1>
-          <p className="text-muted-foreground text-sm">Manage your company profile, widget, and integrations.</p>
+          <p className="text-muted-foreground text-sm">Manage your business profile, customer channels and integrations.</p>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -455,7 +455,7 @@ export default function Settings() {
                   <div className="space-y-2">
                     <Label htmlFor="phone">Main Phone Number</Label>
                     <Input id="phone" name="phone" value={formData.phone} onChange={handleChange} />
-                    <p className="text-[10px] text-muted-foreground">The number your AI will answer and transfer to.</p>
+                    <p className="text-[10px] text-muted-foreground">Your main business number. The AI receptionist never transfers live calls in V1.</p>
                   </div>
 
                   <div className="space-y-2">
