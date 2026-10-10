@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { eq, sql } from "drizzle-orm";
-import { db, contactsTable, jobsTable, emailThreadsTable } from "@workspace/db";
+import { and, eq, sql } from "drizzle-orm";
+import { db, contactsTable, contactSitesTable, jobsTable, emailThreadsTable } from "@workspace/db";
 import {
   ListContactsResponse,
   CreateContactBody,
@@ -70,6 +70,81 @@ router.get("/contacts/:id", async (req, res): Promise<void> => {
   if (!row) { res.status(404).json({ error: "Not found" }); return; }
   const enriched = await enrichContact(row);
   res.json(GetContactResponse.parse(enriched));
+});
+
+router.get("/contacts/:id/sites", async (req, res): Promise<void> => {
+  const contactId = Number(req.params.id);
+  if (!Number.isSafeInteger(contactId) || contactId <= 0) {
+    res.status(400).json({ error: "Invalid contact id" });
+    return;
+  }
+  const rows = await db
+    .select()
+    .from(contactSitesTable)
+    .where(eq(contactSitesTable.contactId, contactId))
+    .orderBy(contactSitesTable.createdAt);
+  res.json(rows.map((site) => ({
+    ...site,
+    createdAt: site.createdAt.toISOString(),
+    updatedAt: site.updatedAt.toISOString(),
+  })));
+});
+
+router.post("/contacts/:id/sites", async (req, res): Promise<void> => {
+  const contactId = Number(req.params.id);
+  if (!Number.isSafeInteger(contactId) || contactId <= 0) {
+    res.status(400).json({ error: "Invalid contact id" });
+    return;
+  }
+  const [contact] = await db.select().from(contactsTable).where(eq(contactsTable.id, contactId));
+  if (!contact) {
+    res.status(404).json({ error: "Contact not found" });
+    return;
+  }
+  const body = req.body as Record<string, unknown>;
+  const name = typeof body.name === "string" ? body.name.trim().slice(0, 200) : "";
+  if (!name) {
+    res.status(400).json({ error: "Site name is required" });
+    return;
+  }
+  const clean = (key: string, max = 500) =>
+    typeof body[key] === "string" && body[key].trim()
+      ? body[key].trim().slice(0, max)
+      : null;
+  const [site] = await db.insert(contactSitesTable).values({
+    companyId: contact.companyId ?? 0,
+    contactId,
+    name,
+    addressStreet: clean("addressStreet"),
+    city: clean("city"),
+    region: clean("region"),
+    postcode: clean("postcode", 50),
+    country: clean("country", 100),
+    phone: clean("phone", 100),
+    notes: clean("notes", 2000),
+    source: "manual",
+  }).returning();
+  res.status(201).json({
+    ...site,
+    createdAt: site.createdAt.toISOString(),
+    updatedAt: site.updatedAt.toISOString(),
+  });
+});
+
+router.delete("/contacts/:id/sites/:siteId", async (req, res): Promise<void> => {
+  const contactId = Number(req.params.id);
+  const siteId = Number(req.params.siteId);
+  if (!Number.isSafeInteger(contactId) || !Number.isSafeInteger(siteId)) {
+    res.status(400).json({ error: "Invalid site id" });
+    return;
+  }
+  await db.delete(contactSitesTable).where(
+    and(
+      eq(contactSitesTable.id, siteId),
+      eq(contactSitesTable.contactId, contactId),
+    ),
+  );
+  res.status(204).end();
 });
 
 router.patch("/contacts/:id", async (req, res): Promise<void> => {
