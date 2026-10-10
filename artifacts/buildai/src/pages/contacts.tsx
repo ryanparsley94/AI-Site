@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { 
   useListContacts, 
@@ -38,6 +38,177 @@ const emailStatusConfig = {
   sent:    { label: "Sent",    icon: CheckCircle, className: "text-green-600 bg-green-50 border-green-200" },
   dismissed: { label: "Dismissed", icon: XCircle, className: "text-slate-500 bg-slate-50 border-slate-200" },
 };
+
+type ContactSite = {
+  id: number;
+  name: string;
+  addressStreet: string | null;
+  city: string | null;
+  region: string | null;
+  postcode: string | null;
+  country: string | null;
+  phone: string | null;
+  notes: string | null;
+  source: string;
+};
+
+function ContactSitesTab({ contactId, active }: { contactId: number; active: boolean }) {
+  const [sites, setSites] = useState<ContactSite[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const { toast } = useToast();
+
+  const loadSites = async () => {
+    if (!active) return;
+    setLoading(true);
+    try {
+      const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+      const response = await fetch(base + "/api/contacts/" + contactId + "/sites");
+      if (!response.ok) throw new Error("Could not load sites");
+      setSites(await response.json());
+    } catch (error) {
+      toast({
+        title: "Could not load customer sites",
+        description: error instanceof Error ? error.message : undefined,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadSites();
+  }, [contactId, active]);
+
+  const addSite = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    setAdding(true);
+    try {
+      const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+      const response = await fetch(base + "/api/contacts/" + contactId + "/sites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: data.get("siteName"),
+          addressStreet: data.get("siteStreet"),
+          city: data.get("siteCity"),
+          region: data.get("siteRegion"),
+          postcode: data.get("sitePostcode"),
+          country: data.get("siteCountry"),
+          phone: data.get("sitePhone"),
+          notes: data.get("siteNotes"),
+        }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || "Could not add site");
+      event.currentTarget.reset();
+      toast({ title: "Site added" });
+      await loadSites();
+    } catch (error) {
+      toast({
+        title: "Could not add site",
+        description: error instanceof Error ? error.message : undefined,
+        variant: "destructive",
+      });
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const deleteSite = async (siteId: number) => {
+    if (!confirm("Delete this customer site?")) return;
+    try {
+      const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+      const response = await fetch(
+        base + "/api/contacts/" + contactId + "/sites/" + siteId,
+        { method: "DELETE" },
+      );
+      if (!response.ok) throw new Error("Could not delete site");
+      setSites((current) => current.filter((site) => site.id !== siteId));
+      toast({ title: "Site deleted" });
+    } catch (error) {
+      toast({
+        title: "Could not delete site",
+        description: error instanceof Error ? error.message : undefined,
+        variant: "destructive",
+      });
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <form onSubmit={addSite} className="rounded-lg border p-4 space-y-3 bg-muted/20">
+        <div>
+          <p className="text-sm font-semibold">Add customer site</p>
+          <p className="text-xs text-muted-foreground">
+            Store separate job locations for landlords, commercial clients and repeat customers.
+          </p>
+        </div>
+        <div className="grid sm:grid-cols-2 gap-3">
+          <Input name="siteName" placeholder="Site name" required />
+          <Input name="sitePhone" placeholder="Site phone (optional)" />
+          <Input name="siteStreet" placeholder="Street address" />
+          <Input name="siteCity" placeholder="Town / city" />
+          <Input name="siteRegion" placeholder="County / region" />
+          <Input name="sitePostcode" placeholder="Postcode" />
+          <Input name="siteCountry" placeholder="Country" defaultValue="United Kingdom" />
+        </div>
+        <Textarea name="siteNotes" placeholder="Site notes (optional)" className="min-h-20" />
+        <Button type="submit" size="sm" disabled={adding} className="gap-2">
+          <Plus size={14} /> {adding ? "Adding…" : "Add site"}
+        </Button>
+      </form>
+
+      {loading ? (
+        <div className="py-8 text-center text-sm text-muted-foreground">Loading sites…</div>
+      ) : sites.length === 0 ? (
+        <div className="py-8 text-center text-sm text-muted-foreground">
+          No customer sites yet.
+        </div>
+      ) : (
+        <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+          {sites.map((site) => {
+            const address = [
+              site.addressStreet,
+              site.city,
+              site.region,
+              site.postcode,
+              site.country,
+            ].filter(Boolean).join(", ");
+            return (
+              <div key={site.id} className="rounded-lg border p-3 flex gap-3">
+                <MapPin size={17} className="text-primary mt-0.5 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-semibold">{site.name}</p>
+                    {site.source === "tradify" && (
+                      <Badge variant="outline" className="text-[10px]">Tradify</Badge>
+                    )}
+                  </div>
+                  {address && <p className="text-xs text-muted-foreground mt-1">{address}</p>}
+                  {site.phone && <p className="text-xs text-muted-foreground mt-1">{site.phone}</p>}
+                  {site.notes && <p className="text-xs mt-2 whitespace-pre-wrap">{site.notes}</p>}
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground hover:text-destructive"
+                  onClick={() => void deleteSite(site.id)}
+                  aria-label={"Delete " + site.name}
+                >
+                  <Trash2 size={14} />
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function ContactDetailDialog({ 
   id, 
@@ -111,6 +282,7 @@ function ContactDetailDialog({
           <Tabs defaultValue="details" className="mt-2">
             <TabsList className="mb-4">
               <TabsTrigger value="details">Details</TabsTrigger>
+              <TabsTrigger value="sites">Sites</TabsTrigger>
               <TabsTrigger value="emails">
                 Emails
                 {emailThreads.length > 0 && (
@@ -168,6 +340,11 @@ function ContactDetailDialog({
                   </div>
                 </DialogFooter>
               </form>
+            </TabsContent>
+
+            {/* ── Sites tab ── */}
+            <TabsContent value="sites">
+              <ContactSitesTab contactId={id} active={open} />
             </TabsContent>
 
             {/* ── Emails tab ── */}

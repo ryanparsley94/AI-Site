@@ -146,6 +146,9 @@ Every tenant-owned table must have company_id (or an equivalent workspace key), 
 - integrations
 - tasks
 - marketing drafts
+- phone number routing
+- contact sites
+- billing subscriptions
 
 No authenticated tenant route may query a tenant-owned table globally.
 
@@ -158,12 +161,18 @@ Required Replit secrets / environment values:
 - TWILIO_ACCOUNT_SID
 - TWILIO_AUTH_TOKEN
 - VOICE_PUBLIC_BASE_URL
-- VOICE_STREAM_TOKEN
 - VOICE_REALTIME_ENABLED=true for pilot testing
+- OPENAI_REALTIME_MODEL=gpt-realtime-2.1 (optional override)
+- OPENAI_POSTCALL_MODEL (optional structured-enquiry extraction override)
+- OPENAI_REALTIME_MODEL=gpt-realtime-2.1 (optional override)
 - RESEND_API_KEY and RESEND_FROM_EMAIL if email alerts are enabled
+- STRIPE_SECRET_KEY
+- STRIPE_WEBHOOK_SECRET
+- STRIPE_OFFICE_PRICE_ID
+- APP_PUBLIC_BASE_URL
 
 Realtime model target:
-- gpt-realtime-2.1 unless the current OpenAI docs require a newer compatible default.
+- gpt-realtime-2.1 by default, with OPENAI_REALTIME_MODEL available as an explicit deployment override.
 
 Audio:
 - Twilio Media Streams provides 8 kHz mu-law.
@@ -174,6 +183,12 @@ Turn detection:
 - create_response=true
 - interrupt_response=true
 - tune silence_duration_ms during real call testing.
+
+## Phone-stream security
+- Validate Twilio HTTP webhook signatures before returning TwiML.
+- Validate Twilio WebSocket upgrade signatures against VOICE_PUBLIC_BASE_URL.
+- Route each inbound number to an explicit company/assistant where configured.
+- Do not expose OPENAI_API_KEY or provider secrets to the browser.
 
 ## Data handling / privacy
 - Do not log raw phone audio.

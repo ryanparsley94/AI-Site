@@ -19,6 +19,8 @@ import tasksRouter from "./tasks";
 import marketingRouter from "./marketing";
 import supportQuestionsRouter from "./support-questions";
 import pilotRouter from "./pilot";
+import importsRouter from "./imports";
+import billingRouter, { billingWebhookRouter } from "./billing";
 import voiceRouter, { phoneRouter } from "./voice";
 import { adminOnly } from "../lib/adminAuth";
 
@@ -37,6 +39,7 @@ router.use(widgetRouter);
 router.use(emailInboundRouter);
 router.use(supportQuestionsRouter);
 router.use(phoneRouter);
+router.use(billingWebhookRouter);
 router.use(publicQuoteRouter);
 
 // ── Dashboard routes ──────────────────────────────────────────────────────────
@@ -56,6 +59,8 @@ router.use(integrationsRouter);
 router.use(marketingRouter);
 router.use(tasksRouter);
 router.use(pilotRouter);
+router.use(importsRouter);
+router.use(billingRouter);
 router.use(voiceRouter);
 
 export default router;
