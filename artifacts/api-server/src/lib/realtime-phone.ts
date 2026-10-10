@@ -4,6 +4,10 @@ import { pool } from "@workspace/db";
 import { logger } from "./logger";
 import { validTwilioWebSocketRequest } from "./voice-security";
 import { finaliseRealtimeEnquiry } from "./realtime-finalise";
+import {
+  getAvailableAppointmentSlots,
+  bookRealtimeAppointment,
+} from "./appointment-scheduling";
 
 type TranscriptEntry = {
   speaker: "caller" | "assistant";
@@ -140,8 +144,10 @@ PRIMARY JOB
 2. Answer routine questions only when the answer is present in the business details or Business Knowledge.
 3. Capture enough information for the team to act without calling the customer back just to ask basic questions.
 4. Naturally gather the caller's full name, best callback number, job address/postcode when relevant, description of the work/problem, urgency or safety details, and preferred availability.
-5. If the caller asks to book, collect the requested day/time and explain that the team will confirm it unless the system explicitly confirms a slot.
-6. If you cannot resolve something, say you will pass the details to the team. Do not invent an answer, price, availability, accreditation, service, diagnosis, or promise.
+5. If the caller wants to book a visit, use the appointment tools. Never claim a time is available until get_available_appointments returns it.
+6. Offer only times returned by get_available_appointments. Once the caller chooses one of those exact times and you have their name, job address/postcode, and what they need help with, use book_appointment.
+7. Only tell the caller an appointment is booked if book_appointment returns status "booked". If it fails or the slot was taken, apologise briefly and check availability again.
+8. If you cannot resolve something, say you will pass the details to the team. Do not invent an answer, price, availability, accreditation, service, diagnosis, or promise.
 
 SAFETY
 - If there is immediate danger, fire, electric shock, smell of gas, or another emergency, prioritise safety and tell the caller to contact the appropriate emergency service/provider.
@@ -230,6 +236,7 @@ export function attachRealtimePhone(server: HttpServer): void {
     let pendingAudio: string[] = [];
     const transcript: TranscriptEntry[] = [];
     let persistChain: Promise<void> = Promise.resolve();
+    let toolChain: Promise<void> = Promise.resolve();
 
     const queuePersist = () => {
       if (!callId) return;
@@ -265,11 +272,104 @@ export function attachRealtimePhone(server: HttpServer): void {
       twilio.send(JSON.stringify({ event: "clear", streamSid }));
     };
 
+    const returnToolResult = (callIdValue: string, result: unknown) => {
+      sendToOpenAI({
+        type: "conversation.item.create",
+        item: {
+          type: "function_call_output",
+          call_id: callIdValue,
+          output: JSON.stringify(result),
+        },
+      });
+      sendToOpenAI({ type: "response.create" });
+    };
+
+    const handleToolCall = async (item: Record<string, any>) => {
+      const toolCallId = typeof item.call_id === "string" ? item.call_id : "";
+      const name = typeof item.name === "string" ? item.name : "";
+      if (!toolCallId || !name || !companyId || !callId || !callSid) return;
+
+      let args: Record<string, unknown> = {};
+      try {
+        args = typeof item.arguments === "string" && item.arguments
+          ? JSON.parse(item.arguments)
+          : {};
+      } catch {
+        returnToolResult(toolCallId, {
+          status: "error",
+          message: "The booking request was incomplete. Ask the caller for the details again.",
+        });
+        return;
+      }
+
+      try {
+        if (name === "get_available_appointments") {
+          const slots = await getAvailableAppointmentSlots(companyId, 6);
+          returnToolResult(toolCallId, {
+            status: "ok",
+            slots,
+            instruction:
+              slots.length > 0
+                ? "Offer these exact slots to the caller. Do not invent or alter a time."
+                : "No automatic appointment slots are currently available. Take the caller's preferred availability as a message instead.",
+          });
+          return;
+        }
+
+        if (name === "book_appointment") {
+          const result = await bookRealtimeAppointment({
+            companyId,
+            callId,
+            callSid,
+            slotIso: typeof args.slot_iso === "string" ? args.slot_iso : "",
+            callerName: typeof args.caller_name === "string" ? args.caller_name : "",
+            serviceDescription:
+              typeof args.service_description === "string" ? args.service_description : "",
+            address: typeof args.address === "string" ? args.address : "",
+          });
+
+          if (result.ok) {
+            returnToolResult(toolCallId, {
+              status: "booked",
+              job_id: result.jobId,
+              slot_iso: result.iso,
+              slot_label: result.label,
+              instruction:
+                "The appointment is now booked in CREWON. Confirm this exact time to the caller.",
+            });
+          } else {
+            returnToolResult(toolCallId, {
+              status: "error",
+              reason: result.reason,
+              message: result.message,
+            });
+          }
+          return;
+        }
+
+        returnToolResult(toolCallId, {
+          status: "error",
+          message: "That action is not available.",
+        });
+      } catch (error) {
+        logger.error(
+          { err: error, callId, callSid, tool: name },
+          "Realtime receptionist tool failed",
+        );
+        returnToolResult(toolCallId, {
+          status: "error",
+          message:
+            "The scheduling system could not complete that action. Take the caller's preferred time as a message instead.",
+        });
+      }
+    };
+
     const finalise = async () => {
       if (finalised) return;
       finalised = true;
       try {
         await persistChain;
+        await toolChain;
         if (callId && companyId && assistantId && callSid) {
           const durationSeconds = Math.max(
             0,
@@ -296,7 +396,7 @@ export function attachRealtimePhone(server: HttpServer): void {
       if (!apiKey) throw new Error("OPENAI_API_KEY is not configured");
 
       const ctx = await loadContext(companyId, assistantId);
-      const model = process.env.OPENAI_REALTIME_MODEL || "gpt-realtime";
+      const model = process.env.OPENAI_REALTIME_MODEL || "gpt-realtime-2.1";
       openai = new WebSocket(
         `wss://api.openai.com/v1/realtime?model=${encodeURIComponent(model)}`,
         {
@@ -316,6 +416,57 @@ export function attachRealtimePhone(server: HttpServer): void {
             output_modalities: ["audio"],
             instructions: buildInstructions(ctx),
             max_output_tokens: 700,
+            tools: [
+              {
+                type: "function",
+                name: "get_available_appointments",
+                description:
+                  "Get the next real appointment slots available for this company. Use this before offering any appointment time to a caller.",
+                parameters: {
+                  type: "object",
+                  properties: {},
+                  required: [],
+                  additionalProperties: false,
+                },
+              },
+              {
+                type: "function",
+                name: "book_appointment",
+                description:
+                  "Book one exact appointment slot previously returned by get_available_appointments. Only use after the caller clearly chooses that slot and their name, job address/postcode and work required are known.",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    slot_iso: {
+                      type: "string",
+                      description:
+                        "The exact ISO timestamp returned by get_available_appointments.",
+                    },
+                    caller_name: {
+                      type: "string",
+                      description: "The caller's full name.",
+                    },
+                    service_description: {
+                      type: "string",
+                      description:
+                        "A concise factual description of the work or problem the caller needs help with.",
+                    },
+                    address: {
+                      type: "string",
+                      description: "The job address and postcode.",
+                    },
+                  },
+                  required: [
+                    "slot_iso",
+                    "caller_name",
+                    "service_description",
+                    "address",
+                  ],
+                  additionalProperties: false,
+                },
+              },
+            ],
+            tool_choice: "auto",
             audio: {
               input: {
                 format: { type: "audio/pcmu" },
@@ -387,6 +538,30 @@ export function attachRealtimePhone(server: HttpServer): void {
 
         if (event.type === "response.output_audio_transcript.done") {
           addTranscript("assistant", event.transcript);
+          return;
+        }
+
+        if (
+          event.type === "response.done" &&
+          event.response?.status === "completed" &&
+          Array.isArray(event.response?.output)
+        ) {
+          const calls = event.response.output.filter(
+            (item: Record<string, unknown>) =>
+              item?.type === "function_call" &&
+              item?.status === "completed" &&
+              typeof item?.call_id === "string",
+          );
+          for (const item of calls) {
+            toolChain = toolChain
+              .then(() => handleToolCall(item as Record<string, any>))
+              .catch((error) =>
+                logger.error(
+                  { err: error, callId, callSid },
+                  "Realtime tool queue failed",
+                ),
+              );
+          }
           return;
         }
 
