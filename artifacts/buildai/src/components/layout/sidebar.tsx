@@ -15,6 +15,7 @@ import {
   Receipt,
   ClipboardList,
   Database,
+  CreditCard,
   X
 } from "lucide-react";
 
@@ -40,6 +41,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     { href: "/email-inbox", label: "Email Inbox", icon: Inbox },
     { href: "/contacts", label: "Contacts", icon: Users },
     { href: "/data-import", label: "Data Import", icon: Database },
+    { href: "/billing", label: "Billing", icon: CreditCard },
     { href: "/settings", label: "Settings", icon: Settings },
   ];
 
