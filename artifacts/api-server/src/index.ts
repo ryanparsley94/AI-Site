@@ -1,6 +1,8 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { pool } from "@workspace/db";
+import { createServer } from "node:http";
+import { attachRealtimeVoice } from "./lib/realtime-voice";
 
 // ─── Startup migration runner ─────────────────────────────────────────────────
 // Idempotent migrations are run on every startup so new deployments never
@@ -84,10 +86,17 @@ const MIGRATIONS = [
      ADD COLUMN IF NOT EXISTS voice_id text NOT NULL DEFAULT 'Polly.Amy-Neural',
      ADD COLUMN IF NOT EXISTS bot_greeting text NOT NULL DEFAULT '',
      ADD COLUMN IF NOT EXISTS bot_instructions text NOT NULL DEFAULT ''`,
+  `ALTER TABLE voice_call_sessions
+      ADD COLUMN IF NOT EXISTS realtime_voice text NOT NULL DEFAULT 'marin',
+      ADD COLUMN IF NOT EXISTS receptionist_style text NOT NULL DEFAULT 'Warm, professional, concise and naturally British where appropriate.',
+      ADD COLUMN IF NOT EXISTS realtime_mode boolean NOT NULL DEFAULT false,
+      ADD COLUMN IF NOT EXISTS assistant_id integer`,
   `ALTER TABLE assistants
      ADD COLUMN IF NOT EXISTS twilio_phone_number text,
      ADD COLUMN IF NOT EXISTS business_name text,
-     ADD COLUMN IF NOT EXISTS twilio_voice text NOT NULL DEFAULT 'Polly.Amy-Neural'`,
+      ADD COLUMN IF NOT EXISTS twilio_voice text NOT NULL DEFAULT 'Polly.Amy-Neural',
+      ADD COLUMN IF NOT EXISTS realtime_voice text NOT NULL DEFAULT 'marin',
+      ADD COLUMN IF NOT EXISTS receptionist_style text NOT NULL DEFAULT 'Warm, professional, concise and naturally British where appropriate.'`,
   `CREATE UNIQUE INDEX IF NOT EXISTS assistants_twilio_phone_number_unique
      ON assistants (twilio_phone_number) WHERE twilio_phone_number IS NOT NULL`,
 ];
@@ -122,12 +131,9 @@ if (Number.isNaN(port) || port <= 0) {
 }
 
 runMigrations().then(() => {
-  app.listen(port, (err) => {
-    if (err) {
-      logger.error({ err }, "Error listening on port");
-      process.exit(1);
-    }
-
+  const server = createServer(app);
+  attachRealtimeVoice(server);
+  server.listen(port, () => {
     logger.info({ port }, "Server listening");
   });
 });
