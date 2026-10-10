@@ -14,6 +14,7 @@ import {
   Inbox,
   Receipt,
   ClipboardList,
+  Database,
   X
 } from "lucide-react";
 
@@ -38,6 +39,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     { href: "/assistants", label: "AI Assistants", icon: Bot },
     { href: "/email-inbox", label: "Email Inbox", icon: Inbox },
     { href: "/contacts", label: "Contacts", icon: Users },
+    { href: "/data-import", label: "Data Import", icon: Database },
     { href: "/settings", label: "Settings", icon: Settings },
   ];
 
