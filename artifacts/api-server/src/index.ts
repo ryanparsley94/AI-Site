@@ -1,8 +1,8 @@
+import { createServer } from "node:http";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { pool } from "@workspace/db";
-import { createServer } from "node:http";
-import { attachRealtimeVoice } from "./lib/realtime-voice";
+import { attachRealtimePhone } from "./lib/realtime-phone";
 
 // ─── Startup migration runner ─────────────────────────────────────────────────
 // Idempotent migrations are run on every startup so new deployments never
@@ -77,28 +77,41 @@ const MIGRATIONS = [
     updated_at timestamptz NOT NULL DEFAULT now()
   )`,
   `ALTER TABLE voice_call_sessions ADD COLUMN IF NOT EXISTS customer_confirmation_status text NOT NULL DEFAULT 'pending'`,
-  `ALTER TABLE companies
-     ADD COLUMN IF NOT EXISTS voice_agent_name text,
-     ADD COLUMN IF NOT EXISTS voice_id text NOT NULL DEFAULT 'Polly.Amy-Neural'`,
+  // 008: Multi-company phone routing and additive tenant ownership.
+  // Columns stay nullable while legacy data is backfilled; strict tenant auth is
+  // a separate release gate before unrelated companies can be onboarded.
+  `ALTER TABLE assistants ADD COLUMN IF NOT EXISTS company_id integer`,
+  `ALTER TABLE calls ADD COLUMN IF NOT EXISTS company_id integer`,
+  `ALTER TABLE contacts ADD COLUMN IF NOT EXISTS company_id integer`,
   `ALTER TABLE voice_call_sessions
-     ADD COLUMN IF NOT EXISTS company_name text NOT NULL DEFAULT '',
-     ADD COLUMN IF NOT EXISTS voice_agent_name text,
-     ADD COLUMN IF NOT EXISTS voice_id text NOT NULL DEFAULT 'Polly.Amy-Neural',
-     ADD COLUMN IF NOT EXISTS bot_greeting text NOT NULL DEFAULT '',
-     ADD COLUMN IF NOT EXISTS bot_instructions text NOT NULL DEFAULT ''`,
-  `ALTER TABLE voice_call_sessions
-      ADD COLUMN IF NOT EXISTS realtime_voice text NOT NULL DEFAULT 'marin',
-      ADD COLUMN IF NOT EXISTS receptionist_style text NOT NULL DEFAULT 'Warm, professional, concise and naturally British where appropriate.',
-      ADD COLUMN IF NOT EXISTS realtime_mode boolean NOT NULL DEFAULT false,
-      ADD COLUMN IF NOT EXISTS assistant_id integer`,
-  `ALTER TABLE assistants
-     ADD COLUMN IF NOT EXISTS twilio_phone_number text,
-     ADD COLUMN IF NOT EXISTS business_name text,
-      ADD COLUMN IF NOT EXISTS twilio_voice text NOT NULL DEFAULT 'Polly.Amy-Neural',
-      ADD COLUMN IF NOT EXISTS realtime_voice text NOT NULL DEFAULT 'marin',
-      ADD COLUMN IF NOT EXISTS receptionist_style text NOT NULL DEFAULT 'Warm, professional, concise and naturally British where appropriate.'`,
-  `CREATE UNIQUE INDEX IF NOT EXISTS assistants_twilio_phone_number_unique
-     ON assistants (twilio_phone_number) WHERE twilio_phone_number IS NOT NULL`,
+     ADD COLUMN IF NOT EXISTS company_id integer,
+     ADD COLUMN IF NOT EXISTS assistant_id integer,
+     ADD COLUMN IF NOT EXISTS mode text NOT NULL DEFAULT 'gather'`,
+  `CREATE TABLE IF NOT EXISTS phone_numbers (
+     id serial PRIMARY KEY,
+     company_id integer NOT NULL,
+     assistant_id integer,
+     provider text NOT NULL DEFAULT 'twilio',
+     provider_sid text,
+     phone_number text NOT NULL UNIQUE,
+     label text,
+     active boolean NOT NULL DEFAULT true,
+     created_at timestamptz NOT NULL DEFAULT now(),
+     updated_at timestamptz NOT NULL DEFAULT now()
+   )`,
+  `CREATE INDEX IF NOT EXISTS phone_numbers_company_idx ON phone_numbers(company_id)`,
+  `CREATE INDEX IF NOT EXISTS assistants_company_idx ON assistants(company_id)`,
+  `CREATE INDEX IF NOT EXISTS calls_company_idx ON calls(company_id)`,
+  `CREATE INDEX IF NOT EXISTS contacts_company_phone_idx ON contacts(company_id,phone)`,
+  `CREATE INDEX IF NOT EXISTS voice_call_sessions_company_idx ON voice_call_sessions(company_id)`,
+  // Preserve the current Parsley pilot rows when the new ownership columns appear.
+  `UPDATE assistants SET company_id=(SELECT id FROM companies ORDER BY id LIMIT 1)
+     WHERE company_id IS NULL AND EXISTS (SELECT 1 FROM companies)`,
+  `UPDATE calls SET company_id=(SELECT id FROM companies ORDER BY id LIMIT 1)
+     WHERE company_id IS NULL AND EXISTS (SELECT 1 FROM companies)`,
+  `UPDATE contacts SET company_id=(SELECT id FROM companies ORDER BY id LIMIT 1)
+     WHERE company_id IS NULL AND EXISTS (SELECT 1 FROM companies)`,
+
 ];
 
 async function runMigrations(): Promise<void> {
@@ -132,7 +145,13 @@ if (Number.isNaN(port) || port <= 0) {
 
 runMigrations().then(() => {
   const server = createServer(app);
-  attachRealtimeVoice(server);
+  attachRealtimePhone(server);
+
+  server.on("error", (err) => {
+    logger.error({ err }, "HTTP server error");
+    process.exit(1);
+  });
+
   server.listen(port, () => {
     logger.info({ port }, "Server listening");
   });

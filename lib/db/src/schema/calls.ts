@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 
 export const callsTable = pgTable("calls", {
   id: serial("id").primaryKey(),
+  companyId: integer("company_id"),
   callerName: text("caller_name").notNull(),
   callerPhone: text("caller_phone").notNull(),
   status: text("status").notNull().default("unresolved"),

@@ -171,26 +171,25 @@ export async function voiceChatStream(
 }
 
 /** Text-to-Speech using gpt-audio. */
+export type SpeechVoice =
+  | "alloy" | "ash" | "ballad" | "coral" | "echo"
+  | "fable" | "onyx" | "nova" | "sage" | "shimmer"
+  | "verse" | "marin" | "cedar";
+
 export async function textToSpeech(
   text: string,
-  voice: "alloy" | "echo" | "fable" | "onyx" | "nova" | "shimmer" = "alloy",
+  voice: SpeechVoice = "marin",
   format: "wav" | "mp3" | "flac" | "opus" | "pcm16" = "wav",
   accentInstructions?: string
 ): Promise<Buffer> {
-  const systemPrompt = accentInstructions
-    ? `You are an assistant that performs text-to-speech. ${accentInstructions}`
-    : "You are an assistant that performs text-to-speech.";
-  const response = await openai.chat.completions.create({
-    model: "gpt-audio",
-    modalities: ["text", "audio"],
-    audio: { voice, format },
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: `Repeat the following text verbatim: ${text}` },
-    ],
+  const response = await openai.audio.speech.create({
+    model: process.env.OPENAI_TTS_MODEL || "gpt-4o-mini-tts",
+    voice,
+    input: text,
+    instructions: accentInstructions || "Speak naturally in British English with a warm professional tone.",
+    response_format: (format === "pcm16" ? "pcm" : format) as "wav" | "mp3" | "flac" | "opus" | "pcm",
   });
-  const audioData = (response.choices[0]?.message as any)?.audio?.data ?? "";
-  return Buffer.from(audioData, "base64");
+  return Buffer.from(await response.arrayBuffer());
 }
 
 /** Streaming Text-to-Speech. */

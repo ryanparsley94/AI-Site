@@ -1977,12 +1977,6 @@ components:
           type: ["string", "null"]
         emailAutoSend:
           type: boolean
-        voiceAgentName:
-          type: ["string", "null"]
-          maxLength: 50
-        voiceId:
-          type: string
-          enum: [Polly.Amy-Neural, Polly.Emma-Neural, Polly.Arthur-Neural, Polly.Brian-Neural]
         createdAt:
           type: string
           format: date-time
@@ -2015,17 +2009,11 @@ components:
           type: string
         quoteFooterText:
           type: string
-        voiceAgentName:
-          type: ["string", "null"]
-          maxLength: 50
-        voiceId:
-          type: string
-          enum: [Polly.Amy-Neural, Polly.Emma-Neural, Polly.Arthur-Neural, Polly.Brian-Neural]
 
     # ── Assistants ──────────────────────────────────────────────────────────
     Assistant:
       type: object
-      required: [id, name, type, voice, twilioVoice, realtimeVoice, receptionistStyle, personality, active, createdAt]
+      required: [id, name, type, voice, personality, active, createdAt]
       properties:
         id:
           type: number
@@ -2036,20 +2024,7 @@ components:
           enum: [phone, email, chat, marketing, scheduling]
         voice:
           type: string
-          enum: [alloy, echo, fable, onyx, nova, shimmer]
-        twilioPhoneNumber:
-          type: ["string", "null"]
-          pattern: "^\\+[1-9][0-9]{7,14}$"
-        businessName:
-          type: ["string", "null"]
-        twilioVoice:
-          type: string
-          enum: [Polly.Amy-Neural, Polly.Emma-Neural, Polly.Arthur-Neural, Polly.Brian-Neural]
-        realtimeVoice:
-          type: string
           enum: [alloy, ash, ballad, coral, echo, sage, shimmer, verse, marin, cedar]
-        receptionistStyle:
-          type: string
         personality:
           type: string
           enum: [professional, friendly, direct]
@@ -2078,20 +2053,7 @@ components:
           enum: [phone, email, chat, marketing, scheduling]
         voice:
           type: string
-          enum: [alloy, echo, fable, onyx, nova, shimmer]
-        twilioPhoneNumber:
-          type: ["string", "null"]
-          pattern: "^\\+[1-9][0-9]{7,14}$"
-        businessName:
-          type: ["string", "null"]
-        twilioVoice:
-          type: string
-          enum: [Polly.Amy-Neural, Polly.Emma-Neural, Polly.Arthur-Neural, Polly.Brian-Neural]
-        realtimeVoice:
-          type: string
           enum: [alloy, ash, ballad, coral, echo, sage, shimmer, verse, marin, cedar]
-        receptionistStyle:
-          type: string
         personality:
           type: string
           enum: [professional, friendly, direct]
@@ -2168,12 +2130,7 @@ components:
           enum: [phone, email, chat, marketing, scheduling]
         voice:
           type: string
-          enum: [alloy, echo, fable, onyx, nova, shimmer]
-        realtimeVoice:
-          type: string
           enum: [alloy, ash, ballad, coral, echo, sage, shimmer, verse, marin, cedar]
-        receptionistStyle:
-          type: string
         personality:
           type: string
           enum: [professional, friendly, direct]
