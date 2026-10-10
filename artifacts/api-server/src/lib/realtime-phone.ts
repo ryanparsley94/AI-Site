@@ -3,6 +3,7 @@ import { WebSocketServer, WebSocket, type RawData } from "ws";
 import { pool } from "@workspace/db";
 import { logger } from "./logger";
 import { validTwilioWebSocketRequest } from "./voice-security";
+import { finaliseRealtimeEnquiry } from "./realtime-finalise";
 
 type TranscriptEntry = {
   speaker: "caller" | "assistant";
@@ -269,20 +270,19 @@ export function attachRealtimePhone(server: HttpServer): void {
       finalised = true;
       try {
         await persistChain;
-        if (callId) {
-          const duration = Math.max(0, Math.round((Date.now() - startedAt) / 1000));
-          await pool.query(
-            `UPDATE calls
-                SET duration=$2,
-                    transcript=$3::jsonb,
-                    outcome=CASE
-                      WHEN jsonb_array_length($3::jsonb) > 0 THEN 'Realtime phone enquiry — review'
-                      ELSE 'Realtime call ended without transcript'
-                    END,
-                    updated_at=now()
-              WHERE id=$1`,
-            [callId, duration, JSON.stringify(transcript)],
+        if (callId && companyId && assistantId && callSid) {
+          const durationSeconds = Math.max(
+            0,
+            Math.round((Date.now() - startedAt) / 1000),
           );
+          await finaliseRealtimeEnquiry({
+            callSid,
+            callId,
+            companyId,
+            assistantId,
+            transcript,
+            durationSeconds,
+          });
         }
       } catch (err) {
         logger.error({ err, callId, callSid }, "Realtime call finalisation failed");
