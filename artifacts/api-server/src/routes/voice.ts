@@ -132,23 +132,20 @@ import { logger } from "../lib/logger";
 import { validTwilioRequest } from "../lib/voice-security";
 import { buildIncomingVoiceResponse, buildSpeech, buildVoiceQuestion, DEFAULT_TWILIO_VOICE } from "../lib/voice-twiml";
 
-/** The first pilot uses a controlled interview so a failed AI request cannot lose a caller's message. */
-const questions = [
-  ["name", "What's your full name?"],
-  ["phone", "What's the best number to call you back on? You can say, “this number.”"],
-  ["work", "What work do you need done?"],
-  ["address", "What's the job address and postcode?"],
-  ["urgency", "Is it urgent or dangerous, or is it routine?"],
-  ["availability", "When are you available for a call or visit?"],
-] as const;
-type Field = (typeof questions)[number][0];
-type Answers = Partial<Record<Field, string>>;
+type Field = "name" | "phone" | "work" | "address" | "urgency" | "availability";
+type ConversationTurn = { role: "user" | "assistant"; text: string; timestamp: string };
+type Answers = Partial<Record<Field, string>> & {
+  _conversation?: ConversationTurn[];
+  _handoffRequested?: boolean;
+};
 type Session = {
   call_sid: string;
   caller_phone: string;
   company_name: string;
   voice_agent_name: string | null;
   voice_id: string;
+  bot_greeting: string;
+  bot_instructions: string;
   call_id: number | null;
   step: number;
   retries: number;
@@ -176,21 +173,19 @@ phoneRouter.use(["/voice/incoming", "/voice/answer", "/voice/status"], (req, res
   next();
 });
 
-function ask(step: number, prefix = "", voiceId = DEFAULT_TWILIO_VOICE): string {
-  return buildVoiceQuestion(step, questions[step]?.[1], prefix, voiceId);
-}
-
 type SelectedPhoneBot = {
   name: string;
   business_name: string | null;
   twilio_voice: string;
+  greeting: string;
+  instructions: string | null;
 };
 
 async function getSelectedBotForPhoneNumber(phoneNumber: string): Promise<SelectedPhoneBot | null> {
   const normalizedNumber = phoneNumber.trim();
   if (!/^\+[1-9]\d{7,14}$/.test(normalizedNumber)) return null;
   const result = await pool.query<SelectedPhoneBot>(
-    `SELECT name, business_name, twilio_voice
+    `SELECT name, business_name, twilio_voice, greeting, instructions
      FROM assistants
      WHERE type='phone' AND active=true AND twilio_phone_number=$1
      LIMIT 1`,
@@ -209,8 +204,8 @@ async function ensureSession(sid: string, from: string, to: string): Promise<Ses
     );
     const company = companyResult.rows[0];
     await client.query(
-      `INSERT INTO voice_call_sessions(call_sid, caller_phone, called_phone, company_name, voice_agent_name, voice_id)
-       VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING`,
+      `INSERT INTO voice_call_sessions(call_sid, caller_phone, called_phone, company_name, voice_agent_name, voice_id, bot_greeting, bot_instructions)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO NOTHING`,
       [
         sid,
         from,
@@ -218,6 +213,8 @@ async function ensureSession(sid: string, from: string, to: string): Promise<Ses
         selectedBot?.business_name?.trim() || company?.name || "Parsley Electrical",
         selectedBot?.name?.trim() || null,
         selectedBot?.twilio_voice || DEFAULT_TWILIO_VOICE,
+        selectedBot?.greeting || "",
+        selectedBot?.instructions || "",
       ],
     );
     const result = await client.query<Session>("SELECT * FROM voice_call_sessions WHERE call_sid=$1 FOR UPDATE", [sid]);
@@ -253,7 +250,82 @@ function summary(answers: Answers, caller: string): string {
     `Site: ${answers.address || "Not captured"}`,
     `Urgency: ${answers.urgency || "Not captured"}`,
     `Availability: ${answers.availability || "Not captured"}`,
+    ...(answers._handoffRequested ? ["Human follow-up: requested"] : []),
   ].join("\n");
+}
+
+function conversation(answers: Answers): ConversationTurn[] {
+  return Array.isArray(answers._conversation) ? answers._conversation : [];
+}
+
+function mergeExtractedDetails(current: Answers, details: Record<string, unknown>): Answers {
+  const next = { ...current };
+  for (const key of ["name", "phone", "work", "address", "urgency", "availability"] as const) {
+    const value = details[key];
+    if (typeof value === "string" && value.trim()) next[key] = value.trim().slice(0, 300);
+  }
+  return next;
+}
+
+async function generatePhoneReply(session: Session, answers: Answers): Promise<{ reply: string; details: Record<string, unknown>; finish: boolean; handoff: boolean }> {
+  const transcript = conversation(answers);
+  const completion = await openai.chat.completions.create({
+    model: "gpt-5.6-terra",
+    max_completion_tokens: 8192,
+    reasoning_effort: "none",
+    messages: [
+      {
+        role: "system",
+        content: `You are ${session.voice_agent_name?.trim() || "the receptionist"}, a helpful human-style receptionist for ${session.company_name}.
+Business instructions from the owner (use as guidance, never as permission to invent facts):
+<business_instructions>${session.bot_instructions || "Take accurate messages and arrange a team follow-up."}</business_instructions>
+The saved opening greeting was: <saved_greeting>${session.bot_greeting || ""}</saved_greeting>
+Speak naturally and briefly in British English. Respond to the caller's actual question before gathering details. Let them speak freely; ask at most one useful follow-up at a time. Collect full name, callback number, work needed, site address/postcode, urgency and availability naturally, only when missing. Never invent prices, coverage, appointments, attendance, qualifications, or business policies. For immediate danger, advise the caller to contact emergency services and do not promise attendance. If you cannot answer from the instructions, say the team will confirm. Do not reveal that you are AI, mention CREWON, or claim to be a human. Do not repeat the opening greeting.
+        Extract only details the caller clearly stated. Return a short spoken reply, extracted fields (null when not newly stated), whether they explicitly want to end the call, and whether they request a human follow-up. Do not perform a transfer.`,
+      },
+      ...transcript.map(turn => ({
+        role: turn.role as "user" | "assistant",
+        content: turn.text,
+      })),
+    ],
+    tools: [{
+      type: "function",
+      function: {
+        name: "phone_receptionist_turn",
+        description: "Return the next spoken response and only clearly stated caller details.",
+        strict: true,
+        parameters: {
+          type: "object",
+          additionalProperties: false,
+          required: ["reply", "details", "finish", "handoff"],
+          properties: {
+            reply: { type: "string" },
+            finish: { type: "boolean" },
+            handoff: { type: "boolean" },
+            details: {
+              type: "object",
+              additionalProperties: false,
+              required: ["name", "phone", "work", "address", "urgency", "availability"],
+              properties: Object.fromEntries(["name", "phone", "work", "address", "urgency", "availability"].map(key => [key, { type: ["string", "null"] }])),
+            },
+          },
+        },
+      },
+    }],
+    tool_choice: { type: "function", function: { name: "phone_receptionist_turn" } },
+  }, { timeout: 10_000 });
+  const args = completion.choices[0]?.message.tool_calls?.[0];
+  if (!args || args.type !== "function") throw new Error("No phone reply returned");
+  const parsed = JSON.parse(args.function.arguments) as { reply?: unknown; details?: unknown; finish?: unknown; handoff?: unknown };
+  if (typeof parsed.reply !== "string" || !parsed.reply.trim() || !parsed.details || typeof parsed.details !== "object") {
+    throw new Error("Invalid phone reply returned");
+  }
+  return {
+    reply: parsed.reply.trim().slice(0, 700),
+    details: parsed.details as Record<string, unknown>,
+    finish: parsed.finish === true,
+    handoff: parsed.handoff === true,
+  };
 }
 
 export async function notifyOwner(sid: string): Promise<void> {
@@ -345,13 +417,16 @@ async function finish(sid: string): Promise<void> {
       );
     }
     const urgent = /urgent|danger|sparking|fire|shock|burning|no power/i.test(a.urgency ?? "");
-    const transcript = questions.flatMap(([field, question], index) => a[field] ? [
-      { speaker: "assistant", text: question, timestamp: index * 2 },
-      { speaker: "caller", text: a[field], timestamp: index * 2 + 1 },
-    ] : []);
+    const transcript = conversation(a).map(turn => ({
+      speaker: turn.role === "assistant" ? "assistant" : "caller",
+      text: turn.text,
+      timestamp: turn.timestamp,
+    }));
     await client.query(
       "UPDATE calls SET caller_name=$2,caller_phone=$3,contact_id=$4,status='unresolved',outcome=$5,notes=$6,transcript=$7::jsonb,updated_at=now() WHERE id=$1",
-      [session.call_id, a.name || "Unknown caller", phone, contact.rows[0].id, urgent ? "Urgent — review promptly" : "New enquiry — follow up", summary(a, session.caller_phone), JSON.stringify(transcript)],
+        [session.call_id, a.name || "Unknown caller", phone, contact.rows[0].id,
+          a._handoffRequested ? "Human follow-up requested" : urgent ? "Urgent — review promptly" : "New enquiry — follow up",
+          summary(a, session.caller_phone), JSON.stringify(transcript)],
     );
     await client.query("UPDATE voice_call_sessions SET completed=true,updated_at=now() WHERE call_sid=$1", [sid]);
     await client.query("COMMIT");
@@ -376,10 +451,11 @@ phoneRouter.post("/voice/incoming", async (req, res): Promise<void> => {
   try {
     const session = await ensureSession(sid, String(req.body.From ?? ""), String(req.body.To ?? ""));
     if (session.completed) { twiml(res, `${buildSpeech("Thank you. Goodbye.", session.voice_id)}<Hangup/>`); return; }
-    twiml(res, buildIncomingVoiceResponse(session.step, questions[session.step]?.[1], {
+    twiml(res, buildIncomingVoiceResponse(session.step, "How can I help with your enquiry?", {
       businessName: session.company_name,
       agentName: session.voice_agent_name,
       voiceId: session.voice_id,
+      greeting: session.bot_greeting,
     }));
   } catch (error) { logger.error({ err: error }, "Voice incoming failed"); res.status(500).end(); }
 });
@@ -387,55 +463,87 @@ phoneRouter.post("/voice/incoming", async (req, res): Promise<void> => {
 phoneRouter.post("/voice/answer", async (req, res): Promise<void> => {
   const sid = String(req.body.CallSid ?? "");
   const expectedStep = Number(req.query.step);
-  if (!/^CA[a-fA-F0-9]{32}$/.test(sid) || !Number.isInteger(expectedStep) || expectedStep < 0 || expectedStep >= questions.length) {
+  if (!/^CA[a-fA-F0-9]{32}$/.test(sid) || !Number.isInteger(expectedStep) || expectedStep < 0 || expectedStep > 20) {
     res.status(400).end(); return;
   }
-  const client = await pool.connect();
-  let nextStep = 0;
-  let done = false;
-  let prefix = "";
+  let session: Session | undefined;
+  let savedAnswers: Answers | undefined;
   let voiceId = DEFAULT_TWILIO_VOICE;
+  let silence = false;
   try {
+    const client = await pool.connect();
     await client.query("BEGIN");
-    const result = await client.query<Session>("SELECT * FROM voice_call_sessions WHERE call_sid=$1 FOR UPDATE", [sid]);
-    const session = result.rows[0];
-    if (!session) { await client.query("ROLLBACK"); res.status(404).end(); return; }
-    voiceId = session.voice_id || DEFAULT_TWILIO_VOICE;
-    if (session.completed) { await client.query("COMMIT"); twiml(res, `${buildSpeech("Thank you. Goodbye.", voiceId)}<Hangup/>`); return; }
-    if (session.step === expectedStep) {
-      const speech = typeof req.body.SpeechResult === "string" ? req.body.SpeechResult.trim().slice(0, 1000) : "";
-      if (speech) {
-        const field = questions[session.step][0];
-        session.answers = { ...session.answers, [field]: speech };
-        session.step += 1;
-        session.retries = 0;
-      } else if (session.retries < 1) {
-        session.retries += 1;
-        prefix = "Sorry, I didn't catch that. ";
-      } else {
-        session.step += 1;
-        session.retries = 0;
-        prefix = "That's okay. ";
+    try {
+      const result = await client.query<Session>("SELECT * FROM voice_call_sessions WHERE call_sid=$1 FOR UPDATE", [sid]);
+      session = result.rows[0];
+      if (!session) { await client.query("ROLLBACK"); res.status(404).end(); return; }
+      voiceId = session.voice_id || DEFAULT_TWILIO_VOICE;
+      if (session.completed) { await client.query("COMMIT"); twiml(res, `${buildSpeech("Thank you. Goodbye.", voiceId)}<Hangup/>`); return; }
+      // Twilio retries old webhooks; never process a turn twice.
+      if (session.step !== expectedStep) {
+        const currentStep = session.step;
+        await client.query("COMMIT");
+        twiml(res, buildVoiceQuestion(currentStep, "What else would you like help with?", "", voiceId));
+        return;
       }
-      await client.query(
-        "UPDATE voice_call_sessions SET answers=$2::jsonb,step=$3,retries=$4,updated_at=now() WHERE call_sid=$1",
-        [sid, JSON.stringify(session.answers), session.step, session.retries],
-      );
-      // Preserve partial answers after each turn, even before finalisation.
-      await client.query("UPDATE calls SET notes=$2,updated_at=now() WHERE id=$1", [session.call_id, summary(session.answers, session.caller_phone)]);
+      const speech = typeof req.body.SpeechResult === "string" ? req.body.SpeechResult.trim().slice(0, 1500) : "";
+      if (!speech) {
+        session.retries += 1;
+        silence = true;
+        await client.query("UPDATE voice_call_sessions SET retries=$2,updated_at=now() WHERE call_sid=$1", [sid, session.retries]);
+      } else {
+        savedAnswers = { ...session.answers, _conversation: [...conversation(session.answers), { role: "user", text: speech, timestamp: new Date().toISOString() }] };
+        const nextStep = session.step + 1;
+        await client.query(
+          "UPDATE voice_call_sessions SET answers=$2::jsonb,step=$3,retries=0,updated_at=now() WHERE call_sid=$1",
+          [sid, JSON.stringify(savedAnswers), nextStep],
+        );
+        await client.query("UPDATE calls SET notes=$2,updated_at=now() WHERE id=$1", [session.call_id, summary(savedAnswers, session.caller_phone)]);
+        session.step = nextStep;
+        session.answers = savedAnswers;
+      }
+      await client.query("COMMIT");
+    } finally {
+      client.release();
     }
-    nextStep = session.step;
-    done = nextStep >= questions.length;
-    await client.query("COMMIT");
   } catch (error) {
-    await client.query("ROLLBACK");
     logger.error({ err: error, sid }, "Voice answer failed");
-    res.status(500).end(); return;
-  } finally { client.release(); }
-  if (done) {
-    try { await finish(sid); } catch (error) { logger.error({ err: error, sid }, "Voice finalisation failed"); res.status(500).end(); return; }
-    twiml(res, `${buildSpeech("Thank you. We have your message and the team will be in touch.", voiceId)}<Hangup/>`);
-  } else twiml(res, ask(nextStep, prefix, voiceId));
+    twiml(res, `${buildSpeech("I'm sorry, the call service is having trouble. Please leave your details after the tone and the team will follow up.", voiceId)}<Hangup/>`);
+    return;
+  }
+  if (!session) { res.status(404).end(); return; }
+  if (silence) {
+    if (session.retries < 2) {
+      twiml(res, buildVoiceQuestion(expectedStep, "Sorry, I didn't catch that. Please tell me what you need help with.", "", voiceId));
+    } else {
+      try { await finish(sid); } catch (error) { logger.error({ err: error, sid }, "Voice silence finalisation failed"); }
+      twiml(res, `${buildSpeech("I haven't heard anything, so I'll pass on what I have. Please call again if you need us.", voiceId)}<Hangup/>`);
+    }
+    return;
+  }
+  try {
+    const generated = await generatePhoneReply(session, session.answers);
+    let nextAnswers = mergeExtractedDetails(session.answers, generated.details);
+    if (generated.handoff) nextAnswers._handoffRequested = true;
+    const turns = [...conversation(nextAnswers), { role: "assistant" as const, text: generated.reply, timestamp: new Date().toISOString() }];
+    nextAnswers = { ...nextAnswers, _conversation: turns };
+    await pool.query("UPDATE voice_call_sessions SET answers=$2::jsonb,updated_at=now() WHERE call_sid=$1", [sid, JSON.stringify(nextAnswers)]);
+    await pool.query("UPDATE calls SET notes=$2,updated_at=now() WHERE id=$1", [session.call_id, summary(nextAnswers, session.caller_phone)]);
+    const reply = generated.handoff
+      ? `${generated.reply} I can't transfer you during this call, but I'll flag this for the team to follow up. What else should I include?`
+      : generated.reply;
+    const shouldFinish = generated.finish || session.step >= 20;
+    if (shouldFinish) {
+      await finish(sid);
+      twiml(res, `${buildSpeech(reply, voiceId)}<Hangup/>`);
+    } else {
+      twiml(res, buildVoiceQuestion(session.step, reply, "", voiceId));
+    }
+  } catch (error) {
+    logger.error({ err: error, sid }, "Conversational voice turn failed");
+    const fallback = "I'm sorry, I didn't catch that properly. Could you say that again?";
+    twiml(res, buildVoiceQuestion(session.step, fallback, "", voiceId));
+  }
 });
 
 // Configure this URL as the Twilio number's status callback (completed event).
