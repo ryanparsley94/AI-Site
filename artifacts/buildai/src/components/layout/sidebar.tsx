@@ -16,6 +16,7 @@ import {
   ClipboardList,
   Database,
   CreditCard,
+  WandSparkles,
   X
 } from "lucide-react";
 
@@ -40,6 +41,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     { href: "/assistants", label: "AI Receptionist", icon: Bot },
     { href: "/email-inbox", label: "Email Inbox", icon: Inbox },
     { href: "/contacts", label: "Customers", icon: Users },
+    { href: "/business-setup", label: "Business Setup", icon: WandSparkles },
     { href: "/data-import", label: "Data Import", icon: Database },
     { href: "/billing", label: "Billing", icon: CreditCard },
     { href: "/settings", label: "Settings", icon: Settings },
