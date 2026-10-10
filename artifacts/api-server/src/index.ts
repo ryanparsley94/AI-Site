@@ -107,6 +107,20 @@ const MIGRATIONS = [
      WHERE company_id IS NULL AND EXISTS (SELECT 1 FROM companies)`,
   `UPDATE contacts SET company_id=(SELECT id FROM companies ORDER BY id LIMIT 1)
      WHERE company_id IS NULL AND EXISTS (SELECT 1 FROM companies)`,
+  // 008: Additive tenant ownership for the phone/CRM pilot. Columns remain nullable
+  // while legacy records are backfilled; tenant route enforcement is a separate release gate.
+  `ALTER TABLE assistants ADD COLUMN IF NOT EXISTS company_id integer`,
+  `ALTER TABLE contacts ADD COLUMN IF NOT EXISTS company_id integer`,
+  `ALTER TABLE calls ADD COLUMN IF NOT EXISTS company_id integer`,
+  `ALTER TABLE voice_call_sessions
+     ADD COLUMN IF NOT EXISTS company_id integer,
+     ADD COLUMN IF NOT EXISTS assistant_id integer,
+     ADD COLUMN IF NOT EXISTS mode text NOT NULL DEFAULT 'gather'`,
+  `CREATE INDEX IF NOT EXISTS assistants_company_id_idx ON assistants(company_id)`,
+  `CREATE INDEX IF NOT EXISTS contacts_company_phone_idx ON contacts(company_id, phone)`,
+  `CREATE INDEX IF NOT EXISTS calls_company_id_idx ON calls(company_id)`,
+  `CREATE INDEX IF NOT EXISTS voice_call_sessions_company_id_idx ON voice_call_sessions(company_id)`,
+
 ];
 
 async function runMigrations(): Promise<void> {
