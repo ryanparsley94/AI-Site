@@ -131,6 +131,29 @@ const MIGRATIONS = [
    )`,
   `CREATE INDEX IF NOT EXISTS contact_sites_contact_idx ON contact_sites(company_id,contact_id)`,
 
+  // 010: CREWON Office subscription state and Stripe webhook idempotency.
+  `CREATE TABLE IF NOT EXISTS billing_subscriptions (
+     id serial PRIMARY KEY,
+     company_id integer NOT NULL UNIQUE,
+     plan text NOT NULL DEFAULT 'office',
+     status text NOT NULL DEFAULT 'inactive',
+     stripe_customer_id text,
+     stripe_subscription_id text,
+     stripe_price_id text,
+     current_period_end timestamptz,
+     cancel_at_period_end boolean NOT NULL DEFAULT false,
+     created_at timestamptz NOT NULL DEFAULT now(),
+     updated_at timestamptz NOT NULL DEFAULT now()
+   )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS billing_subscriptions_stripe_subscription_unique
+     ON billing_subscriptions(stripe_subscription_id)
+     WHERE stripe_subscription_id IS NOT NULL`,
+  `CREATE TABLE IF NOT EXISTS billing_events (
+     event_id text PRIMARY KEY,
+     event_type text NOT NULL,
+     processed_at timestamptz NOT NULL DEFAULT now()
+   )`,
+
 ];
 
 async function runMigrations(): Promise<void> {
