@@ -12,3 +12,4 @@ export * from "./email_threads";
 export * from "./integrations";
 export * from "./tasks";
 export * from "./marketing_drafts";
+export * from "./phone_numbers";
