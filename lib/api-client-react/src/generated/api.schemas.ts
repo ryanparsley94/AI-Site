@@ -176,11 +176,15 @@ export type AssistantVoice = typeof AssistantVoice[keyof typeof AssistantVoice];
 
 export const AssistantVoice = {
   alloy: 'alloy',
+  ash: 'ash',
+  ballad: 'ballad',
+  coral: 'coral',
   echo: 'echo',
-  fable: 'fable',
-  onyx: 'onyx',
-  nova: 'nova',
+  sage: 'sage',
   shimmer: 'shimmer',
+  verse: 'verse',
+  marin: 'marin',
+  cedar: 'cedar',
 } as const;
 
 export type AssistantPersonality = typeof AssistantPersonality[keyof typeof AssistantPersonality];
@@ -223,11 +227,15 @@ export type AssistantInputVoice = typeof AssistantInputVoice[keyof typeof Assist
 
 export const AssistantInputVoice = {
   alloy: 'alloy',
+  ash: 'ash',
+  ballad: 'ballad',
+  coral: 'coral',
   echo: 'echo',
-  fable: 'fable',
-  onyx: 'onyx',
-  nova: 'nova',
+  sage: 'sage',
   shimmer: 'shimmer',
+  verse: 'verse',
+  marin: 'marin',
+  cedar: 'cedar',
 } as const;
 
 export type AssistantInputPersonality = typeof AssistantInputPersonality[keyof typeof AssistantInputPersonality];
@@ -327,11 +335,15 @@ export type AssistantUpdateVoice = typeof AssistantUpdateVoice[keyof typeof Assi
 
 export const AssistantUpdateVoice = {
   alloy: 'alloy',
+  ash: 'ash',
+  ballad: 'ballad',
+  coral: 'coral',
   echo: 'echo',
-  fable: 'fable',
-  onyx: 'onyx',
-  nova: 'nova',
+  sage: 'sage',
   shimmer: 'shimmer',
+  verse: 'verse',
+  marin: 'marin',
+  cedar: 'cedar',
 } as const;
 
 export type AssistantUpdatePersonality = typeof AssistantUpdatePersonality[keyof typeof AssistantUpdatePersonality];
