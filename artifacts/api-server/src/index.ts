@@ -112,6 +112,25 @@ const MIGRATIONS = [
   `UPDATE contacts SET company_id=(SELECT id FROM companies ORDER BY id LIMIT 1)
      WHERE company_id IS NULL AND EXISTS (SELECT 1 FROM companies)`,
 
+  // 009: Multiple customer job sites, including Tradify site migration.
+  `CREATE TABLE IF NOT EXISTS contact_sites (
+     id serial PRIMARY KEY,
+     company_id integer NOT NULL,
+     contact_id integer NOT NULL,
+     name text NOT NULL,
+     address_street text,
+     city text,
+     region text,
+     postcode text,
+     country text,
+     phone text,
+     notes text,
+     source text NOT NULL DEFAULT 'manual',
+     created_at timestamptz NOT NULL DEFAULT now(),
+     updated_at timestamptz NOT NULL DEFAULT now()
+   )`,
+  `CREATE INDEX IF NOT EXISTS contact_sites_contact_idx ON contact_sites(company_id,contact_id)`,
+
 ];
 
 async function runMigrations(): Promise<void> {
