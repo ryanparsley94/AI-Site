@@ -146,6 +146,9 @@ Every tenant-owned table must have company_id (or an equivalent workspace key), 
 - integrations
 - tasks
 - marketing drafts
+- phone number routing
+- contact sites
+- billing subscriptions
 
 No authenticated tenant route may query a tenant-owned table globally.
 
@@ -158,9 +161,13 @@ Required Replit secrets / environment values:
 - TWILIO_ACCOUNT_SID
 - TWILIO_AUTH_TOKEN
 - VOICE_PUBLIC_BASE_URL
-- VOICE_STREAM_TOKEN
 - VOICE_REALTIME_ENABLED=true for pilot testing
+- OPENAI_REALTIME_MODEL=gpt-realtime-2.1 (optional override)
 - RESEND_API_KEY and RESEND_FROM_EMAIL if email alerts are enabled
+- STRIPE_SECRET_KEY
+- STRIPE_WEBHOOK_SECRET
+- STRIPE_OFFICE_PRICE_ID
+- APP_PUBLIC_BASE_URL
 
 Realtime model target:
 - gpt-realtime-2.1 unless the current OpenAI docs require a newer compatible default.
