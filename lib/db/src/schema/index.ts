@@ -13,3 +13,5 @@ export * from "./integrations";
 export * from "./tasks";
 export * from "./marketing_drafts";
 export * from "./phone_numbers";
+
+export * from "./contact_sites";
