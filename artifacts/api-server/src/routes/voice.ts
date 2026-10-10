@@ -146,7 +146,10 @@ type Answers = Partial<Record<Field, string>>;
 type Session = {
   call_sid: string;
   caller_phone: string;
+  called_phone: string;
   call_id: number | null;
+  company_id: number | null;
+  assistant_id: number | null;
   step: number;
   retries: number;
   answers: Answers;
@@ -187,21 +190,87 @@ async function ensureSession(sid: string, from: string, to: string): Promise<Ses
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    await client.query(
-      "INSERT INTO voice_call_sessions(call_sid, caller_phone, called_phone) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING",
-      [sid, from, to],
+
+    // Route the called Twilio number to its company + receptionist. For the
+    // single-company pilot we safely fall back to the first configured company.
+    const routed = await client.query<{
+      company_id: number;
+      assistant_id: number | null;
+      assistant_name: string | null;
+    }>(
+      `SELECT pn.company_id,
+              COALESCE(pn.assistant_id, a.id) AS assistant_id,
+              a.name AS assistant_name
+         FROM phone_numbers pn
+         LEFT JOIN LATERAL (
+           SELECT id,name
+             FROM assistants
+            WHERE active=true AND type='phone'
+              AND (company_id=pn.company_id OR company_id IS NULL)
+            ORDER BY created_at
+            LIMIT 1
+         ) a ON true
+        WHERE pn.phone_number=$1 AND pn.active=true
+        LIMIT 1`,
+      [to],
     );
+
+    let route = routed.rows[0];
+    if (!route) {
+      const fallback = await client.query<{
+        company_id: number;
+        assistant_id: number | null;
+        assistant_name: string | null;
+      }>(
+        `SELECT c.id AS company_id, a.id AS assistant_id, a.name AS assistant_name
+           FROM companies c
+           LEFT JOIN LATERAL (
+             SELECT id,name
+               FROM assistants
+              WHERE active=true AND type='phone'
+                AND (company_id=c.id OR company_id IS NULL)
+              ORDER BY created_at
+              LIMIT 1
+           ) a ON true
+          ORDER BY c.id
+          LIMIT 1`,
+      );
+      route = fallback.rows[0];
+    }
+
+    if (!route?.company_id) throw new Error("No company is configured for this phone number");
+
+    await client.query(
+      `INSERT INTO voice_call_sessions(
+         call_sid,caller_phone,called_phone,company_id,assistant_id
+       ) VALUES ($1,$2,$3,$4,$5)
+       ON CONFLICT (call_sid) DO UPDATE SET
+         company_id=COALESCE(voice_call_sessions.company_id,EXCLUDED.company_id),
+         assistant_id=COALESCE(voice_call_sessions.assistant_id,EXCLUDED.assistant_id)`,
+      [sid, from, to, route.company_id, route.assistant_id],
+    );
+
     const result = await client.query<Session>("SELECT * FROM voice_call_sessions WHERE call_sid=$1 FOR UPDATE", [sid]);
     const session = result.rows[0];
+
     if (!session.call_id) {
-      const assistant = await client.query<{ name: string }>("SELECT name FROM assistants WHERE active=true AND type='phone' ORDER BY created_at LIMIT 1");
+      const assistantName = route.assistant_name ?? "CREWON Receptionist";
       const call = await client.query<{ id: number }>(
-        "INSERT INTO calls(caller_name,caller_phone,assistant_name,status,outcome,notes,transcript) VALUES ($1,$2,$3,'unresolved','New phone enquiry','Call in progress','[]'::jsonb) RETURNING id",
-        ["Unknown caller", from, assistant.rows[0]?.name ?? "CREWON Receptionist"],
+        `INSERT INTO calls(
+           caller_name,caller_phone,assistant_name,status,outcome,notes,transcript,company_id
+         ) VALUES ($1,$2,$3,'unresolved','New phone enquiry','Call in progress','[]'::jsonb,$4)
+         RETURNING id`,
+        ["Unknown caller", from, assistantName, route.company_id],
       );
       session.call_id = call.rows[0].id;
-      await client.query("UPDATE voice_call_sessions SET call_id=$2 WHERE call_sid=$1", [sid, session.call_id]);
+      session.company_id = route.company_id;
+      session.assistant_id = route.assistant_id;
+      await client.query(
+        "UPDATE voice_call_sessions SET call_id=$2,company_id=$3,assistant_id=$4 WHERE call_sid=$1",
+        [sid, session.call_id, route.company_id, route.assistant_id],
+      );
     }
+
     await client.query("COMMIT");
     return session;
   } catch (error) {
@@ -236,7 +305,9 @@ export async function notifyOwner(sid: string): Promise<void> {
   const session = claim.rows[0];
   if (!session) return;
   try {
-    const company = await pool.query<{ name: string; email: string | null }>("SELECT name,email FROM companies ORDER BY id LIMIT 1");
+    const company = session.company_id
+      ? await pool.query<{ name: string; email: string | null }>("SELECT name,email FROM companies WHERE id=$1 LIMIT 1", [session.company_id])
+      : await pool.query<{ name: string; email: string | null }>("SELECT name,email FROM companies ORDER BY id LIMIT 1");
     const recipient = company.rows[0]?.email;
     const from = process.env.RESEND_FROM_EMAIL;
     const key = process.env.RESEND_API_KEY;
@@ -275,7 +346,9 @@ async function confirmToCaller(sid: string): Promise<void> {
     return;
   }
   try {
-    const company = await pool.query<{ name: string }>("SELECT name FROM companies ORDER BY id LIMIT 1");
+    const company = session.company_id
+      ? await pool.query<{ name: string }>("SELECT name FROM companies WHERE id=$1 LIMIT 1", [session.company_id])
+      : await pool.query<{ name: string }>("SELECT name FROM companies ORDER BY id LIMIT 1");
     const name = company.rows[0]?.name ?? "the team";
     const body = new URLSearchParams({
       To: session.caller_phone,
@@ -309,11 +382,14 @@ async function finish(sid: string): Promise<void> {
     const phone = callbackNumber(a, session.caller_phone);
     // Serialise matching so two calls from the same number cannot create two contacts.
     await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [phone]);
-    let contact = await client.query<{ id: number }>("SELECT id FROM contacts WHERE phone=$1 ORDER BY id LIMIT 1", [phone]);
+    let contact = await client.query<{ id: number }>(
+      "SELECT id FROM contacts WHERE phone=$1 AND (company_id=$2 OR company_id IS NULL) ORDER BY id LIMIT 1",
+      [phone, session.company_id],
+    );
     if (!contact.rows.length) {
       contact = await client.query<{ id: number }>(
-        "INSERT INTO contacts(name,phone,address,type,notes) VALUES ($1,$2,$3,'lead',$4) RETURNING id",
-        [a.name || "Unknown caller", phone, a.address || null, "Captured by CREWON phone receptionist"],
+        "INSERT INTO contacts(name,phone,address,type,notes,company_id) VALUES ($1,$2,$3,'lead',$4,$5) RETURNING id",
+        [a.name || "Unknown caller", phone, a.address || null, "Captured by CREWON phone receptionist", session.company_id],
       );
     }
     const urgent = /urgent|danger|sparking|fire|shock|burning|no power/i.test(a.urgency ?? "");
@@ -345,6 +421,7 @@ async function finish(sid: string): Promise<void> {
 phoneRouter.post("/voice/incoming", async (req, res): Promise<void> => {
   const sid = String(req.body.CallSid ?? "");
   if (!/^CA[a-fA-F0-9]{32}$/.test(sid)) { res.status(400).end(); return; }
+
   try {
     const session = await ensureSession(sid, String(req.body.From ?? ""), String(req.body.To ?? ""));
     if (session.completed) { twiml(res, "<Say>Thank you. Goodbye.</Say><Hangup/>"); return; }
@@ -353,20 +430,38 @@ phoneRouter.post("/voice/incoming", async (req, res): Promise<void> => {
     const realtimeEnabled =
       process.env.VOICE_REALTIME_ENABLED === "true" &&
       Boolean(process.env.OPENAI_API_KEY) &&
-      Boolean(process.env.VOICE_STREAM_TOKEN) &&
-      Boolean(realtimeUrl);
+      Boolean(realtimeUrl) &&
+      Boolean(session.call_id) &&
+      Boolean(session.company_id) &&
+      Boolean(session.assistant_id);
 
-    if (realtimeEnabled && realtimeUrl) {
-      const streamToken = process.env.VOICE_STREAM_TOKEN ?? "";
+    if (realtimeEnabled && realtimeUrl && session.call_id && session.company_id && session.assistant_id) {
       twiml(
         res,
-        `<Connect><Stream url="${xml(realtimeUrl)}"><Parameter name="streamToken" value="${xml(streamToken)}" /></Stream></Connect>`,
+        `<Connect><Stream url="${xml(realtimeUrl)}">` +
+          `<Parameter name="callId" value="${session.call_id}" />` +
+          `<Parameter name="companyId" value="${session.company_id}" />` +
+          `<Parameter name="assistantId" value="${session.assistant_id}" />` +
+        `</Stream></Connect>`,
       );
       return;
     }
 
-    twiml(res, ask(session.step, session.step === 0 ? "Thank you for calling. I'll take your full message so the team can get back to you. " : ""));
-  } catch (error) { logger.error({ err: error }, "Voice incoming failed"); res.status(500).end(); }
+    // Resilient fallback: if Realtime or credentials are unavailable, capture
+    // the enquiry with the existing speech interview rather than dropping calls.
+    twiml(
+      res,
+      ask(
+        session.step,
+        session.step === 0
+          ? "Thank you for calling. I'll take your full message so the team can get back to you. "
+          : "",
+      ),
+    );
+  } catch (error) {
+    logger.error({ err: error }, "Voice incoming failed");
+    res.status(500).end();
+  }
 });
 
 phoneRouter.post("/voice/answer", async (req, res): Promise<void> => {
