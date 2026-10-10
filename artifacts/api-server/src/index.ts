@@ -77,6 +77,36 @@ const MIGRATIONS = [
     updated_at timestamptz NOT NULL DEFAULT now()
   )`,
   `ALTER TABLE voice_call_sessions ADD COLUMN IF NOT EXISTS customer_confirmation_status text NOT NULL DEFAULT 'pending'`,
+  // 008: Multi-company routing required by the realtime receptionist.
+  `ALTER TABLE assistants ADD COLUMN IF NOT EXISTS company_id integer`,
+  `ALTER TABLE calls ADD COLUMN IF NOT EXISTS company_id integer`,
+  `ALTER TABLE contacts ADD COLUMN IF NOT EXISTS company_id integer`,
+  `ALTER TABLE voice_call_sessions
+     ADD COLUMN IF NOT EXISTS company_id integer,
+     ADD COLUMN IF NOT EXISTS assistant_id integer`,
+  `CREATE TABLE IF NOT EXISTS phone_numbers (
+     id serial PRIMARY KEY,
+     company_id integer NOT NULL,
+     assistant_id integer,
+     provider text NOT NULL DEFAULT 'twilio',
+     provider_sid text,
+     phone_number text NOT NULL UNIQUE,
+     label text,
+     active boolean NOT NULL DEFAULT true,
+     created_at timestamptz NOT NULL DEFAULT now(),
+     updated_at timestamptz NOT NULL DEFAULT now()
+   )`,
+  `CREATE INDEX IF NOT EXISTS phone_numbers_company_idx ON phone_numbers(company_id)`,
+  `CREATE INDEX IF NOT EXISTS assistants_company_idx ON assistants(company_id)`,
+  `CREATE INDEX IF NOT EXISTS calls_company_idx ON calls(company_id)`,
+  `CREATE INDEX IF NOT EXISTS contacts_company_idx ON contacts(company_id)`,
+  // Preserve the pilot data by attaching pre-existing rows to the first company.
+  `UPDATE assistants SET company_id=(SELECT id FROM companies ORDER BY id LIMIT 1)
+     WHERE company_id IS NULL AND EXISTS (SELECT 1 FROM companies)`,
+  `UPDATE calls SET company_id=(SELECT id FROM companies ORDER BY id LIMIT 1)
+     WHERE company_id IS NULL AND EXISTS (SELECT 1 FROM companies)`,
+  `UPDATE contacts SET company_id=(SELECT id FROM companies ORDER BY id LIMIT 1)
+     WHERE company_id IS NULL AND EXISTS (SELECT 1 FROM companies)`,
 ];
 
 async function runMigrations(): Promise<void> {
