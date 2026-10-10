@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { eq, and } from "drizzle-orm";
-import { db, assistantsTable, assistantTrainingTable } from "@workspace/db";
+import { db, pool, assistantsTable, assistantTrainingTable } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import {
   ListAssistantsResponse,
@@ -28,6 +28,14 @@ import {
 
 const router = Router();
 
+async function currentCompanyId(): Promise<number> {
+  const company = await pool.query<{ id: number }>(
+    "SELECT id FROM companies ORDER BY id LIMIT 1",
+  );
+  if (!company.rows[0]) throw new Error("Business profile is not configured.");
+  return company.rows[0].id;
+}
+
 function mapAssistant(a: typeof assistantsTable.$inferSelect) {
   return {
     ...a,
@@ -42,8 +50,13 @@ function mapTraining(t: typeof assistantTrainingTable.$inferSelect) {
   };
 }
 
-router.get("/assistants", async (req, res): Promise<void> => {
-  const rows = await db.select().from(assistantsTable).orderBy(assistantsTable.createdAt);
+router.get("/assistants", async (_req, res): Promise<void> => {
+  const companyId = await currentCompanyId();
+  const rows = await db
+    .select()
+    .from(assistantsTable)
+    .where(eq(assistantsTable.companyId, companyId))
+    .orderBy(assistantsTable.createdAt);
   res.json(ListAssistantsResponse.parse(rows.map(mapAssistant)));
 });
 
@@ -53,14 +66,22 @@ router.post("/assistants", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const [row] = await db.insert(assistantsTable).values(parsed.data).returning();
+  const companyId = await currentCompanyId();
+  const [row] = await db
+    .insert(assistantsTable)
+    .values({ ...parsed.data, companyId })
+    .returning();
   res.status(201).json(CreateAssistantResponse.parse(mapAssistant(row)));
 });
 
 router.get("/assistants/:id", async (req, res): Promise<void> => {
   const params = GetAssistantParams.safeParse({ id: Number(req.params.id) });
   if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
-  const [row] = await db.select().from(assistantsTable).where(eq(assistantsTable.id, params.data.id));
+  const companyId = await currentCompanyId();
+  const [row] = await db
+    .select()
+    .from(assistantsTable)
+    .where(and(eq(assistantsTable.id, params.data.id), eq(assistantsTable.companyId, companyId)));
   if (!row) { res.status(404).json({ error: "Not found" }); return; }
   res.json(GetAssistantResponse.parse(mapAssistant(row)));
 });
@@ -73,7 +94,7 @@ router.patch("/assistants/:id", async (req, res): Promise<void> => {
   const [row] = await db
     .update(assistantsTable)
     .set(parsed.data)
-    .where(eq(assistantsTable.id, params.data.id))
+    .where(and(eq(assistantsTable.id, params.data.id), eq(assistantsTable.companyId, await currentCompanyId())))
     .returning();
   if (!row) { res.status(404).json({ error: "Not found" }); return; }
   res.json(UpdateAssistantResponse.parse(mapAssistant(row)));
@@ -82,7 +103,10 @@ router.patch("/assistants/:id", async (req, res): Promise<void> => {
 router.delete("/assistants/:id", async (req, res): Promise<void> => {
   const params = DeleteAssistantParams.safeParse({ id: Number(req.params.id) });
   if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
-  await db.delete(assistantsTable).where(eq(assistantsTable.id, params.data.id));
+  const companyId = await currentCompanyId();
+  await db
+    .delete(assistantsTable)
+    .where(and(eq(assistantsTable.id, params.data.id), eq(assistantsTable.companyId, companyId)));
   res.status(204).end();
 });
 
@@ -133,6 +157,12 @@ router.post("/assistants/voice-preview", async (req, res): Promise<void> => {
 router.get("/assistants/:id/training", async (req, res): Promise<void> => {
   const params = ListAssistantTrainingParams.safeParse({ id: Number(req.params.id) });
   if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+  const companyId = await currentCompanyId();
+  const [owned] = await db
+    .select({ id: assistantsTable.id })
+    .from(assistantsTable)
+    .where(and(eq(assistantsTable.id, params.data.id), eq(assistantsTable.companyId, companyId)));
+  if (!owned) { res.status(404).json({ error: "Assistant not found" }); return; }
   const rows = await db
     .select()
     .from(assistantTrainingTable)
@@ -145,8 +175,12 @@ router.post("/assistants/:id/training", async (req, res): Promise<void> => {
   const params = CreateAssistantTrainingParams.safeParse({ id: Number(req.params.id) });
   if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  // Verify assistant exists
-  const [assistant] = await db.select().from(assistantsTable).where(eq(assistantsTable.id, params.data.id));
+  // Verify the assistant belongs to this business.
+  const companyId = await currentCompanyId();
+  const [assistant] = await db
+    .select()
+    .from(assistantsTable)
+    .where(and(eq(assistantsTable.id, params.data.id), eq(assistantsTable.companyId, companyId)));
   if (!assistant) { res.status(404).json({ error: "Assistant not found" }); return; }
 
   const parsed = CreateAssistantTrainingBody.safeParse(req.body);
@@ -208,7 +242,7 @@ function buildSystemPrompt(
   const parts: string[] = [];
 
   parts.push(
-    `You are ${assistant.name}, an AI phone assistant for a construction company. ` +
+    `You are ${assistant.name}, the AI receptionist for a UK trade business. ` +
     `Your personality is ${assistant.personality}. ` +
     (assistant.instructions ? assistant.instructions : "")
   );
@@ -249,7 +283,11 @@ router.post("/assistants/:id/test", async (req, res): Promise<void> => {
   const parsed = TestAssistantBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const [assistant] = await db.select().from(assistantsTable).where(eq(assistantsTable.id, params.data.id));
+  const companyId = await currentCompanyId();
+  const [assistant] = await db
+    .select()
+    .from(assistantsTable)
+    .where(and(eq(assistantsTable.id, params.data.id), eq(assistantsTable.companyId, companyId)));
   if (!assistant) { res.status(404).json({ error: "Assistant not found" }); return; }
 
   const trainingEntries = await db
