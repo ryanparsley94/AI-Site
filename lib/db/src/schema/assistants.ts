@@ -7,7 +7,7 @@ export const assistantsTable = pgTable("assistants", {
   companyId: integer("company_id"),
   name: text("name").notNull(),
   type: text("type").notNull().default("phone"),
-  voice: text("voice").notNull().default("alloy"),
+  voice: text("voice").notNull().default("marin"),
   personality: text("personality").notNull().default("professional"),
   greeting: text("greeting").notNull().default("Thank you for calling. How can I help you today?"),
   instructions: text("instructions"),
