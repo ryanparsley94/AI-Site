@@ -2,7 +2,6 @@ import { Router } from "express";
 import { eq, and } from "drizzle-orm";
 import { db, assistantsTable, assistantTrainingTable } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
-import { textToSpeech } from "@workspace/integrations-openai-ai-server/audio";
 import {
   ListAssistantsResponse,
   CreateAssistantBody,
@@ -90,21 +89,43 @@ router.delete("/assistants/:id", async (req, res): Promise<void> => {
 // Voice preview — returns audio/wav for the given voice
 router.post("/assistants/voice-preview", async (req, res): Promise<void> => {
   const { voice, text } = req.body as { voice?: string; text?: string };
-  const allowed = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"];
+  const allowed = ["alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse", "marin", "cedar"];
   if (!voice || !allowed.includes(voice)) {
     res.status(400).json({ error: "Invalid voice" });
     return;
   }
+  if (!process.env.OPENAI_API_KEY) {
+    res.status(503).json({ error: "OpenAI voice previews are not configured yet." });
+    return;
+  }
+
   const sample = (text || "Hi, thanks for calling. How can I help you today?").slice(0, 200);
-  const buf = await textToSpeech(
-    sample,
-    voice as "alloy" | "echo" | "fable" | "onyx" | "nova" | "shimmer",
-    "mp3",
-    "Speak with a natural British English (Received Pronunciation) accent throughout."
-  );
-  res.setHeader("Content-Type", "audio/mpeg");
-  res.setHeader("Content-Length", buf.length);
-  res.send(buf);
+  try {
+    const response = await fetch("https://api.openai.com/v1/audio/speech", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini-tts",
+        voice,
+        input: sample,
+        instructions: "Speak in natural British English. Warm, professional, conversational, concise and not salesy.",
+        response_format: "mp3",
+      }),
+    });
+    if (!response.ok) {
+      res.status(502).json({ error: "Voice preview provider returned an error." });
+      return;
+    }
+    const buf = Buffer.from(await response.arrayBuffer());
+    res.setHeader("Content-Type", "audio/mpeg");
+    res.setHeader("Content-Length", buf.length);
+    res.send(buf);
+  } catch {
+    res.status(502).json({ error: "Voice preview is temporarily unavailable." });
+  }
 });
 
 // ─── Training CRUD ────────────────────────────────────────────────────────────
