@@ -23,6 +23,10 @@ function blockedIpv4(ip: string): boolean {
 
 function blockedIpv6(ip: string): boolean {
   const value = ip.toLowerCase();
+  if (value.startsWith("::ffff:")) {
+    const mapped = value.slice("::ffff:".length);
+    return isIP(mapped) === 4 ? blockedIpv4(mapped) : true;
+  }
   return (
     value === "::" ||
     value === "::1" ||
