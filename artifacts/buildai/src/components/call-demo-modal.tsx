@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
-  AlertCircle, ArrowLeft, ArrowRight, AudioLines, Check, CheckCircle2, Globe2,
+  AlertCircle, ArrowLeft, ArrowRight, AudioLines, CheckCircle2, Globe2,
   LoaderCircle, Mic, MicOff, Phone, RotateCcw, ShieldCheck, Sparkles, UserRound, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,21 +12,17 @@ type PreviewResponse = { preview: BusinessProfile; source?: unknown };
 type TranscriptItem = { role: "caller" | "receptionist"; text: string };
 type CapturedLead = {
   name?: string; phone?: string; workNeeded?: string; siteAddress?: string;
-  urgency?: string; summary?: string; nextAction?: string;
+  urgency?: string; summary?: string; nextAction?: string; contactId?: number | null; jobId?: number | null;
 };
 type FinalizeResponse = {
   lead: CapturedLead;
-  booking: { status: string; slot: string } | null;
+  booking: { status: string; slot?: string; jobId?: number } | null;
 };
+type AvailableSlot = { iso: string; label: string };
 type Stage = "profile" | "call" | "result";
 type CallStatus = "idle" | "connecting" | "live" | "ending" | "error";
 
 const RECEPTIONIST_NAME = "Maya";
-const DEMO_SLOTS = [
-  { label: "Tuesday · 10:30", value: "Tuesday at 10:30 (demo-only)" },
-  { label: "Wednesday · 14:00", value: "Wednesday at 14:00 (demo-only)" },
-];
-
 function apiPath(path: string) {
   const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
   return `${base}${path}`;
@@ -82,6 +78,7 @@ export function CallDemoModal({
   onOpenChange: (v: boolean) => void;
 }) {
   const [stage, setStage] = useState<Stage>("profile");
+  const [receptionistName, setReceptionistName] = useState(RECEPTIONIST_NAME);
   const [website, setWebsite] = useState("");
   const [profile, setProfile] = useState<BusinessProfile | null>(null);
   const [websiteSource, setWebsiteSource] = useState("");
@@ -92,7 +89,8 @@ export function CallDemoModal({
   const [lead, setLead] = useState<CapturedLead | null>(null);
   const [booking, setBooking] = useState<FinalizeResponse["booking"]>(null);
   const [demoSlot, setDemoSlot] = useState("");
-  const [selectedDemoSlot, setSelectedDemoSlot] = useState("");
+  const [livePilotConsent, setLivePilotConsent] = useState(false);
+  const [availableSlots, setAvailableSlots] = useState<AvailableSlot[]>([]);
   const [micReady, setMicReady] = useState(false);
 
   const peerRef = useRef<RTCPeerConnection | null>(null);
@@ -101,6 +99,7 @@ export function CallDemoModal({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const transcriptRef = useRef<TranscriptItem[]>([]);
   const demoIdRef = useRef<string | null>(null);
+  const receptionistNameRef = useRef(RECEPTIONIST_NAME);
   const itemIndexesRef = useRef<Record<string, number>>({});
 
   const closeConnection = useCallback(() => {
@@ -121,6 +120,8 @@ export function CallDemoModal({
   const reset = useCallback(() => {
     closeConnection();
     setStage("profile");
+    setReceptionistName(RECEPTIONIST_NAME);
+    receptionistNameRef.current = RECEPTIONIST_NAME;
     setWebsite("");
     setProfile(null);
     setWebsiteSource("");
@@ -132,7 +133,8 @@ export function CallDemoModal({
     setLead(null);
     setBooking(null);
     setDemoSlot("");
-    setSelectedDemoSlot("");
+    setLivePilotConsent(false);
+    setAvailableSlots([]);
     demoIdRef.current = null;
     itemIndexesRef.current = {};
   }, [closeConnection]);
@@ -166,6 +168,9 @@ export function CallDemoModal({
       const result = await postJson<PreviewResponse>("/api/public-demo/website-preview", { url: website.trim() });
       if (!result.preview || typeof result.preview !== "object") throw new Error("We couldn't read a business profile from that website.");
       setProfile(result.preview);
+      const savedReceptionist = readable(result.preview.receptionistName) || RECEPTIONIST_NAME;
+      setReceptionistName(savedReceptionist);
+      receptionistNameRef.current = savedReceptionist;
       setWebsiteSource(readable(result.source) || new URL(website).hostname);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Website preview is unavailable. Please try again.");
@@ -176,6 +181,10 @@ export function CallDemoModal({
 
   async function startCall() {
     if (!profile || callStatus === "connecting" || callStatus === "live") return;
+    if (!livePilotConsent) {
+      setError("Confirm that this call may create a real Parsley Electrical enquiry or appointment in CREWON.");
+      return;
+    }
     setError("");
     setCallStatus("connecting");
     transcriptRef.current = [];
@@ -212,7 +221,7 @@ export function CallDemoModal({
 
       const channel = peer.createDataChannel("oai-events");
       channelRef.current = channel;
-      channel.onmessage = (message) => {
+      channel.onmessage = async (message) => {
         let event: Record<string, unknown>;
         try { event = JSON.parse(message.data) as Record<string, unknown>; } catch { return; }
         if (event.type === "error") {
@@ -233,17 +242,30 @@ export function CallDemoModal({
           setCallStatus("live");
         } else if (event.type === "input_audio_buffer.speech_started") {
           // Live turn feedback; transcription arrives via the completed event.
-        } else if (event.type === "response.function_call_arguments.done" && event.name === "book_demo_appointment") {
-          let slot = "";
-          try {
-            const args = JSON.parse(String(event.arguments || "{}")) as { slot?: string };
-            if (DEMO_SLOTS.some((candidate) => candidate.value === args.slot)) slot = args.slot || "";
-          } catch { /* reject malformed model tool arguments */ }
+        } else if (event.type === "response.function_call_arguments.done" &&
+          (event.name === "get_available_appointments" || event.name === "book_appointment")) {
           const callId = typeof event.call_id === "string" ? event.call_id : "";
-          const output = slot
-            ? { ok: true, status: "demo-only; not reserved", slot }
-            : { ok: false, error: "Only the two displayed demo-only slots are available." };
-          if (slot) setDemoSlot(slot);
+          let output: unknown;
+          try {
+            const args = JSON.parse(String(event.arguments || "{}")) as Record<string, string>;
+            const demoId = demoIdRef.current;
+            if (!demoId) throw new Error("The pilot session has expired.");
+            if (event.name === "get_available_appointments") {
+              const result = await postJson<{ slots: AvailableSlot[] }>("/api/public-demo/appointments/available", { demoId });
+              setAvailableSlots(result.slots);
+              output = { status: "ok", slots: result.slots, instruction: "Offer only these exact returned appointment slots." };
+            } else {
+              const result = await postJson<{ status: string; jobId: number; slot: string }>("/api/public-demo/appointments/book", {
+                demoId, slotIso: args.slot_iso, callerName: args.caller_name,
+                callerPhone: args.caller_phone, serviceDescription: args.service_description, address: args.address,
+              });
+              setBooking(result);
+              setDemoSlot(result.slot);
+              output = { ...result, instruction: "The real Parsley Electrical appointment is booked. Confirm this exact time." };
+            }
+          } catch (caught) {
+            output = { status: "error", message: caught instanceof Error ? caught.message : "The live booking request failed. Do not say a time is booked." };
+          }
           if (callId && channel.readyState === "open") {
             channel.send(JSON.stringify({
               type: "conversation.item.create",
@@ -257,7 +279,7 @@ export function CallDemoModal({
         channel.send(JSON.stringify({
           type: "response.create",
           response: {
-            instructions: `Greet the caller now as ${RECEPTIONIST_NAME} from ${businessName}. Be warm, brief and natural; ask how you can help.`,
+              instructions: `Greet the caller now as ${receptionistNameRef.current} from ${businessName}. Be warm, brief and natural; ask how you can help.`,
           },
         }));
       };
@@ -280,17 +302,19 @@ export function CallDemoModal({
           peer.addEventListener("icegatheringstatechange", onGatheringComplete);
         });
       }
-      const answer = await postJson<{ clientSecret: string; demoId: string }>(
+      const answer = await postJson<{ clientSecret: string; demoId: string; receptionistName: string }>(
         "/api/public-demo/realtime-session",
         {
           profile,
-          receptionistName: RECEPTIONIST_NAME,
-          voice: "coral",
-          websiteFacts: profile.websiteFacts ?? profile.facts ?? profile,
+          receptionistName,
+          consent: livePilotConsent,
+          websiteFacts: profile,
         },
       );
       if (!answer.clientSecret || !answer.demoId) throw new Error("The live demo service returned an incomplete session.");
       demoIdRef.current = answer.demoId;
+      receptionistNameRef.current = answer.receptionistName;
+      setReceptionistName(answer.receptionistName);
       const sdp = peer.localDescription?.sdp ?? offer.sdp;
       const realtimeResponse = await fetch("https://api.openai.com/v1/realtime/calls?model=gpt-realtime-2.1", {
         method: "POST",
@@ -327,8 +351,7 @@ export function CallDemoModal({
     try {
       const result = await postJson<FinalizeResponse>("/api/public-demo/finalize", {
         demoId,
-        transcript: transcriptRef.current.map((line) => `${line.role === "caller" ? "Caller" : RECEPTIONIST_NAME}: ${line.text}`).join("\n"),
-        ...(demoSlot ? { bookedSlot: demoSlot } : {}),
+        transcript: transcriptRef.current.map((line) => `${line.role === "caller" ? "Caller" : receptionistName}: ${line.text}`).join("\n"),
       });
       setLead(result.lead);
       setBooking(result.booking);
@@ -375,7 +398,7 @@ export function CallDemoModal({
               </div>
             </div>
             <p id="call-demo-description" className="mt-3 text-xs leading-relaxed text-white/55">
-              A real-time AI conversation, using information from your website. Nothing is sent to a real calendar.
+              A live OpenAI Realtime conversation using Parsley’s saved training and reviewed website profile.
             </p>
             <ol aria-label="Demo steps" className="mt-4 grid grid-cols-3 gap-2">
               {[
@@ -410,7 +433,7 @@ export function CallDemoModal({
                 <div className="mb-5">
                   <p className="text-xs font-semibold uppercase tracking-[.14em] text-[#36C6D5]">First, make it yours</p>
                   <h2 id="profile-heading" className="mt-1 text-xl font-bold tracking-tight">Your website, in the room.</h2>
-              <p className="mt-1.5 text-sm leading-relaxed text-white/55">We’ll use public website details to brief {RECEPTIONIST_NAME}. Do not share sensitive details; the demo transcript is retained for up to seven days to prepare its enquiry summary.</p>
+              <p className="mt-1.5 text-sm leading-relaxed text-white/55">The pilot combines Parsley Electrical’s saved receptionist training with its reviewed website profile. Call details can create real records in the CrewOn office.</p>
                 </div>
                 <form onSubmit={loadProfile} className="flex flex-col gap-2 sm:flex-row">
                   <label htmlFor="demo-website" className="sr-only">Business website address</label>
@@ -458,26 +481,27 @@ export function CallDemoModal({
                           ))}
                         </dl>
                       ) : (
-                        <p className="mt-4 border-t border-white/8 pt-4 text-sm text-white/60">Website details are ready. Maya will stick to what you share during the call.</p>
+                        <p className="mt-4 border-t border-white/8 pt-4 text-sm text-white/60">Website details are ready. {receptionistName} will stick to saved training and reviewed facts.</p>
                       )}
                     </div>
                     <div className="mt-4 rounded-xl border border-[#36C6D5]/15 bg-[#36C6D5]/[.06] p-3.5">
                       <div className="flex items-center gap-2 text-sm font-semibold">
                         <UserRound size={16} className="text-[#36C6D5]" />
-                        Meet {RECEPTIONIST_NAME}
+                        Meet {receptionistName}
                         <span className="ml-auto rounded-full bg-[#36C6D5]/10 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-[#7bd9e1]">AI receptionist</span>
                       </div>
                       <p className="mt-1.5 text-xs leading-relaxed text-white/55">Ask about your services, then try a customer enquiry. Your mic starts only when you choose to begin.</p>
                     </div>
-                    <div className="mt-4 rounded-xl border border-amber-300/15 bg-amber-200/[.05] p-3 text-xs leading-relaxed text-amber-100/75">
-                      Any slot shown in this demo is fictional. It will not check or change your real calendar.
-                    </div>
+                    <label className="mt-4 flex items-start gap-2.5 rounded-xl border border-amber-300/20 bg-amber-200/[.05] p-3 text-xs leading-relaxed text-amber-100/80">
+                      <input type="checkbox" checked={livePilotConsent} onChange={(event) => setLivePilotConsent(event.target.checked)} className="mt-0.5 accent-[#36C6D5]" />
+                      I understand this call may save my details to Parsley Electrical’s CrewOn office and may book a real appointment if I confirm one.
+                    </label>
                     <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
                       <Button type="button" variant="ghost" onClick={() => { setProfile(null); setError(""); }} className="text-white/65 hover:bg-white/5 hover:text-white" data-testid="button-change-website">
                         Change website
                       </Button>
-                      <Button type="button" onClick={() => { setError(""); setStage("call"); }} className="h-11 gap-2 bg-[#36C6D5] px-5 font-semibold text-[#0D171C] hover:bg-[#58d3de]" data-testid="button-continue-to-call">
-                        Meet {RECEPTIONIST_NAME} <ArrowRight size={16} />
+                      <Button type="button" disabled={!livePilotConsent} onClick={() => { setError(""); setStage("call"); }} className="h-11 gap-2 bg-[#36C6D5] px-5 font-semibold text-[#0D171C] hover:bg-[#58d3de] disabled:opacity-40" data-testid="button-continue-to-call">
+                        Meet {receptionistName} <ArrowRight size={16} />
                       </Button>
                     </div>
                   </div>
@@ -494,33 +518,19 @@ export function CallDemoModal({
                   <div className={`mx-auto grid h-20 w-20 place-items-center rounded-full border transition-colors ${callStatus === "live" ? "border-[#36C6D5]/40 bg-[#36C6D5]/15 text-[#36C6D5]" : "border-white/10 bg-white/[.04] text-white/55"}`}>
                     {callStatus === "live" ? <AudioLines size={30} /> : <UserRound size={30} />}
                   </div>
-                  <h2 id="call-heading" className="mt-4 text-xl font-bold">{callStatus === "live" ? "You’re live with Maya" : "Have a real conversation"}</h2>
+                  <h2 id="call-heading" className="mt-4 text-xl font-bold">{callStatus === "live" ? "You’re live with the Parsley receptionist" : "Have a real conversation"}</h2>
                   <p className="mx-auto mt-1.5 max-w-sm text-sm leading-relaxed text-white/55">
-                    {callStatus === "live" ? "Speak naturally. Maya can hear you and respond in real time." : "This is an AI demo, not a call to the business. Your microphone is used only after you tap below."}
+                    {callStatus === "live" ? "Speak naturally. The receptionist can answer from saved training and the website profile." : "This connects to OpenAI Realtime. Your microphone starts only after you tap below; no synthetic browser voice is used."}
                   </p>
                 </div>
 
                 <div className="my-5 rounded-xl border border-white/10 bg-[#122128] px-4 py-3">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-white/45">Optional · demo-only slot</p>
-                    <span className="rounded-full border border-amber-200/15 bg-amber-200/[.06] px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-amber-100/70">Not your calendar</span>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-white/45">Live Parsley availability</p>
+                    <span className="rounded-full border border-[#36C6D5]/15 bg-[#36C6D5]/[.06] px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-[#83dbe3]">Live schedule</span>
                   </div>
-                  <p className="mt-1 text-xs text-white/45">Choose a fictional slot to illustrate a booking outcome.</p>
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    {DEMO_SLOTS.map((slot) => (
-                      <button
-                        key={slot.value}
-                        type="button"
-                        aria-pressed={selectedDemoSlot === slot.value}
-                        onClick={() => setSelectedDemoSlot(selectedDemoSlot === slot.value ? "" : slot.value)}
-                        disabled={callInProgress}
-                        className={`min-h-10 rounded-lg border px-2 py-2 text-xs font-semibold transition-colors disabled:opacity-50 ${selectedDemoSlot === slot.value ? "border-[#36C6D5]/50 bg-[#36C6D5]/10 text-[#8be2e9]" : "border-white/10 bg-white/[.025] text-white/65 hover:border-white/20"}`}
-                        data-testid={`button-demo-slot-${slot.label.split(" ")[0].toLowerCase()}`}
-                      >
-                        {selectedDemoSlot === slot.value && <Check size={13} className="mr-1 inline" />}{slot.label}
-                      </button>
-                    ))}
-                  </div>
+                  <p className="mt-1 text-xs text-white/45">The receptionist checks availability during the call and offers only returned slots.</p>
+                  {availableSlots.length > 0 && <ul className="mt-2 space-y-1 text-xs text-[#8be2e9]">{availableSlots.map((slot) => <li key={slot.iso}>{slot.label}</li>)}</ul>}
                 </div>
 
                 {transcript.length > 0 && (
@@ -528,7 +538,7 @@ export function CallDemoModal({
                     {transcript.map((line, index) => (
                       <div key={`${line.role}-${index}`} className="flex gap-2 text-sm">
                         <span className={`w-[76px] shrink-0 text-[10px] font-bold uppercase tracking-wide ${line.role === "caller" ? "text-white/40" : "text-[#71d4de]"}`}>
-                          {line.role === "caller" ? "You" : RECEPTIONIST_NAME}
+                          {line.role === "caller" ? "You" : receptionistName}
                         </span>
                         <p className="min-w-0 whitespace-pre-wrap leading-relaxed text-white/75">{line.text}</p>
                       </div>
@@ -564,9 +574,9 @@ export function CallDemoModal({
                   <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl border border-[#36C6D5]/20 bg-[#36C6D5]/10 text-[#36C6D5]">
                     <CheckCircle2 size={27} />
                   </span>
-                  <p className="mt-4 text-xs font-bold uppercase tracking-[.15em] text-[#36C6D5]">Demo enquiry captured</p>
-                  <h2 id="result-heading" className="mt-1 text-xl font-bold">Here’s what Maya heard.</h2>
-                  <p className="mt-1 text-xs text-white/45">A demo summary only. No customer record or real booking was created.</p>
+                  <p className="mt-4 text-xs font-bold uppercase tracking-[.15em] text-[#36C6D5]">Saved to CrewOn</p>
+                  <h2 id="result-heading" className="mt-1 text-xl font-bold">Here’s what {receptionistName} captured.</h2>
+                  <p className="mt-1 text-xs text-white/45">This live pilot outcome appears in Parsley Electrical’s normal CrewOn office workflow.</p>
                 </div>
                 <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#14252C]">
                   <div className="grid grid-cols-2 divide-x divide-y divide-white/8">
@@ -590,14 +600,14 @@ export function CallDemoModal({
                 </div>
                 {booking ? (
                   <div className="mt-3 rounded-xl border border-amber-200/20 bg-amber-200/[.06] p-3.5" data-testid="status-demo-booking">
-                    <p className="text-xs font-bold uppercase tracking-wider text-amber-100/80">Demo-only booking · not in a real calendar</p>
+                    <p className="text-xs font-bold uppercase tracking-wider text-[#83dbe3]">Real appointment booked</p>
                     <p className="mt-1 text-sm font-semibold text-white/85">{booking.slot || demoSlot}</p>
-                    <p className="mt-1 text-xs text-white/50">This slot is illustrative and has not been reserved.</p>
+                    <p className="mt-1 text-xs text-white/50">CrewOn job #{booking.jobId ?? lead.jobId ?? "—"} · linked to the saved customer record.</p>
                   </div>
                 ) : (
                   <div className="mt-3 rounded-xl border border-white/8 bg-white/[.025] p-3.5">
                     <p className="text-xs font-bold uppercase tracking-wider text-white/40">Booking</p>
-                    <p className="mt-1 text-sm text-white/65">No slot selected. No real appointment has been made.</p>
+                    <p className="mt-1 text-sm text-white/65">No appointment was booked. The call enquiry is still saved for review.</p>
                   </div>
                 )}
                 <div className="mt-3 rounded-xl border border-[#36C6D5]/15 bg-[#36C6D5]/[.06] p-3.5">
@@ -617,8 +627,8 @@ export function CallDemoModal({
           </main>
 
           <footer className="flex shrink-0 items-center justify-between gap-2 border-t border-white/8 bg-[#0b1418] px-4 py-3 sm:px-6">
-            <span className="text-[10px] leading-relaxed text-white/35">Live AI · website-informed · demo data only</span>
-            <span className="inline-flex items-center gap-1.5 text-[10px] font-medium text-white/40"><ShieldCheck size={12} /> Separate demo records · 7-day retention</span>
+            <span className="text-[10px] leading-relaxed text-white/35">OpenAI Realtime · live Parsley pilot · CRM records</span>
+            <span className="inline-flex items-center gap-1.5 text-[10px] font-medium text-white/40"><ShieldCheck size={12} /> Consent required · no SMS/email sent</span>
           </footer>
         </div>
       </DialogContent>

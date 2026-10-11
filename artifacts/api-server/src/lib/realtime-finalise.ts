@@ -26,6 +26,8 @@ type FinaliseInput = {
   assistantId: number;
   transcript: PhoneTranscriptEntry[];
   durationSeconds: number;
+  notifyOwner?: boolean;
+  confirmCaller?: boolean;
 };
 
 function fallbackExtraction(transcript: PhoneTranscriptEntry[]): ExtractedEnquiry {
@@ -133,7 +135,10 @@ async function extractEnquiry(transcript: PhoneTranscriptEntry[]): Promise<Extra
 
 function e164ish(value: string | null | undefined): string | null {
   const clean = (value ?? "").trim().replace(/[\s()-]/g, "");
-  return /^\+\d{8,15}$/.test(clean) ? clean : null;
+  if (/^\+\d{8,15}$/.test(clean)) return clean;
+  const digits = clean.replace(/\D/g, "");
+  if (/^0\d{9,10}$/.test(digits)) return `+44${digits.slice(1)}`;
+  return null;
 }
 
 function notesFor(
@@ -149,6 +154,7 @@ function notesFor(
     `Site: ${enquiry.address || "Not captured"}`,
     `Urgency: ${enquiry.urgency}`,
     `Availability: ${enquiry.availability || "Not captured"}`,
+    "Next action: Review this call in CrewOn Office and follow up with the customer.",
   ]
     .join("\n")
     .slice(0, 9000);
@@ -310,7 +316,7 @@ export async function finaliseRealtimeEnquiry(input: FinaliseInput): Promise<voi
   const primaryPhone =
     e164ish(session.caller_phone) ??
     e164ish(enquiry.callbackPhone) ??
-    session.caller_phone.trim() ??
+    (session.caller_phone.trim() || "") ??
     "";
 
   const client = await pool.connect();
@@ -388,8 +394,8 @@ export async function finaliseRealtimeEnquiry(input: FinaliseInput): Promise<voi
               caller_name=$3,
               caller_phone=$4,
               contact_id=$5,
-              status='unresolved',
-              outcome=$6,
+               status=CASE WHEN job_id IS NOT NULL THEN status ELSE 'unresolved' END,
+               outcome=CASE WHEN job_id IS NOT NULL THEN 'Booked' ELSE $6 END,
               notes=$7,
               transcript=$8::jsonb,
               duration=$9,
@@ -456,10 +462,14 @@ export async function finaliseRealtimeEnquiry(input: FinaliseInput): Promise<voi
   }
 
   if (shouldNotify) {
-    const results = await Promise.allSettled([
-      notifyOwner(input.callSid, input.companyId, enquiry, verifiedInboundNumber),
-      confirmCaller(input.callSid, input.companyId, verifiedInboundNumber),
-    ]);
+    const notifications: Promise<void>[] = [];
+    if (input.notifyOwner !== false) {
+      notifications.push(notifyOwner(input.callSid, input.companyId, enquiry, verifiedInboundNumber));
+    }
+    if (input.confirmCaller !== false) {
+      notifications.push(confirmCaller(input.callSid, input.companyId, verifiedInboundNumber));
+    }
+    const results = await Promise.allSettled(notifications);
     for (const result of results) {
       if (result.status === "rejected") {
         logger.error(
