@@ -24,6 +24,7 @@ import billingRouter, { billingWebhookRouter } from "./billing";
 import businessSetupRouter from "./business-setup";
 import voiceRouter, { phoneRouter } from "./voice";
 import { adminOnly } from "../lib/adminAuth";
+import publicDemoRouter from "./public-demo";
 
 const router: IRouter = Router();
 
@@ -39,6 +40,7 @@ router.use(authRouter);
 router.use(widgetRouter);
 router.use(emailInboundRouter);
 router.use(supportQuestionsRouter);
+router.use(publicDemoRouter);
 router.use(phoneRouter);
 router.use(billingWebhookRouter);
 router.use(publicQuoteRouter);

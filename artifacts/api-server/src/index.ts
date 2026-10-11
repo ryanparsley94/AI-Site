@@ -153,6 +153,18 @@ const MIGRATIONS = [
      event_type text NOT NULL,
      processed_at timestamptz NOT NULL DEFAULT now()
    )`,
+  `CREATE TABLE IF NOT EXISTS public_demo_sessions (
+      id text PRIMARY KEY,
+      profile jsonb NOT NULL,
+      receptionist_name text NOT NULL,
+      voice text NOT NULL,
+      transcript text,
+      result jsonb,
+      booking jsonb,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      finalized_at timestamptz
+    )`,
+  `CREATE INDEX IF NOT EXISTS public_demo_sessions_created_idx ON public_demo_sessions(created_at)`,
 
 ];
 

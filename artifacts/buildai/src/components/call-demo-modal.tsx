@@ -1,90 +1,78 @@
-import { useState, useEffect, useRef } from "react";
-import { Bot, Play, Phone, Zap, X, Volume2, VolumeX } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { FormEvent } from "react";
+import {
+  AlertCircle, ArrowLeft, ArrowRight, AudioLines, Check, CheckCircle2, Globe2,
+  LoaderCircle, Mic, MicOff, Phone, RotateCcw, ShieldCheck, Sparkles, UserRound, X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { cn } from "@/lib/utils";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
-// ─── Script ───────────────────────────────────────────────────────────────────
+type BusinessProfile = Record<string, unknown>;
+type PreviewResponse = { preview: BusinessProfile; source?: unknown };
+type TranscriptItem = { role: "caller" | "receptionist"; text: string };
+type CapturedLead = {
+  name?: string; phone?: string; workNeeded?: string; siteAddress?: string;
+  urgency?: string; summary?: string; nextAction?: string;
+};
+type FinalizeResponse = {
+  lead: CapturedLead;
+  booking: { status: string; slot: string } | null;
+};
+type Stage = "profile" | "call" | "result";
+type CallStatus = "idle" | "connecting" | "live" | "ending" | "error";
 
-export const DEMO_CALL_SCRIPT: { from: "caller" | "oliver"; text: string; pauseMs: number }[] = [
-  { from: "caller", text: "Hi there, yeah — I've got a bit of an electrical problem. My kitchen sockets have all stopped working.", pauseMs: 900 },
-  { from: "oliver", text: "Good morning! You've reached Parsley Electrical, my name's Oliver. I'm sorry to hear that — sounds frustrating. Can I take your name, please?", pauseMs: 1400 },
-  { from: "caller", text: "It's James. James Thornton.", pauseMs: 800 },
-  { from: "oliver", text: "Thanks, James. Could I get your postcode so I can note the area for the office?", pauseMs: 1000 },
-  { from: "caller", text: "Yeah — M14 7JB. Manchester.", pauseMs: 700 },
-  { from: "oliver", text: "Thanks, I've noted that. So all the kitchen sockets have gone dead — have any trip switches on your fuse board flipped?", pauseMs: 1300 },
-  { from: "caller", text: "Yeah actually, one's flipped down. Looks like the ring main one.", pauseMs: 900 },
-  { from: "oliver", text: "I'll note that the breaker trips again and ask the office to have an electrician review it. I can't diagnose the cause over the phone.", pauseMs: 1400 },
-  { from: "caller", text: "I did, yeah — but it trips straight back off as soon as I flick it back up.", pauseMs: 1000 },
-  { from: "oliver", text: "That needs an electrician to assess. I'll flag it for the office to follow up; I can't confirm a diagnosis or visit time just yet. What times usually work for you?", pauseMs: 1600 },
-  { from: "caller", text: "Yes please, as soon as possible if you can.", pauseMs: 800 },
-  { from: "oliver", text: "Thanks. What days or times generally work best for you?", pauseMs: 1200 },
-  { from: "caller", text: "Mornings are usually better for me.", pauseMs: 600 },
-  { from: "oliver", text: "I'll pass that preference to the office so they can check availability. Could I take a mobile number for a callback?", pauseMs: 1100 },
-  { from: "caller", text: "Sure — 07700 900123.", pauseMs: 700 },
-  { from: "oliver", text: "Got that. And the full address in M14?", pauseMs: 800 },
-  { from: "caller", text: "42 Wilmslow Road, Didsbury.", pauseMs: 700 },
-  { from: "oliver", text: "I've noted 42 Wilmslow Road, Didsbury, M14 7JB. The office will review your enquiry and availability. No visit has been confirmed and no text has been sent from this demo. Is there anything else I can help with?", pauseMs: 1600 },
-  { from: "caller", text: "No, that's brilliant. Thank you.", pauseMs: 700 },
-  { from: "oliver", text: "Thanks for calling, James. The office will review those details and get back to you. Have a good day!", pauseMs: 1000 },
+const RECEPTIONIST_NAME = "Maya";
+const DEMO_SLOTS = [
+  { label: "Tuesday · 10:30", value: "Tuesday at 10:30 (demo-only)" },
+  { label: "Wednesday · 14:00", value: "Wednesday at 14:00 (demo-only)" },
 ];
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function Waveform({ active }: { active: boolean }) {
-  return (
-    <div className="flex items-end gap-[2px] h-4">
-      {[3, 5, 7, 5, 8, 4, 6, 3, 7, 5].map((h, i) => (
-        <div
-          key={i}
-          className={cn("w-[2px] rounded-full transition-all", active ? "bg-primary" : "bg-white/20")}
-          style={{
-            height: active ? `${h * 2}px` : "4px",
-            animation: active ? `cdmWave ${0.6 + i * 0.07}s ease-in-out infinite alternate` : "none",
-            animationDelay: `${i * 0.05}s`,
-          }}
-        />
-      ))}
-      <style>{`
-        @keyframes cdmWave { from { transform: scaleY(0.4); } to { transform: scaleY(1.2); } }
-      `}</style>
-    </div>
-  );
+function apiPath(path: string) {
+  const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
+  return `${base}${path}`;
 }
 
-function TypingDots() {
-  return (
-    <div className="flex items-center gap-1 px-3 py-2">
-      {[0, 1, 2].map((i) => (
-        <span
-          key={i}
-          className="w-1.5 h-1.5 rounded-full bg-current opacity-60"
-          style={{ animation: `cdmBounce 1s ease-in-out ${i * 0.15}s infinite` }}
-        />
-      ))}
-      <style>{`
-        @keyframes cdmBounce {
-          0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
-          40%            { transform: translateY(-5px); opacity: 1; }
-        }
-      `}</style>
-    </div>
-  );
+async function postJson<T>(path: string, payload: unknown): Promise<T> {
+  const response = await fetch(apiPath(path), {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => null) as { error?: string; message?: string } | null;
+    throw new Error(body?.message || body?.error || `The demo service returned ${response.status}.`);
+  }
+  return response.json() as Promise<T>;
 }
 
-function CallTimer({ running }: { running: boolean }) {
-  const [secs, setSecs] = useState(0);
-  useEffect(() => {
-    if (!running) { setSecs(0); return; }
-    const id = setInterval(() => setSecs((s) => s + 1), 1000);
-    return () => clearInterval(id);
-  }, [running]);
-  const m = String(Math.floor(secs / 60)).padStart(2, "0");
-  const s = String(secs % 60).padStart(2, "0");
-  return <span className="font-mono text-sm tabular-nums text-white/80">{m}:{s}</span>;
+function readable(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number") return String(value);
+  if (Array.isArray(value)) return value.map(readable).filter(Boolean).join(", ");
+  return "";
 }
 
-// ─── Modal ────────────────────────────────────────────────────────────────────
+function profileRows(profile: BusinessProfile) {
+  const entries: [string, unknown][] = [
+    ["Business", profile.businessName ?? profile.name ?? profile.companyName],
+    ["Trade", profile.trade ?? profile.industry ?? profile.serviceType],
+    ["Service area", profile.serviceArea ?? profile.location ?? profile.area],
+    ["About", profile.description ?? profile.about ?? profile.summary],
+    ["Services", profile.services ?? profile.specialties],
+    ["Opening hours", profile.openingHours ?? profile.hours],
+  ];
+  return entries.map(([label, value]) => ({ label, value: readable(value) })).filter((row) => row.value);
+}
+
+function eventText(event: Record<string, unknown>) {
+  return typeof event.transcript === "string" ? event.transcript :
+    typeof event.text === "string" ? event.text : "";
+}
+
+function formatField(value?: string) {
+  return value?.trim() || "Not shared on this call";
+}
 
 export function CallDemoModal({
   open,
@@ -93,301 +81,545 @@ export function CallDemoModal({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
-  const [visibleCount, setVisibleCount] = useState(0);
-  const [typingFrom, setTypingFrom] = useState<"caller" | "oliver" | null>(null);
-  const [started, setStarted] = useState(false);
-  const [finished, setFinished] = useState(false);
-  const [muted, setMuted] = useState(false);
-  const [audioUnavailable, setAudioUnavailable] = useState(false);
+  const [stage, setStage] = useState<Stage>("profile");
+  const [website, setWebsite] = useState("");
+  const [profile, setProfile] = useState<BusinessProfile | null>(null);
+  const [websiteSource, setWebsiteSource] = useState("");
+  const [previewBusy, setPreviewBusy] = useState(false);
+  const [callStatus, setCallStatus] = useState<CallStatus>("idle");
+  const [error, setError] = useState("");
+  const [transcript, setTranscript] = useState<TranscriptItem[]>([]);
+  const [lead, setLead] = useState<CapturedLead | null>(null);
+  const [booking, setBooking] = useState<FinalizeResponse["booking"]>(null);
+  const [demoSlot, setDemoSlot] = useState("");
+  const [selectedDemoSlot, setSelectedDemoSlot] = useState("");
+  const [micReady, setMicReady] = useState(false);
 
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const playbackRunRef = useRef(0);
-  const mutedRef = useRef(false);
+  const peerRef = useRef<RTCPeerConnection | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const channelRef = useRef<RTCDataChannel | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const transcriptRef = useRef<TranscriptItem[]>([]);
+  const demoIdRef = useRef<string | null>(null);
+  const itemIndexesRef = useRef<Record<string, number>>({});
 
-  const clearAll = () => {
-    playbackRunRef.current += 1;
-    timeoutsRef.current.forEach(clearTimeout);
-    timeoutsRef.current = [];
-    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
-  };
-
-  const reset = () => {
-    clearAll();
-    setVisibleCount(0);
-    setTypingFrom(null);
-    setStarted(false);
-    setFinished(false);
-    setMuted(false);
-    mutedRef.current = false;
-    setAudioUnavailable(false);
-  };
-
-  useEffect(() => {
-    mutedRef.current = muted;
-    if ("speechSynthesis" in window) {
-      if (muted) window.speechSynthesis.pause();
-      else if (started && !finished) window.speechSynthesis.resume();
+  const closeConnection = useCallback(() => {
+    channelRef.current?.close();
+    channelRef.current = null;
+    peerRef.current?.getSenders().forEach((sender) => sender.track?.stop());
+    peerRef.current?.close();
+    peerRef.current = null;
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.srcObject = null;
     }
-  }, [muted, started, finished]);
+    setMicReady(false);
+  }, []);
+
+  const reset = useCallback(() => {
+    closeConnection();
+    setStage("profile");
+    setWebsite("");
+    setProfile(null);
+    setWebsiteSource("");
+    setPreviewBusy(false);
+    setCallStatus("idle");
+    setError("");
+    setTranscript([]);
+    transcriptRef.current = [];
+    setLead(null);
+    setBooking(null);
+    setDemoSlot("");
+    setSelectedDemoSlot("");
+    demoIdRef.current = null;
+    itemIndexesRef.current = {};
+  }, [closeConnection]);
 
   useEffect(() => {
-    if (!open) { reset(); return undefined; }
-    return undefined;
-  }, [open]);
+    if (!open) reset();
+    return () => closeConnection();
+  }, [open, reset, closeConnection]);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [visibleCount, typingFrom]);
-
-  function runTranscriptOnly(startIndex: number, run: number) {
-    if (run !== playbackRunRef.current) return;
-    if (startIndex >= DEMO_CALL_SCRIPT.length) {
-      setTypingFrom(null);
-      setFinished(true);
-      return;
+  function appendTranscript(role: TranscriptItem["role"], text: string, itemId?: string, replace = false) {
+    if (!text.trim()) return;
+    const items = [...transcriptRef.current];
+    if (itemId && itemIndexesRef.current[itemId] !== undefined) {
+      const index = itemIndexesRef.current[itemId];
+      items[index] = { ...items[index], text: replace ? text : `${items[index].text}${text}` };
+    } else {
+      const index = items.length;
+      items.push({ role, text });
+      if (itemId) itemIndexesRef.current[itemId] = index;
     }
-    const item = DEMO_CALL_SCRIPT[startIndex];
-    setTypingFrom(item.from);
-    const readingMs = Math.min(7000, Math.max(1300, item.text.split(/\s+/).length * 260));
-    const showTimer = setTimeout(() => {
-      if (run !== playbackRunRef.current) return;
-      setVisibleCount(startIndex + 1);
-      setTypingFrom(null);
-      const nextTimer = setTimeout(
-        () => runTranscriptOnly(startIndex + 1, run),
-        item.pauseMs,
+    transcriptRef.current = items;
+    setTranscript(items);
+  }
+
+  async function loadProfile(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!website.trim()) return;
+    setPreviewBusy(true);
+    setError("");
+    try {
+      const result = await postJson<PreviewResponse>("/api/public-demo/website-preview", { url: website.trim() });
+      if (!result.preview || typeof result.preview !== "object") throw new Error("We couldn't read a business profile from that website.");
+      setProfile(result.preview);
+      setWebsiteSource(readable(result.source) || new URL(website).hostname);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Website preview is unavailable. Please try again.");
+    } finally {
+      setPreviewBusy(false);
+    }
+  }
+
+  async function startCall() {
+    if (!profile || callStatus === "connecting" || callStatus === "live") return;
+    setError("");
+    setCallStatus("connecting");
+    transcriptRef.current = [];
+    setTranscript([]);
+    itemIndexesRef.current = {};
+    let stream: MediaStream | null = null;
+    try {
+      if (!navigator.mediaDevices?.getUserMedia || !window.RTCPeerConnection) {
+        throw new Error("Live audio isn't supported in this browser. Try a current version of Chrome, Safari or Edge.");
+      }
+      // Permission is requested only after this explicit user action.
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      setMicReady(true);
+
+      const peer = new RTCPeerConnection();
+      peerRef.current = peer;
+      peer.addTrack(stream.getAudioTracks()[0], stream);
+      peer.ontrack = (event) => {
+        if (audioRef.current) {
+          audioRef.current.srcObject = event.streams[0];
+          void audioRef.current.play().catch(() => {
+            setError("Your browser blocked call audio. Check your sound settings and try again.");
+          });
+        }
+      };
+      peer.onconnectionstatechange = () => {
+        if (peer.connectionState === "failed" || peer.connectionState === "disconnected") {
+          setCallStatus("error");
+          setError("The live audio connection ended unexpectedly. Your microphone has been closed.");
+          closeConnection();
+        }
+      };
+
+      const channel = peer.createDataChannel("oai-events");
+      channelRef.current = channel;
+      channel.onmessage = (message) => {
+        let event: Record<string, unknown>;
+        try { event = JSON.parse(message.data) as Record<string, unknown>; } catch { return; }
+        if (event.type === "error") {
+          const eventError = event.error as { message?: string } | undefined;
+          setError(eventError?.message || "The live receptionist couldn't respond. Please try again.");
+          return;
+        }
+        const itemId = typeof event.item_id === "string" ? event.item_id : undefined;
+        if (event.type === "conversation.item.input_audio_transcription.completed") {
+          appendTranscript("caller", eventText(event), itemId, true);
+        } else if (event.type === "response.output_audio_transcript.delta") {
+          appendTranscript("receptionist", eventText(event), itemId);
+        } else if (event.type === "response.output_audio_transcript.done") {
+          appendTranscript("receptionist", eventText(event), itemId, true);
+        } else if (event.type === "response.audio_transcript.done") {
+          appendTranscript("receptionist", eventText(event), itemId, true);
+        } else if (event.type === "response.audio.delta") {
+          setCallStatus("live");
+        } else if (event.type === "input_audio_buffer.speech_started") {
+          // Live turn feedback; transcription arrives via the completed event.
+        } else if (event.type === "response.function_call_arguments.done" && event.name === "book_demo_appointment") {
+          let slot = "";
+          try {
+            const args = JSON.parse(String(event.arguments || "{}")) as { slot?: string };
+            if (DEMO_SLOTS.some((candidate) => candidate.value === args.slot)) slot = args.slot || "";
+          } catch { /* reject malformed model tool arguments */ }
+          const callId = typeof event.call_id === "string" ? event.call_id : "";
+          const output = slot
+            ? { ok: true, status: "demo-only; not reserved", slot }
+            : { ok: false, error: "Only the two displayed demo-only slots are available." };
+          if (slot) setDemoSlot(slot);
+          if (callId && channel.readyState === "open") {
+            channel.send(JSON.stringify({
+              type: "conversation.item.create",
+              item: { type: "function_call_output", call_id: callId, output: JSON.stringify(output) },
+            }));
+            channel.send(JSON.stringify({ type: "response.create" }));
+          }
+        }
+      };
+      channel.onopen = () => {
+        channel.send(JSON.stringify({
+          type: "response.create",
+          response: {
+            instructions: `Greet the caller now as ${RECEPTIONIST_NAME} from ${businessName}. Be warm, brief and natural; ask how you can help.`,
+          },
+        }));
+      };
+
+      const offer = await peer.createOffer();
+      await peer.setLocalDescription(offer);
+      if (peer.iceGatheringState !== "complete") {
+        await new Promise<void>((resolve) => {
+          let timeout = 0;
+          const finishGathering = () => {
+            window.clearTimeout(timeout);
+            peer.removeEventListener("icegatheringstatechange", onGatheringComplete);
+            resolve();
+          };
+          const onGatheringComplete = () => {
+            if (peer.iceGatheringState !== "complete") return;
+            finishGathering();
+          };
+          timeout = window.setTimeout(finishGathering, 2000);
+          peer.addEventListener("icegatheringstatechange", onGatheringComplete);
+        });
+      }
+      const answer = await postJson<{ clientSecret: string; demoId: string }>(
+        "/api/public-demo/realtime-session",
+        {
+          profile,
+          receptionistName: RECEPTIONIST_NAME,
+          voice: "coral",
+          websiteFacts: profile.websiteFacts ?? profile.facts ?? profile,
+        },
       );
-      timeoutsRef.current.push(nextTimer);
-    }, readingMs);
-    timeoutsRef.current.push(showTimer);
+      if (!answer.clientSecret || !answer.demoId) throw new Error("The live demo service returned an incomplete session.");
+      demoIdRef.current = answer.demoId;
+      const sdp = peer.localDescription?.sdp ?? offer.sdp;
+      const realtimeResponse = await fetch("https://api.openai.com/v1/realtime/calls?model=gpt-realtime-2.1", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${answer.clientSecret}`,
+          "Content-Type": "application/sdp",
+        },
+        body: sdp,
+      });
+      if (!realtimeResponse.ok) {
+        throw new Error("OpenAI Realtime could not connect. Please retry the demo.");
+      }
+      const sdpAnswer = await realtimeResponse.text();
+      if (!sdpAnswer) throw new Error("OpenAI Realtime returned an empty audio connection.");
+      await peer.setRemoteDescription({ type: "answer", sdp: sdpAnswer });
+      setCallStatus("live");
+    } catch (caught) {
+      stream?.getTracks().forEach((track) => track.stop());
+      closeConnection();
+      setCallStatus("error");
+      setError(caught instanceof Error ? caught.message : "Live demo is unavailable. No device voice fallback is used.");
+    }
   }
 
-  function startDemo() {
-    clearAll();
-    const run = playbackRunRef.current;
-    setVisibleCount(0);
-    setTypingFrom(null);
-    setFinished(false);
-    setStarted(true);
-    setAudioUnavailable(false);
-    setMuted(false);
-    mutedRef.current = false;
-
-    if (!("speechSynthesis" in window) || typeof SpeechSynthesisUtterance === "undefined") {
-      setAudioUnavailable(true);
-      runTranscriptOnly(0, run);
+  async function finishCall() {
+    setCallStatus("ending");
+    closeConnection();
+    const demoId = demoIdRef.current;
+    if (!demoId) {
+      setCallStatus("error");
+      setError("This live session could not be saved because the demo service did not provide a session ID.");
       return;
     }
-
-    // Queue speech synchronously from the Play tap; mobile Safari blocks the
-    // old delayed autoplay and server TTS required an authenticated API route.
-    const britishVoice = window.speechSynthesis.getVoices().find((voice) =>
-      voice.lang.toLowerCase().startsWith("en-gb"),
-    );
-    DEMO_CALL_SCRIPT.forEach((item, index) => {
-      const utterance = new SpeechSynthesisUtterance(item.text);
-      utterance.lang = "en-GB";
-      if (britishVoice) utterance.voice = britishVoice;
-      utterance.rate = item.from === "oliver" ? 0.96 : 1;
-      utterance.pitch = item.from === "oliver" ? 0.92 : 1.08;
-      utterance.onstart = () => {
-        if (run !== playbackRunRef.current) return;
-        setTypingFrom(null);
-        setVisibleCount(index + 1);
-      };
-      utterance.onend = () => {
-        if (run !== playbackRunRef.current) return;
-        setTypingFrom(null);
-        if (index === DEMO_CALL_SCRIPT.length - 1) setFinished(true);
-      };
-      utterance.onerror = (event) => {
-        if (run !== playbackRunRef.current || event.error === "canceled") return;
-        const fallbackRun = ++playbackRunRef.current;
-        window.speechSynthesis.cancel();
-        setAudioUnavailable(true);
-        setTypingFrom(null);
-        runTranscriptOnly(index, fallbackRun);
-      };
-      window.speechSynthesis.speak(utterance);
-    });
+    try {
+      const result = await postJson<FinalizeResponse>("/api/public-demo/finalize", {
+        demoId,
+        transcript: transcriptRef.current.map((line) => `${line.role === "caller" ? "Caller" : RECEPTIONIST_NAME}: ${line.text}`).join("\n"),
+        ...(demoSlot ? { bookedSlot: demoSlot } : {}),
+      });
+      setLead(result.lead);
+      setBooking(result.booking);
+      setStage("result");
+      setCallStatus("idle");
+    } catch (caught) {
+      setCallStatus("error");
+      setError(caught instanceof Error ? caught.message : "We couldn't prepare the enquiry summary. Please retry.");
+    }
   }
 
-  const activeOliver =
-    typingFrom === "oliver" ||
-    (visibleCount > 0 && DEMO_CALL_SCRIPT[visibleCount - 1]?.from === "oliver" && !typingFrom);
+  const rows = profile ? profileRows(profile) : [];
+  const businessName = readable(profile?.businessName ?? profile?.name ?? profile?.companyName) || "Your business";
+  const callInProgress = callStatus === "connecting" || callStatus === "live" || callStatus === "ending";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg w-[calc(100vw-2rem)] p-0 overflow-hidden gap-0 rounded-2xl translate-y-[-50%]">
-        {/* ── Phone call header ── */}
-        <div className="relative bg-gradient-to-b from-[#0d1117] to-[#1a2332] px-5 pt-5 pb-4">
-          <button
-            onClick={() => onOpenChange(false)}
-            className="absolute top-3 right-3 text-white/50 hover:text-white transition-colors p-1"
-          >
-            <X size={16} />
-          </button>
-
-          <div className="flex items-center gap-3 mb-3">
-            <div className="relative w-11 h-11 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center shrink-0">
-              <Bot size={20} className="text-primary" />
-              {started && !finished && (
-                <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-500 border-2 border-[#0d1117] animate-pulse" />
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-white font-semibold leading-none">Oliver</p>
-              <p className="text-white/50 text-xs mt-1">AI Phone Operator · sample conversation</p>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              {started && !finished ? (
-                <span className="text-[10px] font-bold uppercase tracking-widest text-green-400 bg-green-400/10 px-2 py-0.5 rounded-full border border-green-400/30">
-                  Demo
-                </span>
-              ) : finished ? (
-                <span className="text-[10px] font-bold uppercase tracking-widest text-white/40 bg-white/5 px-2 py-0.5 rounded-full border border-white/10">
-                  Ended
-                </span>
-              ) : null}
-              {started && (
+      <DialogContent
+        aria-describedby="call-demo-description"
+        className="w-[calc(100vw-1rem)] max-w-xl max-h-[min(92dvh,800px)] overflow-hidden gap-0 rounded-2xl border border-white/10 bg-[#0D171C] p-0 text-white shadow-2xl [&>button:last-child]:hidden"
+        data-testid="dialog-live-demo"
+      >
+        <div className="flex max-h-[min(92dvh,800px)] flex-col">
+          <header className="shrink-0 border-b border-white/10 bg-[#122128] px-4 pb-4 pt-4 sm:px-6">
+            <DialogTitle className="sr-only">CREWON live receptionist demo</DialogTitle>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="grid h-10 w-10 place-items-center rounded-xl border border-[#36C6D5]/25 bg-[#36C6D5]/10 text-[#36C6D5]">
+                  <AudioLines size={19} aria-hidden="true" />
+                </div>
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[.16em] text-[#36C6D5]">CREWON live demo</p>
+                  <p className="mt-0.5 text-sm font-semibold text-white">Try your AI receptionist</p>
+                </div>
                 <button
-                  onClick={() => setMuted((m) => !m)}
-                  className="text-white/50 hover:text-white transition-colors p-1"
-                  title={muted ? "Unmute Oliver" : "Mute Oliver"}
+                  type="button"
+                  aria-label="Close live demo"
+                  onClick={() => onOpenChange(false)}
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-white/55 transition hover:bg-white/8 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36C6D5]"
+                  data-testid="button-close-live-demo"
                 >
-                  {muted ? <VolumeX size={15} /> : <Volume2 size={15} />}
+                  <X size={18} />
                 </button>
-              )}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 bg-white/5 rounded-xl px-3 py-2 border border-white/10">
-            <Phone size={12} className="text-white/50 shrink-0" />
-            <span className="text-white/70 text-xs truncate flex-1">Sample · Kitchen sockets · Manchester M14</span>
-            <Waveform active={started && !finished && activeOliver && !muted} />
-            <CallTimer running={started && !finished} />
-          </div>
-        </div>
-
-        {/* ── Transcript ── */}
-        <div className="bg-[#f8f9fa] h-[42vh] max-h-[340px] min-h-[200px] overflow-y-auto px-4 py-4 space-y-3">
-          {!started && (
-            <div className="flex flex-col items-center justify-center h-full text-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                <Zap size={22} className="text-primary" />
               </div>
-              <div>
-                <p className="font-semibold text-secondary text-sm">Scripted electrical enquiry</p>
-                <p className="text-xs text-muted-foreground mt-1 max-w-[220px]">
-                  Hear a sample conversation. Tap play to hear your device read it aloud; no call, enquiry, or booking is created.
-                </p>
-              </div>
-              <Button size="sm" className="gap-2 mt-1" onClick={startDemo}>
-                <Play size={13} /> Play Demo Call
-              </Button>
             </div>
-          )}
+            <p id="call-demo-description" className="mt-3 text-xs leading-relaxed text-white/55">
+              A real-time AI conversation, using information from your website. Nothing is sent to a real calendar.
+            </p>
+            <ol aria-label="Demo steps" className="mt-4 grid grid-cols-3 gap-2">
+              {[
+                ["profile", "Business"],
+                ["call", "Live call"],
+                ["result", "Enquiry"],
+              ].map(([key, label], index) => {
+                const active = stage === key;
+                const complete = (stage === "call" && index === 0) || (stage === "result" && index < 2);
+                return (
+                  <li key={key} className="min-w-0">
+                    <div className={`h-1 rounded-full ${active || complete ? "bg-[#36C6D5]" : "bg-white/10"}`} />
+                    <p className={`mt-1.5 truncate text-[10px] font-semibold uppercase tracking-wide ${active ? "text-[#36C6D5]" : "text-white/40"}`}>
+                      {String(index + 1).padStart(2, "0")} · {label}
+                    </p>
+                  </li>
+                );
+              })}
+            </ol>
+          </header>
 
-          {DEMO_CALL_SCRIPT.slice(0, visibleCount).map((msg, i) => {
-            const isOliver = msg.from === "oliver";
-            return (
-              <div
-                key={i}
-                className={cn("flex gap-2", isOliver ? "justify-end" : "justify-start")}
-                style={{ animation: "cdmFadeIn 0.3s ease-out forwards" }}
-              >
-                {!isOliver && (
-                  <div className="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center shrink-0 mt-0.5">
-                    <Phone size={12} className="text-slate-500" />
+          <main className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6" aria-live="polite">
+            {error && (
+              <div role="alert" data-testid="status-live-demo-error" className="mb-4 flex gap-2.5 rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm text-rose-100">
+                <AlertCircle size={17} className="mt-0.5 shrink-0 text-rose-300" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            {stage === "profile" && (
+              <section aria-labelledby="profile-heading">
+                <div className="mb-5">
+                  <p className="text-xs font-semibold uppercase tracking-[.14em] text-[#36C6D5]">First, make it yours</p>
+                  <h2 id="profile-heading" className="mt-1 text-xl font-bold tracking-tight">Your website, in the room.</h2>
+              <p className="mt-1.5 text-sm leading-relaxed text-white/55">We’ll use public website details to brief {RECEPTIONIST_NAME}. Do not share sensitive details; the demo transcript is retained for up to seven days to prepare its enquiry summary.</p>
+                </div>
+                <form onSubmit={loadProfile} className="flex flex-col gap-2 sm:flex-row">
+                  <label htmlFor="demo-website" className="sr-only">Business website address</label>
+                  <div className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-white/12 bg-white/[.04] px-3 focus-within:border-[#36C6D5]/60">
+                    <Globe2 size={16} className="shrink-0 text-white/40" />
+                    <input
+                      id="demo-website"
+                      type="url"
+                      required
+                      value={website}
+                      onChange={(event) => setWebsite(event.target.value)}
+                      placeholder="https://yourbusiness.co.uk"
+                      className="h-12 min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-white/30"
+                      data-testid="input-business-website"
+                    />
+                  </div>
+                  <Button type="submit" disabled={previewBusy || !website.trim()} className="h-12 shrink-0 gap-2 bg-[#36C6D5] px-5 font-semibold text-[#0D171C] hover:bg-[#58d3de]" data-testid="button-preview-website">
+                    {previewBusy ? <LoaderCircle size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                    {previewBusy ? "Reading site" : "Build my profile"}
+                  </Button>
+                </form>
+
+                {profile && (
+                  <div className="mt-5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <div className="rounded-2xl border border-white/10 bg-[#14252C] p-4 sm:p-5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-[#83dbe3]">
+                            <CheckCircle2 size={14} /> Profile found
+                          </div>
+                          <h3 className="mt-2 truncate text-lg font-bold">{businessName}</h3>
+                          <p className="mt-1 truncate text-xs text-white/45">Source · {websiteSource}</p>
+                        </div>
+                        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#36C6D5]/10 text-[#36C6D5]">
+                          <ShieldCheck size={20} />
+                        </span>
+                      </div>
+                      {rows.length > 0 ? (
+                        <dl className="mt-4 grid gap-3 border-t border-white/8 pt-4 sm:grid-cols-2">
+                          {rows.map((row) => (
+                            <div key={row.label} className="min-w-0">
+                              <dt className="text-[10px] font-bold uppercase tracking-wider text-white/35">{row.label}</dt>
+                              <dd className="mt-1 line-clamp-3 break-words text-sm leading-relaxed text-white/80">{row.value}</dd>
+                            </div>
+                          ))}
+                        </dl>
+                      ) : (
+                        <p className="mt-4 border-t border-white/8 pt-4 text-sm text-white/60">Website details are ready. Maya will stick to what you share during the call.</p>
+                      )}
+                    </div>
+                    <div className="mt-4 rounded-xl border border-[#36C6D5]/15 bg-[#36C6D5]/[.06] p-3.5">
+                      <div className="flex items-center gap-2 text-sm font-semibold">
+                        <UserRound size={16} className="text-[#36C6D5]" />
+                        Meet {RECEPTIONIST_NAME}
+                        <span className="ml-auto rounded-full bg-[#36C6D5]/10 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-[#7bd9e1]">AI receptionist</span>
+                      </div>
+                      <p className="mt-1.5 text-xs leading-relaxed text-white/55">Ask about your services, then try a customer enquiry. Your mic starts only when you choose to begin.</p>
+                    </div>
+                    <div className="mt-4 rounded-xl border border-amber-300/15 bg-amber-200/[.05] p-3 text-xs leading-relaxed text-amber-100/75">
+                      Any slot shown in this demo is fictional. It will not check or change your real calendar.
+                    </div>
+                    <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
+                      <Button type="button" variant="ghost" onClick={() => { setProfile(null); setError(""); }} className="text-white/65 hover:bg-white/5 hover:text-white" data-testid="button-change-website">
+                        Change website
+                      </Button>
+                      <Button type="button" onClick={() => { setError(""); setStage("call"); }} className="h-11 gap-2 bg-[#36C6D5] px-5 font-semibold text-[#0D171C] hover:bg-[#58d3de]" data-testid="button-continue-to-call">
+                        Meet {RECEPTIONIST_NAME} <ArrowRight size={16} />
+                      </Button>
+                    </div>
                   </div>
                 )}
-                <div className={cn("max-w-[78%] flex flex-col", isOliver ? "items-end" : "items-start")}>
-                  <span className={cn("text-[10px] font-semibold px-1 mb-0.5", isOliver ? "text-primary" : "text-slate-500")}>
-                    {isOliver ? "Oliver" : "Caller"}
+              </section>
+            )}
+
+            {stage === "call" && (
+              <section aria-labelledby="call-heading">
+                <button type="button" onClick={() => { closeConnection(); setCallStatus("idle"); setStage("profile"); setError(""); }} disabled={callInProgress} className="mb-4 inline-flex items-center gap-1.5 text-xs font-semibold text-white/45 hover:text-white disabled:opacity-40" data-testid="button-back-to-profile">
+                  <ArrowLeft size={14} /> Business profile
+                </button>
+                <div className="text-center">
+                  <div className={`mx-auto grid h-20 w-20 place-items-center rounded-full border transition-colors ${callStatus === "live" ? "border-[#36C6D5]/40 bg-[#36C6D5]/15 text-[#36C6D5]" : "border-white/10 bg-white/[.04] text-white/55"}`}>
+                    {callStatus === "live" ? <AudioLines size={30} /> : <UserRound size={30} />}
+                  </div>
+                  <h2 id="call-heading" className="mt-4 text-xl font-bold">{callStatus === "live" ? "You’re live with Maya" : "Have a real conversation"}</h2>
+                  <p className="mx-auto mt-1.5 max-w-sm text-sm leading-relaxed text-white/55">
+                    {callStatus === "live" ? "Speak naturally. Maya can hear you and respond in real time." : "This is an AI demo, not a call to the business. Your microphone is used only after you tap below."}
+                  </p>
+                </div>
+
+                <div className="my-5 rounded-xl border border-white/10 bg-[#122128] px-4 py-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-white/45">Optional · demo-only slot</p>
+                    <span className="rounded-full border border-amber-200/15 bg-amber-200/[.06] px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-amber-100/70">Not your calendar</span>
+                  </div>
+                  <p className="mt-1 text-xs text-white/45">Choose a fictional slot to illustrate a booking outcome.</p>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    {DEMO_SLOTS.map((slot) => (
+                      <button
+                        key={slot.value}
+                        type="button"
+                        aria-pressed={selectedDemoSlot === slot.value}
+                        onClick={() => setSelectedDemoSlot(selectedDemoSlot === slot.value ? "" : slot.value)}
+                        disabled={callInProgress}
+                        className={`min-h-10 rounded-lg border px-2 py-2 text-xs font-semibold transition-colors disabled:opacity-50 ${selectedDemoSlot === slot.value ? "border-[#36C6D5]/50 bg-[#36C6D5]/10 text-[#8be2e9]" : "border-white/10 bg-white/[.025] text-white/65 hover:border-white/20"}`}
+                        data-testid={`button-demo-slot-${slot.label.split(" ")[0].toLowerCase()}`}
+                      >
+                        {selectedDemoSlot === slot.value && <Check size={13} className="mr-1 inline" />}{slot.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {transcript.length > 0 && (
+                  <div className="mb-4 max-h-48 space-y-3 overflow-y-auto rounded-xl border border-white/8 bg-white/[.025] p-3" aria-label="Live transcript" data-testid="list-live-transcript">
+                    {transcript.map((line, index) => (
+                      <div key={`${line.role}-${index}`} className="flex gap-2 text-sm">
+                        <span className={`w-[76px] shrink-0 text-[10px] font-bold uppercase tracking-wide ${line.role === "caller" ? "text-white/40" : "text-[#71d4de]"}`}>
+                          {line.role === "caller" ? "You" : RECEPTIONIST_NAME}
+                        </span>
+                        <p className="min-w-0 whitespace-pre-wrap leading-relaxed text-white/75">{line.text}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <audio ref={audioRef} autoPlay playsInline className="sr-only" aria-label="Receptionist audio" />
+                <div className="flex flex-col items-center gap-3">
+                  {callStatus === "idle" || callStatus === "error" ? (
+                    <Button type="button" onClick={startCall} className="h-12 w-full gap-2 rounded-xl bg-[#36C6D5] font-bold text-[#0D171C] hover:bg-[#58d3de] sm:w-auto sm:min-w-56" data-testid="button-start-live-call">
+                      <Mic size={17} /> Start live call
+                    </Button>
+                  ) : callStatus === "connecting" ? (
+                    <Button type="button" disabled className="h-12 w-full gap-2 rounded-xl bg-[#36C6D5]/70 font-bold text-[#0D171C] sm:w-auto sm:min-w-56" data-testid="status-connecting-call">
+                      <LoaderCircle size={17} className="animate-spin" /> Connecting securely…
+                    </Button>
+                  ) : (
+                    <Button type="button" onClick={finishCall} disabled={callStatus !== "live"} className="h-12 w-full gap-2 rounded-xl bg-rose-500 font-bold text-white hover:bg-rose-400 sm:w-auto sm:min-w-56" data-testid="button-end-live-call">
+                      <Phone size={16} className="rotate-[135deg]" /> End call & capture enquiry
+                    </Button>
+                  )}
+                  <p className="flex items-center gap-1.5 text-[11px] text-white/40">
+                    {micReady ? <><span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Microphone on · tap end call to close</> : <><MicOff size={12} /> Microphone off</>}
+                  </p>
+                </div>
+              </section>
+            )}
+
+            {stage === "result" && lead && (
+              <section aria-labelledby="result-heading" data-testid="panel-captured-enquiry">
+                <div className="mb-5 text-center">
+                  <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl border border-[#36C6D5]/20 bg-[#36C6D5]/10 text-[#36C6D5]">
+                    <CheckCircle2 size={27} />
                   </span>
-                  <div
-                    className={cn(
-                      "rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed shadow-sm",
-                      isOliver
-                        ? "bg-[#1a2332] text-white rounded-tr-sm"
-                        : "bg-white text-slate-800 rounded-tl-sm border border-slate-200"
-                    )}
-                  >
-                    {msg.text}
+                  <p className="mt-4 text-xs font-bold uppercase tracking-[.15em] text-[#36C6D5]">Demo enquiry captured</p>
+                  <h2 id="result-heading" className="mt-1 text-xl font-bold">Here’s what Maya heard.</h2>
+                  <p className="mt-1 text-xs text-white/45">A demo summary only. No customer record or real booking was created.</p>
+                </div>
+                <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#14252C]">
+                  <div className="grid grid-cols-2 divide-x divide-y divide-white/8">
+                    {[
+                      ["Name", lead.name],
+                      ["Phone", lead.phone],
+                      ["Work needed", lead.workNeeded],
+                      ["Urgency", lead.urgency],
+                      ["Site address", lead.siteAddress],
+                    ].map(([label, value]) => (
+                      <div key={label} className="min-w-0 p-3.5">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-white/35">{label}</p>
+                        <p className="mt-1 break-words text-sm font-medium leading-relaxed text-white/85">{formatField(value)}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="border-t border-white/8 p-4">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-white/35">Call summary</p>
+                    <p className="mt-1.5 text-sm leading-relaxed text-white/75">{formatField(lead.summary)}</p>
                   </div>
                 </div>
-                {isOliver && (
-                  <div className="w-7 h-7 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 mt-0.5">
-                    <Bot size={12} className="text-primary" />
+                {booking ? (
+                  <div className="mt-3 rounded-xl border border-amber-200/20 bg-amber-200/[.06] p-3.5" data-testid="status-demo-booking">
+                    <p className="text-xs font-bold uppercase tracking-wider text-amber-100/80">Demo-only booking · not in a real calendar</p>
+                    <p className="mt-1 text-sm font-semibold text-white/85">{booking.slot || demoSlot}</p>
+                    <p className="mt-1 text-xs text-white/50">This slot is illustrative and has not been reserved.</p>
+                  </div>
+                ) : (
+                  <div className="mt-3 rounded-xl border border-white/8 bg-white/[.025] p-3.5">
+                    <p className="text-xs font-bold uppercase tracking-wider text-white/40">Booking</p>
+                    <p className="mt-1 text-sm text-white/65">No slot selected. No real appointment has been made.</p>
                   </div>
                 )}
-              </div>
-            );
-          })}
-
-          {typingFrom && (
-            <div className={cn("flex gap-2", typingFrom === "oliver" ? "justify-end" : "justify-start")}>
-              {typingFrom === "caller" && (
-                <div className="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center shrink-0">
-                  <Phone size={12} className="text-slate-500" />
+                <div className="mt-3 rounded-xl border border-[#36C6D5]/15 bg-[#36C6D5]/[.06] p-3.5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[#83dbe3]">Suggested next action</p>
+                  <p className="mt-1 text-sm leading-relaxed text-white/80">{formatField(lead.nextAction)}</p>
                 </div>
-              )}
-              <div
-                className={cn(
-                  "rounded-2xl shadow-sm",
-                  typingFrom === "oliver"
-                    ? "bg-[#1a2332] text-white rounded-tr-sm"
-                    : "bg-white text-slate-400 rounded-tl-sm border border-slate-200"
-                )}
-              >
-                <TypingDots />
-              </div>
-              {typingFrom === "oliver" && (
-                <div className="w-7 h-7 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
-                  <Bot size={12} className="text-primary" />
+                <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
+                  <Button type="button" variant="ghost" onClick={reset} className="gap-2 text-white/65 hover:bg-white/5 hover:text-white" data-testid="button-restart-demo">
+                    <RotateCcw size={15} /> Start again
+                  </Button>
+                  <Button type="button" onClick={() => onOpenChange(false)} className="h-11 gap-2 bg-[#36C6D5] px-5 font-semibold text-[#0D171C] hover:bg-[#58d3de]" data-testid="button-close-enquiry">
+                    Done <ArrowRight size={16} />
+                  </Button>
                 </div>
-              )}
-            </div>
-          )}
+              </section>
+            )}
+          </main>
 
-          {finished && (
-            <div className="flex justify-center pt-2">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground bg-white border rounded-full px-3 py-1.5 shadow-sm">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                Demo ended · no enquiry or booking was created
-              </div>
-            </div>
-          )}
-
-          <div ref={bottomRef} />
-          <style>{`
-            @keyframes cdmFadeIn {
-              from { opacity: 0; transform: translateY(6px); }
-              to   { opacity: 1; transform: translateY(0); }
-            }
-          `}</style>
-        </div>
-
-        {/* ── Footer ── */}
-        <div className="bg-white border-t px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground min-w-0">
-            <Bot size={12} className="text-primary shrink-0" />
-            <span className="truncate">Oliver · <span className="font-medium text-secondary">device voice</span>
-              {audioUnavailable && (
-                <span className="text-muted-foreground/60"> · audio unavailable; transcript only</span>
-              )}
-            </span>
-          </div>
-          {finished ? (
-            <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 shrink-0 ml-2" onClick={reset}>
-              <Play size={11} /> Replay
-            </Button>
-          ) : !started ? (
-            <Button size="sm" className="h-7 text-xs gap-1.5 shrink-0 ml-2" onClick={startDemo}>
-              <Play size={11} /> Play
-            </Button>
-          ) : null}
+          <footer className="flex shrink-0 items-center justify-between gap-2 border-t border-white/8 bg-[#0b1418] px-4 py-3 sm:px-6">
+            <span className="text-[10px] leading-relaxed text-white/35">Live AI · website-informed · demo data only</span>
+            <span className="inline-flex items-center gap-1.5 text-[10px] font-medium text-white/40"><ShieldCheck size={12} /> Separate demo records · 7-day retention</span>
+          </footer>
         </div>
       </DialogContent>
     </Dialog>
