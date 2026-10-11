@@ -16,6 +16,9 @@ import Invoices from '@/pages/invoices';
 import Certificates from '@/pages/certificates';
 import EmailInbox from '@/pages/email-inbox';
 import Tasks from '@/pages/tasks';
+import DataImport from '@/pages/data-import';
+import Billing from '@/pages/billing';
+import BusinessSetup from '@/pages/business-setup';
 import PublicQuotePage from '@/pages/public-quote';
 import { useRoute } from 'wouter';
 import VoiceAssistant from '@/components/layout/voice-assistant';
@@ -82,6 +85,15 @@ function Router() {
       </Route>
       <Route path="/settings">
         <AppLayout><Settings /></AppLayout>
+      </Route>
+      <Route path="/business-setup">
+        <AppLayout><BusinessSetup /></AppLayout>
+      </Route>
+      <Route path="/data-import">
+        <AppLayout><DataImport /></AppLayout>
+      </Route>
+      <Route path="/billing">
+        <AppLayout><Billing /></AppLayout>
       </Route>
       <Route path="/tasks">
         <AppLayout><Tasks /></AppLayout>
