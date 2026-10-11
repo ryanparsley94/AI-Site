@@ -158,12 +158,21 @@ const MIGRATIONS = [
       profile jsonb NOT NULL,
       receptionist_name text NOT NULL,
       voice text NOT NULL,
+       company_id integer,
+       assistant_id integer,
+       call_sid text,
+       call_id integer,
       transcript text,
       result jsonb,
       booking jsonb,
       created_at timestamptz NOT NULL DEFAULT now(),
       finalized_at timestamptz
     )`,
+   `ALTER TABLE public_demo_sessions
+      ADD COLUMN IF NOT EXISTS company_id integer,
+      ADD COLUMN IF NOT EXISTS assistant_id integer,
+      ADD COLUMN IF NOT EXISTS call_sid text,
+      ADD COLUMN IF NOT EXISTS call_id integer`,
   `CREATE INDEX IF NOT EXISTS public_demo_sessions_created_idx ON public_demo_sessions(created_at)`,
 
 ];
