@@ -22,9 +22,15 @@ type BookAppointmentResult =
   | { ok: false; reason: "slot_unavailable" | "missing_details" | "invalid_slot"; message: string };
 
 const DEFAULT_TIME_ZONE = "Europe/London";
-const SLOT_HOURS = [9, 13];
 const SLOT_DURATION_MINUTES = 60;
 const CONFLICT_WINDOW_MS = 2 * 60 * 60 * 1000;
+
+type BookingHours = {
+  day_of_week: number;
+  open_time: string;
+  close_time: string;
+  bookable: boolean;
+};
 
 function localParts(date: Date, timeZone: string) {
   const parts = new Intl.DateTimeFormat("en-GB", {
@@ -85,23 +91,66 @@ function addCalendarDays(
   };
 }
 
-function buildCandidateSlots(timeZone: string): AppointmentSlot[] {
-  const now = new Date();
-  let ymd = addCalendarDays(localParts(now, timeZone), 1);
-  const result: AppointmentSlot[] = [];
+function timeMinutes(value: string): number {
+  const match = /^(\d{2}):(\d{2})/.exec(value);
+  if (!match) return -1;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  return hour <= 23 && minute <= 59 ? hour * 60 + minute : -1;
+}
 
-  while (result.length < 14) {
+function weekdayFor(date: Date, timeZone: string): number {
+  const name = new Intl.DateTimeFormat("en-GB", { timeZone, weekday: "short" })
+    .format(date).slice(0, 3).toLowerCase();
+  return ({ sun: 7, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 } as Record<string, number>)[name] ?? 0;
+}
+
+async function bookingHours(companyId: number): Promise<BookingHours[]> {
+  const result = await pool.query<BookingHours>(
+    `SELECT day_of_week,open_time::text,close_time::text,bookable
+       FROM company_booking_hours WHERE company_id=$1 ORDER BY day_of_week`,
+    [companyId],
+  );
+  if (result.rows.length) return result.rows.filter((row) => row.bookable);
+
+  // The approved Parsley schedule is a code-backed pilot default as well as a
+  // saved dev setting, so it remains available after schema-only deployment.
+  const company = await pool.query<{ name: string }>(
+    "SELECT name FROM companies WHERE id=$1 LIMIT 1",
+    [companyId],
+  );
+  const name = company.rows[0]?.name.toLowerCase().trim().replace(/\s+(limited|ltd\.?)$/i, "");
+  if (name !== "parsley electrical") return [];
+  return [1, 2, 3, 4, 5].map((day_of_week) => ({
+    day_of_week,
+    open_time: "08:30",
+    close_time: "16:30",
+    bookable: true,
+  }));
+}
+
+function buildCandidateSlots(timeZone: string, hours: BookingHours[]): AppointmentSlot[] {
+  const now = new Date();
+  let ymd = localParts(now, timeZone);
+  const result: AppointmentSlot[] = [];
+  const byDay = new Map(hours.map((row) => [row.day_of_week, row]));
+
+  while (result.length < 80) {
     const weekday = new Date(Date.UTC(ymd.year, ymd.month - 1, ymd.day, 12)).getUTCDay();
-    if (weekday !== 0 && weekday !== 6) {
-      for (const hour of SLOT_HOURS) {
+    const schedule = byDay.get(weekday || 7);
+    if (schedule) {
+      const opens = timeMinutes(schedule.open_time);
+      const closes = timeMinutes(schedule.close_time);
+      for (let start = opens; start >= 0 && start + SLOT_DURATION_MINUTES <= closes; start += SLOT_DURATION_MINUTES) {
         const instant = localDateTimeToUtc(
           ymd.year,
           ymd.month,
           ymd.day,
-          hour,
-          0,
+          Math.floor(start / 60),
+          start % 60,
           timeZone,
         );
+        if (instant <= now) continue;
         const label = new Intl.DateTimeFormat("en-GB", {
           timeZone,
           weekday: "short",
@@ -121,11 +170,12 @@ function buildCandidateSlots(timeZone: string): AppointmentSlot[] {
 }
 
 async function companyTimeZone(companyId: number): Promise<string> {
-  const company = await pool.query<{ timezone: string }>(
-    "SELECT timezone FROM companies WHERE id=$1 LIMIT 1",
+  const company = await pool.query<{ timezone: string; name: string }>(
+    "SELECT timezone,name FROM companies WHERE id=$1 LIMIT 1",
     [companyId],
   );
-  const value = company.rows[0]?.timezone || DEFAULT_TIME_ZONE;
+  const name = company.rows[0]?.name.toLowerCase().trim().replace(/\s+(limited|ltd\.?)$/i, "");
+  const value = name === "parsley electrical" ? DEFAULT_TIME_ZONE : company.rows[0]?.timezone || DEFAULT_TIME_ZONE;
   try {
     new Intl.DateTimeFormat("en-GB", { timeZone: value }).format(new Date());
     return value;
@@ -156,7 +206,17 @@ export async function getAvailableAppointmentSlots(
   limit = 6,
 ): Promise<AppointmentSlot[]> {
   const timeZone = await companyTimeZone(companyId);
-  const candidates = buildCandidateSlots(timeZone);
+  const hours = await bookingHours(companyId);
+  if (!hours.length) return [];
+  const todayHours = hours.find((row) => row.day_of_week === weekdayFor(new Date(), timeZone));
+  if (!todayHours) return [];
+  const now = new Date();
+  const localTime = new Intl.DateTimeFormat("en-GB", {
+    timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).format(now);
+  const currentMinute = timeMinutes(localTime);
+  if (currentMinute < timeMinutes(todayHours.open_time) || currentMinute >= timeMinutes(todayHours.close_time)) return [];
+  const candidates = buildCandidateSlots(timeZone, hours);
   if (!candidates.length) return [];
 
   const windowStart = new Date(new Date(candidates[0].iso).getTime() - CONFLICT_WINDOW_MS);

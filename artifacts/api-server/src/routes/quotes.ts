@@ -1,10 +1,11 @@
 import { Router, type Request, type Response } from "express";
 import { eq, desc, sql } from "drizzle-orm";
-import { db, quotesTable, jobsTable, invoicesTable, companiesTable } from "@workspace/db";
+import { db, quotesTable, quoteVersionsTable, jobsTable, invoicesTable, companiesTable } from "@workspace/db";
 import {
   QuoteError, quoteId, financialFields, validateWorkflow, validateLinks, companySnapshot, acceptedQuoteToInvoice,
 } from "../lib/quote-workflow";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { calculateQuote } from "@workspace/api-zod";
 import {
   ListQuotesResponse,
   CreateQuoteBody,
@@ -201,6 +202,105 @@ router.get("/quotes/:id", async (req, res): Promise<void> => {
   res.json(GetQuoteResponse.parse(mapQuote(row)));
 });
 
+router.get("/quotes/:id/history", guarded(async (req, res): Promise<void> => {
+  const id = quoteId(req.params.id);
+  const versions = await db.select().from(quoteVersionsTable)
+    .where(eq(quoteVersionsTable.quoteId, id))
+    .orderBy(desc(quoteVersionsTable.revision));
+  res.json(versions.map(version => ({
+    ...version,
+    totalIncVat: version.totalIncVat === null ? null : Number(version.totalIncVat),
+    createdAt: version.createdAt.toISOString(),
+  })));
+}));
+
+router.post("/quotes/:id/ai-edit/preview", guarded(async (req, res): Promise<void> => {
+  const id = quoteId(req.params.id);
+  const instruction = typeof req.body?.instruction === "string" ? req.body.instruction.trim().slice(0, 3000) : "";
+  const revision = Number(req.body?.revision);
+  if (!instruction) throw new QuoteError("Write what you want changed.", 400);
+  if (!Number.isSafeInteger(revision) || revision < 1) throw new QuoteError("Reload this quote before asking for an edit.", 400);
+  const [quote] = await db.select().from(quotesTable).where(eq(quotesTable.id, id));
+  if (!quote) throw new QuoteError("Quote not found.", 404);
+  if (!quote.workflow || !["draft", "reviewed", "changes_requested"].includes(quote.status)) {
+    throw new QuoteError("AI edits are only available for saved, editable quotes. Duplicate an accepted quote to revise it.", 409);
+  }
+  if (quote.revision !== revision) throw new QuoteError("This quote changed elsewhere. Reload it before asking for an edit.", 409);
+  try {
+    const existing = quote.workflow as QuoteWorkflow;
+    const response = await openai.chat.completions.create({
+      model: process.env.OPENAI_QUOTE_EDIT_MODEL || "gpt-5.6-luna",
+      max_completion_tokens: 5000,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: `You are a careful UK trades quote editor. Return JSON only with keys: title, workflow, summary, warnings, priceReviewRequired.
+Edit the supplied existing quote in response to the user's instruction; do not start over. Preserve all unrelated fields, customer/site links, VAT settings, deposits, payment terms and known figures. Keep the quote a draft proposal: this endpoint never saves, approves or sends.
+Never invent prices, costs, quantities, allowances, measurements, or technical facts. Keep every existing costPrice and sellPrice unchanged for retained line IDs unless the user explicitly gives a new figure. For new or split lines with no defensible existing figure, use zero prices and add a warning that price review is required. When combining lines, only combine compatible units/types; retain the known total by deriving a unit price from the existing line totals where that is mathematically valid, otherwise set the affected price to zero and flag review. Quantity edits may reuse existing unit prices; describe that behavior in a warning if it materially changes totals.
+Use concise professional customer-facing wording. Keep the workflow schema exactly compatible with the supplied JSON. IDs for retained sections/items must remain stable; newly created IDs must be unique strings. If the request is ambiguous, preserve the quote and explain the ambiguity in warnings. If a request would change totals because of missing price data, set priceReviewRequired=true.`,
+        },
+        { role: "user", content: JSON.stringify({ title: quote.title, workflow: existing, instruction }) },
+      ],
+    });
+    const content = response.choices[0]?.message?.content;
+    if (!content) throw new Error("The AI returned an empty quote edit.");
+    const parsed = JSON.parse(content) as {
+      title?: unknown; workflow?: unknown; summary?: unknown; warnings?: unknown; priceReviewRequired?: unknown;
+    };
+    const proposedTitle = typeof parsed.title === "string" ? parsed.title.trim().slice(0, 300) : quote.title;
+    const proposedWorkflow = parsed.workflow as QuoteWorkflow;
+    if (!proposedWorkflow || typeof proposedWorkflow !== "object") throw new Error("The AI response did not contain a quote proposal.");
+    validateWorkflow(proposedWorkflow);
+    const oldTotals = calculateQuote(existing);
+    const newTotals = calculateQuote(proposedWorkflow);
+    const priorItems = new Map(existing.sections.flatMap(section => section.items.map(item => [item.id, item] as const)));
+    const explicitPriceInput = /\d/.test(instruction) && /(?:\bprice\b|\bcost\b|\bsell\b|\brate\b|\bcharge\b|\bhourly\b|£|\bpounds?\b)/i.test(instruction);
+    let unsafePriceChange = false;
+    for (const item of proposedWorkflow.sections.flatMap(section => section.items)) {
+      const previous = priorItems.get(item.id);
+      if (!previous) {
+        if (!explicitPriceInput) {
+          if (item.costPrice !== 0 || item.sellPrice !== 0) unsafePriceChange = true;
+          item.costPrice = 0;
+          item.sellPrice = 0;
+        } else if (item.costPrice !== 0 || item.sellPrice !== 0) {
+          unsafePriceChange = true;
+        }
+      } else if (item.costPrice !== previous.costPrice || item.sellPrice !== previous.sellPrice) {
+        unsafePriceChange = true;
+        if (!explicitPriceInput) {
+          item.costPrice = previous.costPrice;
+          item.sellPrice = previous.sellPrice;
+        }
+      }
+    }
+    const totalsAfterPriceGuard = calculateQuote(proposedWorkflow);
+    const warnings = Array.isArray(parsed.warnings)
+      ? parsed.warnings.filter((item): item is string => typeof item === "string").slice(0, 10)
+      : [];
+    if (unsafePriceChange) warnings.push(explicitPriceInput
+      ? "A price was supplied in your instruction. Confirm the AI applied it to the intended line and review the recalculated quote totals."
+      : "Unverified AI price changes were removed. Review prices for new or split items before marking the quote reviewed.");
+    if (oldTotals.total !== totalsAfterPriceGuard.total && !warnings.length) {
+      warnings.push("The proposed scope or quantities change the calculated total. Check each line before approval.");
+    }
+    res.json({
+      title: proposedTitle || quote.title,
+      workflow: proposedWorkflow,
+      summary: typeof parsed.summary === "string" ? parsed.summary.slice(0, 1000) : "Review the proposed quote changes.",
+      warnings: [...new Set(warnings)],
+      priceReviewRequired: parsed.priceReviewRequired === true || unsafePriceChange || totalsAfterPriceGuard.total !== oldTotals.total,
+      currentTotal: oldTotals.total,
+      proposedTotal: totalsAfterPriceGuard.total,
+      revision: quote.revision,
+    });
+  } catch (error) {
+    if (error instanceof QuoteError) throw error;
+    throw new QuoteError(error instanceof Error ? error.message : "Could not prepare an AI quote edit.", 502);
+  }
+}));
+
 router.patch("/quotes/:id", guarded(async (req, res): Promise<void> => {
   const params = UpdateQuoteParams.safeParse({ id: Number(req.params.id) });
   if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -231,6 +331,16 @@ router.patch("/quotes/:id", guarded(async (req, res): Promise<void> => {
   if (status !== "draft" && !workflow) throw new QuoteError("Open this legacy quote for editing and review it before acceptance.");
   if (workflow) validateWorkflow(workflow, status === "reviewed");
   const updateData: Record<string, unknown> = { ...rest, status, revision: current.revision + 1 };
+   if ((contentChanged || moneyTouched) && current.workflow) {
+     await tx.insert(quoteVersionsTable).values({
+       quoteId: current.id,
+       revision: current.revision,
+       title: current.title,
+       status: current.status,
+       workflow: current.workflow,
+       totalIncVat: current.totalIncVat,
+     }).onConflictDoNothing();
+   }
    if (contentChanged || moneyTouched || rest.status === "reviewed" || (rest.status !== undefined && rest.status !== current.status)) {
      Object.assign(updateData, { acceptanceTokenHash: null, sharedAt: null, respondedAt: null, changeRequest: null });
    }

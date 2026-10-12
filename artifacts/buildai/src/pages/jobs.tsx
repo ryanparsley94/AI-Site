@@ -19,6 +19,7 @@ import {
   ListFilter, Trash2, FileText, Receipt, Link2, CheckCircle, Send
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Link } from "wouter";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -499,7 +500,11 @@ export default function Jobs() {
                           {format(new Date(job.scheduledAt), "MMM d")}
                         </span>
                       </div>
-                      <CardTitle className="text-lg leading-tight">{job.title}</CardTitle>
+                       <CardTitle className="text-lg leading-tight">
+                         <Link href={`/jobs/${job.id}`} className="hover:text-primary transition-colors" data-testid={`link-job-detail-${job.id}`}>
+                           {job.title}
+                         </Link>
+                       </CardTitle>
                       <CardDescription className="flex items-center gap-1 mt-1">
                         <MapPin size={14}/> {job.address}
                       </CardDescription>

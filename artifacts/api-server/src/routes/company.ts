@@ -24,6 +24,7 @@ async function getOrCreateCompany() {
     .values({
       name: "Parsley Electrical Ltd",
       phone: "",
+      email: "info@parsleyelectrical.co.uk",
       timezone: "Europe/London",
     })
     .returning();
