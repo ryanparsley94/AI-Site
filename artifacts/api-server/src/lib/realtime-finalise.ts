@@ -388,6 +388,12 @@ export async function finaliseRealtimeEnquiry(input: FinaliseInput): Promise<voi
       enquiry.urgency === "emergency" ||
       enquiry.urgency === "urgent";
 
+    const linkedCall = await client.query<{ job_id: number | null }>(
+      "SELECT job_id FROM calls WHERE id=$1 AND company_id=$2 LIMIT 1",
+      [input.callId, input.companyId],
+    );
+    const hasBookedJob = linkedCall.rows[0]?.job_id != null;
+
     await client.query(
       `UPDATE calls
           SET company_id=$2,
@@ -438,15 +444,16 @@ export async function finaliseRealtimeEnquiry(input: FinaliseInput): Promise<voi
       [input.assistantId, input.companyId],
     );
 
-    if (urgent) {
+    if (urgent || !hasBookedJob) {
       await client.query(
         `INSERT INTO tasks(title,priority,status,source,company_id)
-         VALUES ($1,'high','pending','ai',$2)`,
+         VALUES ($1,$2,'pending','ai',$3)`,
         [
-          `Urgent phone enquiry: ${enquiry.name || primaryPhone || "Unknown caller"} — ${enquiry.work || enquiry.summary}`.slice(
+          `${urgent ? "Urgent phone enquiry" : "Phone enquiry follow-up"}: ${enquiry.name || primaryPhone || "Unknown caller"} — ${enquiry.work || enquiry.summary}`.slice(
             0,
             500,
           ),
+          urgent ? "high" : "medium",
           input.companyId,
         ],
       );

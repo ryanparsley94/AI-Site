@@ -8,6 +8,7 @@ import Dashboard from '@/pages/dashboard';
 import Calls from '@/pages/calls';
 import CallDetail from '@/pages/call-detail';
 import Jobs from '@/pages/jobs';
+import JobWorkspace from '@/pages/job-workspace';
 import Assistants from '@/pages/assistants';
 import Contacts from '@/pages/contacts';
 import Settings from '@/pages/settings';
@@ -61,6 +62,9 @@ function Router() {
       </Route>
       <Route path="/calls/:id">
         <AppLayout><CallDetail /></AppLayout>
+      </Route>
+      <Route path="/jobs/:id">
+        <AppLayout><JobWorkspace /></AppLayout>
       </Route>
       <Route path="/jobs">
         <AppLayout><Jobs /></AppLayout>

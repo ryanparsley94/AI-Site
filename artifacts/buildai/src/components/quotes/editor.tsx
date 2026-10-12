@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useCreateQuote, useUpdateQuote, useDuplicateQuote, useConvertQuoteToInvoice, useConvertQuoteToJob,
@@ -17,6 +17,7 @@ import { DetailsForm } from "./details-form";
 import { SectionsEditor } from "./sections-editor";
 import { TotalsPanel } from "./totals-panel";
 import { AiPricing } from "./ai-pricing";
+import { AiQuoteChat } from "./ai-quote-chat";
 import { CustomerPreview, TemplateControls, type PreviewTemplate } from "./customer-preview";
 import { downloadQuotePdf } from "./pdf";
 import { normalizeWorkflow, reviewIssues, safeCalc, statusLabel, storedTotal } from "./helpers";
@@ -47,6 +48,7 @@ export function QuoteEditor({ init, company, onBack, onOpen }: {
   const [cmpTpl, setCmpTpl] = useState<PreviewTemplate | null>(null);
   const [jobOpen, setJobOpen] = useState(false);
   const [when, setWhen] = useState("");
+  const [quoteHistory, setQuoteHistory] = useState<Array<{ revision: number; title: string; status: string; workflow: QuoteWorkflow; totalIncVat: number | null; createdAt: string }>>([]);
   const create = useCreateQuote();
   const update = useUpdateQuote();
   const dup = useDuplicateQuote();
@@ -60,6 +62,41 @@ export function QuoteEditor({ init, company, onBack, onOpen }: {
   const issues = useMemo(() => reviewIssues(w, calc, error), [w, calc, error]);
   const effective = locked ? "accepted" : dirty ? "draft" : status;
   const busy = create.isPending || update.isPending || dup.isPending || toInvoice.isPending || toJob.isPending;
+  const editableSavedQuote = !!quote && !locked && ["draft", "reviewed", "changes_requested"].includes(status);
+
+  const loadHistory = async (quoteId: number) => {
+    try {
+      const response = await fetch(`${import.meta.env.BASE_URL.replace(/\/$/, "")}/api/quotes/${quoteId}/history`, { credentials: "include" });
+      if (response.ok) setQuoteHistory(await response.json());
+    } catch {
+      // History is supplementary; the quote remains editable if it cannot be loaded.
+    }
+  };
+  useEffect(() => {
+    if (quote?.id) void loadHistory(quote.id);
+  }, [quote?.id]);
+
+  const requestAiPreview = async (instruction: string) => {
+    if (!quote) throw new Error("Save this quote as a draft before using the AI editor.");
+    const response = await fetch(`${import.meta.env.BASE_URL.replace(/\/$/, "")}/api/quotes/${quote.id}/ai-edit/preview`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ instruction, revision: quote.revision }),
+    });
+    const result = await response.json() as { workflow?: QuoteWorkflow; warnings?: string[]; priceReviewRequired?: boolean; error?: string };
+    if (!response.ok || !result.workflow) throw new Error(result.error || "Could not prepare an AI quote preview.");
+    return { workflow: result.workflow, warnings: result.warnings ?? [], priceReviewRequired: result.priceReviewRequired === true };
+  };
+
+  const acceptAiRevision = async (workflow: QuoteWorkflow) => {
+    if (!quote || locked) throw new Error("This quote is no longer editable. Reload it before applying the proposal.");
+    const updated = await update.mutateAsync({ id: quote.id, data: { workflow: workflow as never, materials: [], revision: quote.revision } });
+    adopt(updated);
+    refresh();
+    await loadHistory(updated.id);
+    toast({ title: "AI edit saved as a new quote revision" });
+  };
 
   const refresh = (all = false) => {
     qc.invalidateQueries({ queryKey: getListQuotesQueryKey() });
@@ -165,6 +202,43 @@ export function QuoteEditor({ init, company, onBack, onOpen }: {
               <DetailsForm w={w} onChange={setW} title={title} onTitle={setTitle} />
               <SectionsEditor w={w} onChange={setW} calc={calc} />
               {!locked && <AiPricing w={w} onChange={setW} />}
+              {editableSavedQuote && !dirty && (
+                <AiQuoteChat workflow={w} busy={busy} onPreview={requestAiPreview} onAccept={acceptAiRevision} />
+              )}
+              {editableSavedQuote && dirty && (
+                <p className="rounded-lg border border-amber-400/40 bg-amber-400/10 p-3 text-sm text-amber-100">
+                  Save the current draft before asking the AI to edit it. Unsaved changes are not included in AI previews.
+                </p>
+              )}
+              {quote && quoteHistory.length > 0 && (
+                <details className="rounded-lg border border-border bg-card/50 px-4 py-3" data-testid="quote-version-history">
+                  <summary className="cursor-pointer text-sm font-semibold text-secondary">Quote history ({quoteHistory.length} saved {quoteHistory.length === 1 ? "version" : "versions"})</summary>
+                  <ol className="mt-3 space-y-2">
+                    {quoteHistory.map(version => (
+                      <li key={version.revision} className="border-t border-border/60 pt-2 text-xs">
+                        <details>
+                          <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-2">
+                            <span>Revision {version.revision} · {version.status}</span>
+                            <span>{version.totalIncVat == null ? "Total not recorded" : formatCurrency(version.totalIncVat)}</span>
+                            <time dateTime={version.createdAt}>{new Date(version.createdAt).toLocaleString("en-GB")}</time>
+                          </summary>
+                          <div className="mt-2 space-y-2 rounded-md bg-background/50 p-3">
+                            <p className="whitespace-pre-wrap">{version.workflow.scope}</p>
+                            {version.workflow.sections.map(section => (
+                              <div key={section.id}>
+                                <p className="font-semibold">{section.title}</p>
+                                <ul className="mt-1 list-disc space-y-1 pl-4">
+                                  {section.items.map(item => <li key={item.id}>{item.description} — {item.quantity} {item.unit} at {formatCurrency(item.sellPrice)} each</li>)}
+                                </ul>
+                              </div>
+                            ))}
+                          </div>
+                        </details>
+                      </li>
+                    ))}
+                  </ol>
+                </details>
+              )}
             </div>
             <div className="space-y-4 lg:sticky lg:top-4 lg:self-start">
               <TotalsPanel w={w} onChange={setW} calc={calc} error={error} />

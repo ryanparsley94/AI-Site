@@ -125,15 +125,27 @@ function decodeEntities(value: string): string {
 }
 
 function visibleText(html: string): string {
+  const metadata = [...html.matchAll(/<meta\b[^>]*>/gi)]
+    .map(([tag]) => {
+      const name = tag.match(/\b(?:name|property)\s*=\s*["']([^"']+)["']/i)?.[1]?.toLowerCase();
+      if (!name || !/^(description|og:description|twitter:description|keywords)$/.test(name)) return "";
+      const content = tag.match(/\bcontent\s*=\s*["']([^"']*)["']/i)?.[1];
+      return content ? decodeEntities(content) : "";
+    })
+    .filter(Boolean);
+  const title = html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? "";
   const cleaned = html
     .replace(/<!--[\s\S]*?-->/g, " ")
     .replace(/<(script|style|noscript|svg|template|iframe)[^>]*>[\s\S]*?<\/\1>/gi, " ")
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/(p|div|li|h1|h2|h3|h4|section|article|header|footer|main)>/gi, "\n")
     .replace(/<[^>]+>/g, " ");
-  return decodeEntities(cleaned)
+  const bodyText = decodeEntities(cleaned)
     .replace(/[ \t]+/g, " ")
     .replace(/\n\s*\n+/g, "\n")
+    .trim();
+  return [...new Set([decodeEntities(title), ...metadata, bodyText].filter(Boolean))]
+    .join("\n")
     .trim()
     .slice(0, MAX_TEXT_CHARS);
 }

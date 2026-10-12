@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @plugin "@tailwindcss/typography";
@@ -129,11 +130,23 @@
   --chart-4: 142 71% 45%;
   --chart-5: 0 84.2% 60.2%;
 
-  --app-font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --app-font-serif: Georgia, serif;
+  --app-font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --app-font-serif: "Space Grotesk", ui-sans-serif, sans-serif;
   --app-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   --radius: 0.4rem;
 }
+
+.job-workspace {
+  background-image: radial-gradient(ellipse at 82% 0%, rgba(54, 198, 213, .075), transparent 34%), linear-gradient(135deg, rgba(54, 198, 213, .018), transparent 45%);
+}
+.job-workspace .workspace-title { font-family: var(--app-font-serif); letter-spacing: -.045em; }
+.job-workspace .workspace-panel { border: 1px solid hsl(var(--border)); background: linear-gradient(145deg, rgba(32,48,56,.92), rgba(20,34,40,.96)); }
+.job-workspace .workspace-nav { scrollbar-width: none; }
+.job-workspace .workspace-nav::-webkit-scrollbar { display: none; }
+.job-workspace .workspace-nav-item { transition: color .16s ease, background-color .16s ease, border-color .16s ease; }
+.job-workspace .workspace-nav-item:hover { transform: translateY(-1px); }
+.job-workspace .workspace-enter { animation: workspace-enter .28s ease both; }
+@keyframes workspace-enter { from { opacity: .55; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 
 .dark {
   --background: 222 47% 11%;

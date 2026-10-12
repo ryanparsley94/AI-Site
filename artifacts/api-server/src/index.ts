@@ -174,7 +174,6 @@ const MIGRATIONS = [
       ADD COLUMN IF NOT EXISTS call_sid text,
       ADD COLUMN IF NOT EXISTS call_id integer`,
   `CREATE INDEX IF NOT EXISTS public_demo_sessions_created_idx ON public_demo_sessions(created_at)`,
-
 ];
 
 async function runMigrations(): Promise<void> {
