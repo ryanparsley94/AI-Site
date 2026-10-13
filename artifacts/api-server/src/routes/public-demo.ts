@@ -7,12 +7,15 @@ import { getAvailableAppointmentSlots, bookRealtimeAppointment } from "../lib/ap
 import { finaliseRealtimeEnquiry, type PhoneTranscriptEntry } from "../lib/realtime-finalise";
 import { realtimePhoneStreamUrl } from "../lib/realtime-phone";
 import { validTwilioRequest } from "../lib/voice-security";
+import { getVoicePublicBaseUrl } from "../lib/voice-config";
+import { getOpenAiErrorDiagnostic, getSampleAudioErrorMessage } from "../lib/openai-error-diagnostics";
 
 const router = Router();
 const allowedVoices = new Set(["alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse", "marin", "cedar"]);
 const requestTimes = new Map<string, number[]>();
 const phoneDemoRequests = new Map<string, number[]>();
 let cachedSampleAudio: Buffer | null = null;
+let sampleAudioGeneration: Promise<Buffer | null> | null = null;
 
 function allowRequest(req: Request, res: Response): boolean {
   const key = req.ip || "unknown";
@@ -41,7 +44,7 @@ function jsonContent(body: unknown): string {
   return data.choices?.[0]?.message?.content || "";
 }
 
-router.get("/public-demo/sample-audio", async (_req, res): Promise<void> => {
+router.get("/public-demo/sample-audio", async (req, res): Promise<void> => {
   if (cachedSampleAudio) {
     res.type("audio/wav").setHeader("Cache-Control", "public, max-age=3600").send(cachedSampleAudio);
     return;
@@ -49,7 +52,8 @@ router.get("/public-demo/sample-audio", async (_req, res): Promise<void> => {
   const key = process.env.OPENAI_API_KEY;
   if (!key) { res.status(503).json({ error: "Sample audio is unavailable until OpenAI is configured." }); return; }
   try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    if (!sampleAudioGeneration) sampleAudioGeneration = (async () => {
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -63,22 +67,57 @@ router.get("/public-demo/sample-audio", async (_req, res): Promise<void> => {
       }),
       signal: AbortSignal.timeout(20_000),
     });
-    if (!response.ok) {
-      res.status(response.status === 429 ? 503 : 502).json({
-        error: response.status === 429
-          ? "OpenAI rate-limited or declined sample-audio generation (HTTP 429). Try again later or use the live browser demo."
-          : `OpenAI sample audio failed (HTTP ${response.status}).`,
-      });
-      return;
-    }
+      if (!response.ok) {
+        let body: unknown = null;
+        try { body = await response.json(); } catch { /* provider may return non-JSON */ }
+        const parsed = getOpenAiErrorDiagnostic(body, response.headers.get("x-request-id"));
+        const diagnostic = response.status === 429 && parsed.category === "other"
+          ? { ...parsed, category: "unclassified_429" as const }
+          : parsed;
+        req.log.warn({
+          status: response.status,
+          category: diagnostic.category,
+          type: diagnostic.type,
+          code: diagnostic.code,
+          requestId: diagnostic.requestId,
+        }, "OpenAI sample audio generation rejected");
+        const error = response.status === 429
+          ? getSampleAudioErrorMessage(diagnostic)
+          : `OpenAI sample generation failed (HTTP ${response.status}). Check model access and retry.`;
+        throw Object.assign(new Error(error), {
+          publicStatus: response.status === 429 ? 503 : 502,
+          diagnostic,
+        });
+      }
     const result = await response.json() as { choices?: Array<{ message?: { audio?: { data?: string } } }> };
     const data = result.choices?.[0]?.message?.audio?.data;
-    if (!data) { res.status(502).json({ error: "OpenAI returned no sample audio." }); return; }
-    cachedSampleAudio = Buffer.from(data, "base64");
+      return data ? Buffer.from(data, "base64") : null;
+    })();
+    const generated = await sampleAudioGeneration;
+    sampleAudioGeneration = null;
+    if (!generated) {
+      res.status(502).json({ error: "OpenAI returned no sample audio. Retry once or use the live browser demo." });
+      return;
+    }
+    cachedSampleAudio = generated;
     res.type("audio/wav").setHeader("Cache-Control", "public, max-age=3600").send(cachedSampleAudio);
   } catch (error) {
-    logger.warn({ err: error }, "Public demo sample audio failed");
-    res.status(502).json({ error: "Sample audio could not be prepared. Try the live browser demo instead." });
+    sampleAudioGeneration = null;
+    const failure = error as Error & { publicStatus?: number; diagnostic?: ReturnType<typeof getOpenAiErrorDiagnostic> };
+    const diagnostic = failure.diagnostic;
+    req.log.warn({
+      category: diagnostic?.category ?? "other",
+      type: diagnostic?.type ?? null,
+      code: diagnostic?.code ?? null,
+      requestId: diagnostic?.requestId ?? null,
+    }, "Public demo sample audio unavailable");
+    res.status(failure.publicStatus ?? 502).json({
+      error: failure.message || "Sample audio could not be prepared. Retry once or use the live browser demo.",
+      category: diagnostic?.category ?? null,
+      type: diagnostic?.type ?? null,
+      code: diagnostic?.code ?? null,
+      requestId: diagnostic?.requestId ?? null,
+    });
   }
 });
 
@@ -107,11 +146,7 @@ async function loadParsleyPilot() {
 }
 
 function publicBaseUrl(): URL | null {
-  try {
-    const value = new URL(process.env.VOICE_PUBLIC_BASE_URL || "");
-    if (value.protocol !== "https:") return null;
-    return value;
-  } catch { return null; }
+  return getVoicePublicBaseUrl();
 }
 
 function xml(value: string): string {

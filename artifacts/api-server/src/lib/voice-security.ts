@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { Request } from "express";
 import type { IncomingMessage } from "node:http";
+import { getVoicePublicBaseUrl } from "./voice-config";
 
 function safeEqualBase64(actual: string, expected: string): boolean {
   try {
@@ -15,11 +16,11 @@ function safeEqualBase64(actual: string, expected: string): boolean {
 /** Validate the exact public URL and every form parameter, per Twilio's signed webhook format. */
 export function validTwilioRequest(req: Request): boolean {
   const token = process.env.TWILIO_AUTH_TOKEN;
-  const base = process.env.VOICE_PUBLIC_BASE_URL;
+  const base = getVoicePublicBaseUrl();
   const signature = req.header("X-Twilio-Signature");
   if (!token || !base || !signature || req.method !== "POST" || !req.is("application/x-www-form-urlencoded")) return false;
   try {
-    const url = new URL(req.originalUrl, `${base.replace(/\/+$/, "")}/`).toString();
+    const url = new URL(req.originalUrl, base).toString();
     let payload = url;
     for (const key of Object.keys(req.body ?? {}).sort()) {
       const value = req.body[key];
@@ -40,12 +41,12 @@ export function validTwilioRequest(req: Request): boolean {
  */
 export function validTwilioWebSocketRequest(req: IncomingMessage): boolean {
   const token = process.env.TWILIO_AUTH_TOKEN;
-  const base = process.env.VOICE_PUBLIC_BASE_URL;
+  const base = getVoicePublicBaseUrl();
   const signature = req.headers["x-twilio-signature"];
   if (!token || !base || typeof signature !== "string" || !req.url) return false;
 
   try {
-    const configured = new URL(base);
+    const configured = base;
     const relative = new URL(req.url, "https://internal.invalid");
     const search = relative.search;
     const pathname = relative.pathname;

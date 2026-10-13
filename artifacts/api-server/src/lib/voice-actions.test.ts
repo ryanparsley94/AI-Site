@@ -1,7 +1,61 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { createHmac } from "node:crypto";
 import { executeVoiceAction, intentSchema, resolveNamed, localDay, type VoiceData } from "./voice-actions";
 import { blankQuoteWorkflow } from "@workspace/api-zod";
+import { getVoicePublicBaseUrl, CANONICAL_VOICE_PUBLIC_BASE_URL } from "./voice-config";
+import { validTwilioRequest } from "./voice-security";
+import { getOpenAiErrorDiagnostic, getSampleAudioErrorMessage } from "./openai-error-diagnostics";
+
+test("canonical voice URL rejects whitespace and alternate callback hosts", () => {
+  assert.equal(getVoicePublicBaseUrl(CANONICAL_VOICE_PUBLIC_BASE_URL)?.origin, CANONICAL_VOICE_PUBLIC_BASE_URL);
+  assert.equal(getVoicePublicBaseUrl(` ${CANONICAL_VOICE_PUBLIC_BASE_URL}`), null);
+  assert.equal(getVoicePublicBaseUrl(`${CANONICAL_VOICE_PUBLIC_BASE_URL}/extra`), null);
+  assert.equal(getVoicePublicBaseUrl("http://crew-on.replit.app"), null);
+  assert.equal(getVoicePublicBaseUrl("https://other.example"), null);
+});
+
+test("Twilio signatures validate against the canonical public callback URL and reject tampering", () => {
+  const token = "unit-test-token";
+  const originalUrl = "/api/public-demo/phone-answer?demoId=demo-test";
+  const body: Record<string, string> = { CallSid: "CA-test", To: "+441234567890" };
+  let currentBody: Record<string, string> = { ...body };
+  const absoluteUrl = `${CANONICAL_VOICE_PUBLIC_BASE_URL}${originalUrl}`;
+  const signedPayload = absoluteUrl + Object.keys(body).sort().map((key) => key + body[key]).join("");
+  const signature = createHmac("sha1", token).update(signedPayload, "utf8").digest("base64");
+  const req = {
+    method: "POST",
+    originalUrl,
+    body: currentBody,
+    is: (type: string) => type === "application/x-www-form-urlencoded",
+    header: (name: string) => name === "X-Twilio-Signature" ? signature : undefined,
+  } as unknown as Parameters<typeof validTwilioRequest>[0];
+  process.env.TWILIO_AUTH_TOKEN = token;
+  process.env.VOICE_PUBLIC_BASE_URL = CANONICAL_VOICE_PUBLIC_BASE_URL;
+  assert.equal(validTwilioRequest(req), true);
+  currentBody = { ...body, To: "+449999999999" };
+  Object.assign(req, { body: currentBody });
+  assert.equal(validTwilioRequest(req), false);
+});
+
+test("OpenAI 429 diagnostics distinguish quota from temporary rate limiting without exposing messages", () => {
+  const quota = getOpenAiErrorDiagnostic(
+    { error: { type: "insufficient_quota", code: "billing_hard_limit_reached", message: "private provider detail" } },
+    "req_safe-123",
+  );
+  assert.equal(quota.category, "quota_or_billing");
+  assert.equal(quota.requestId, "req_safe-123");
+  assert.match(getSampleAudioErrorMessage(quota), /quota or billing limit/i);
+  assert.doesNotMatch(JSON.stringify(quota), /private provider detail/);
+
+  const rate = getOpenAiErrorDiagnostic(
+    { error: { type: "rate_limit_error", code: "rate_limit_exceeded" } },
+    "request-456",
+  );
+  assert.equal(rate.category, "transient_rate_limit");
+  assert.match(getSampleAudioErrorMessage(rate), /temporarily rate-limiting/i);
+  assert.equal(getOpenAiErrorDiagnostic({ error: { code: "bad\ncode" } }, "bad request id").code, null);
+});
 
 const data: VoiceData = {
   jobs: [
