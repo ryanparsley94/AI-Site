@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { format, isToday, isTomorrow, parseISO, startOfDay } from "date-fns";
 import { formatCurrency } from "@/lib/utils";
+import { OperationsMap } from "@/components/operations-map";
 
 type FeedItem = {
   id: string;
@@ -373,17 +374,7 @@ export default function Dashboard() {
                    <span className="text-left text-[11px] capitalize text-muted-foreground sm:text-right">{job.status.replaceAll("_", " ")} · {job.assignedEngineer || "Unassigned"}</span>
                 </Link>)}</div>}
             </div>
-            <div className="flex min-h-[250px] flex-col border border-border bg-card" data-testid="operations-map">
-              <div className="flex items-center justify-between border-b border-border px-4 py-3"><div><p className="text-[10px] font-semibold uppercase tracking-[.14em] text-primary">Live operations</p><h3 className="mt-1 text-sm font-semibold">Sites & engineer locations</h3></div><span className="rounded-sm border border-amber-400/30 bg-amber-400/10 px-2 py-1 text-[10px] text-amber-300">Map integration needed</span></div>
-              <div className="flex flex-1 flex-col justify-center px-4 py-4">
-                <p className="text-sm font-medium">Live pins aren’t available yet</p>
-                <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground">Job records currently contain site addresses but no map coordinates, and CREWON Mobile shift-based location sharing is not connected. No locations are simulated or sent to a third-party geocoder.</p>
-                {todayJobs.length > 0 && <div className="mt-3 max-h-28 space-y-2 overflow-auto border-t border-border pt-3">
-                  {todayJobs.slice(0, 4).map((job) => <div key={job.id} className="flex items-center justify-between gap-2 text-xs"><span className="min-w-0 truncate text-muted-foreground">{job.address || `${job.contactName} · address missing`}</span>{job.address && <a href={`https://www.openstreetmap.org/search?query=${encodeURIComponent(job.address)}`} target="_blank" rel="noreferrer" className="shrink-0 text-primary hover:underline">Open map</a>}</div>)}
-                </div>}
-                <p className="mt-3 text-[11px] text-muted-foreground">Engineer tracking requires CREWON Mobile permission, active-shift reporting and company-scoped location storage.</p>
-              </div>
-            </div>
+            <OperationsMap jobs={jobs} />
           </div>
         </section>
 
