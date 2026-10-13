@@ -111,16 +111,6 @@ export const CompanyQuoteTemplate = {
   minimal: 'minimal',
 } as const;
 
-export type CompanyVoiceId = typeof CompanyVoiceId[keyof typeof CompanyVoiceId];
-
-
-export const CompanyVoiceId = {
-  'PollyAmy-Neural': 'Polly.Amy-Neural',
-  'PollyEmma-Neural': 'Polly.Emma-Neural',
-  'PollyArthur-Neural': 'Polly.Arthur-Neural',
-  'PollyBrian-Neural': 'Polly.Brian-Neural',
-} as const;
-
 export interface Company {
   id: number;
   name: string;
@@ -143,12 +133,6 @@ export interface Company {
   /** @nullable */
   quoteFooterText?: string | null;
   emailAutoSend?: boolean;
-  /**
-     * @maxLength 50
-     * @nullable
-     */
-  voiceAgentName?: string | null;
-  voiceId?: CompanyVoiceId;
   createdAt: string;
 }
 
@@ -159,16 +143,6 @@ export const CompanyInputQuoteTemplate = {
   classic: 'classic',
   modern: 'modern',
   minimal: 'minimal',
-} as const;
-
-export type CompanyInputVoiceId = typeof CompanyInputVoiceId[keyof typeof CompanyInputVoiceId];
-
-
-export const CompanyInputVoiceId = {
-  'PollyAmy-Neural': 'Polly.Amy-Neural',
-  'PollyEmma-Neural': 'Polly.Emma-Neural',
-  'PollyArthur-Neural': 'Polly.Arthur-Neural',
-  'PollyBrian-Neural': 'Polly.Brian-Neural',
 } as const;
 
 export interface CompanyInput {
@@ -184,12 +158,6 @@ export interface CompanyInput {
   quoteTagline?: string;
   paymentTerms?: string;
   quoteFooterText?: string;
-  /**
-     * @maxLength 50
-     * @nullable
-     */
-  voiceAgentName?: string | null;
-  voiceId?: CompanyInputVoiceId;
 }
 
 export type AssistantType = typeof AssistantType[keyof typeof AssistantType];
@@ -217,16 +185,6 @@ export const AssistantVoice = {
   verse: 'verse',
   marin: 'marin',
   cedar: 'cedar',
-} as const;
-
-export type AssistantTwilioVoice = typeof AssistantTwilioVoice[keyof typeof AssistantTwilioVoice];
-
-
-export const AssistantTwilioVoice = {
-  'PollyAmy-Neural': 'Polly.Amy-Neural',
-  'PollyEmma-Neural': 'Polly.Emma-Neural',
-  'PollyArthur-Neural': 'Polly.Arthur-Neural',
-  'PollyBrian-Neural': 'Polly.Brian-Neural',
 } as const;
 
 export type AssistantRealtimeVoice = typeof AssistantRealtimeVoice[keyof typeof AssistantRealtimeVoice];
@@ -259,16 +217,13 @@ export interface Assistant {
   name: string;
   type: AssistantType;
   voice: AssistantVoice;
-  /**
-     * @nullable
-     * @pattern ^\+[1-9][0-9]{7,14}$
-     */
+  realtimeVoice?: AssistantRealtimeVoice;
+  /** @nullable */
   twilioPhoneNumber?: string | null;
   /** @nullable */
   businessName?: string | null;
-  twilioVoice: AssistantTwilioVoice;
-  realtimeVoice: AssistantRealtimeVoice;
-  receptionistStyle: string;
+  twilioVoice?: string;
+  receptionistStyle?: string;
   personality: AssistantPersonality;
   greeting?: string;
   /** @nullable */
@@ -306,16 +261,6 @@ export const AssistantInputVoice = {
   cedar: 'cedar',
 } as const;
 
-export type AssistantInputTwilioVoice = typeof AssistantInputTwilioVoice[keyof typeof AssistantInputTwilioVoice];
-
-
-export const AssistantInputTwilioVoice = {
-  'PollyAmy-Neural': 'Polly.Amy-Neural',
-  'PollyEmma-Neural': 'Polly.Emma-Neural',
-  'PollyArthur-Neural': 'Polly.Arthur-Neural',
-  'PollyBrian-Neural': 'Polly.Brian-Neural',
-} as const;
-
 export type AssistantInputRealtimeVoice = typeof AssistantInputRealtimeVoice[keyof typeof AssistantInputRealtimeVoice];
 
 
@@ -345,15 +290,12 @@ export interface AssistantInput {
   name: string;
   type: AssistantInputType;
   voice: AssistantInputVoice;
-  /**
-     * @nullable
-     * @pattern ^\+[1-9][0-9]{7,14}$
-     */
+  realtimeVoice?: AssistantInputRealtimeVoice;
+  /** @nullable */
   twilioPhoneNumber?: string | null;
   /** @nullable */
   businessName?: string | null;
-  twilioVoice?: AssistantInputTwilioVoice;
-  realtimeVoice?: AssistantInputRealtimeVoice;
+  twilioVoice?: string;
   receptionistStyle?: string;
   personality: AssistantInputPersonality;
   greeting?: string;
@@ -480,6 +422,11 @@ export interface AssistantUpdate {
   type?: AssistantUpdateType;
   voice?: AssistantUpdateVoice;
   realtimeVoice?: AssistantUpdateRealtimeVoice;
+  /** @nullable */
+  twilioPhoneNumber?: string | null;
+  /** @nullable */
+  businessName?: string | null;
+  twilioVoice?: string;
   receptionistStyle?: string;
   personality?: AssistantUpdatePersonality;
   greeting?: string;

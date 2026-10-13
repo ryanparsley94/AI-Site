@@ -188,6 +188,38 @@ async function currentCompany() {
   return company.rows[0];
 }
 
+async function savedBusinessPreview(companyId: number, website: string): Promise<BusinessPreview> {
+  const company = await pool.query<{
+    name: string; phone: string; email: string | null; address: string | null; website: string | null;
+  }>("SELECT name,phone,email,address,website FROM companies WHERE id=$1", [companyId]);
+  const assistant = await pool.query<{ id: number; greeting: string }>(
+    `SELECT a.id,a.greeting FROM assistants a
+      LEFT JOIN phone_numbers pn ON pn.assistant_id=a.id AND pn.company_id=a.company_id AND pn.active=true
+     WHERE a.company_id=$1 AND a.type='phone' AND a.active=true
+     ORDER BY (pn.id IS NOT NULL) DESC,a.created_at LIMIT 1`,
+    [companyId],
+  );
+  const training = assistant.rows[0]
+    ? await pool.query<{ category: string; question: string; answer: string }>(
+      "SELECT category,question,answer FROM assistant_training WHERE assistant_id=$1 ORDER BY created_at LIMIT 100",
+      [assistant.rows[0].id],
+    )
+    : { rows: [] as Array<{ category: string; question: string; answer: string }> };
+  const entries = training.rows;
+  return {
+    companyName: company.rows[0]?.name || null,
+    phone: company.rows[0]?.phone || null,
+    email: company.rows[0]?.email || null,
+    address: company.rows[0]?.address || null,
+    website,
+    services: entries.filter((item) => item.category === "service").map((item) => item.answer).slice(0, 30),
+    serviceAreas: entries.filter((item) => item.category === "area").map((item) => item.answer).slice(0, 30),
+    openingHours: entries.filter((item) => item.category === "hours").map((item) => item.answer).slice(0, 14),
+    faqs: entries.filter((item) => item.category === "faq").map((item) => ({ question: item.question, answer: item.answer })).slice(0, 12),
+    receptionistGreeting: assistant.rows[0]?.greeting || null,
+  };
+}
+
 router.post("/business-setup/website-preview", async (req, res): Promise<void> => {
   const url = typeof req.body?.url === "string" ? req.body.url.trim() : "";
   if (!url || url.length > 2000) {
@@ -196,8 +228,33 @@ router.post("/business-setup/website-preview", async (req, res): Promise<void> =
   }
 
   try {
-    const page = await fetchPublicWebsiteText(url);
-    const preview = await analyseWebsite(page.finalUrl, page.title, page.text);
+    let page: Awaited<ReturnType<typeof fetchPublicWebsiteText>>;
+    try {
+      page = await fetchPublicWebsiteText(url);
+    } catch (fetchError) {
+      const message = fetchError instanceof Error ? fetchError.message : "The website could not be read.";
+      if (/private|reserved|credentials|only http|standard website ports|local or|redirected too many|valid public website url/i.test(message)) {
+        throw fetchError;
+      }
+      const requested = new URL(url);
+      const company = await currentCompany();
+      const preview = await savedBusinessPreview(company.id, requested.toString());
+      res.json({
+        source: { requestedUrl: requested.toString(), finalUrl: requested.toString(), title: null },
+        preview,
+        notice: `Website fetch failed: ${message} Showing only the saved company profile and receptionist training; no website facts were inferred. Review the fields before applying.`,
+      });
+      return;
+    }
+    let preview: BusinessPreview;
+    let notice = "Review these suggestions before applying them. CREWON will not update the live receptionist until you approve the preview.";
+    try {
+      preview = await analyseWebsite(page.finalUrl, page.title, page.text);
+    } catch (analysisError) {
+      const company = await currentCompany();
+      preview = await savedBusinessPreview(company.id, page.finalUrl);
+      notice = `Website analysis could not complete (${analysisError instanceof Error ? analysisError.message : "unknown error"}). Showing the saved business profile and receptionist training instead; verify every field before applying.`;
+    }
     res.json({
       source: {
         requestedUrl: page.requestedUrl,
@@ -205,8 +262,7 @@ router.post("/business-setup/website-preview", async (req, res): Promise<void> =
         title: page.title,
       },
       preview,
-      notice:
-        "Review these suggestions before applying them. CREWON will not update the live receptionist until you approve the preview.",
+      notice,
     });
   } catch (error) {
     logger.warn({ err: error }, "Business website preview failed");
@@ -236,9 +292,25 @@ router.post("/business-setup/apply", async (req, res): Promise<void> => {
   }
 
   try {
-    // Validate the approved URL again before storing it.
-    const safe = await fetchPublicWebsiteText(website);
-    const preview = sanitisePreview(raw, safe.finalUrl);
+    // Save the exact reviewed preview. Do not fetch the website a second time:
+    // sites can rate-limit or change between preview and approval.
+    let approvedUrl: URL;
+    try {
+      approvedUrl = new URL(website);
+    } catch {
+      res.status(400).json({ error: "The reviewed website URL is invalid. Scan it again before applying." });
+      return;
+    }
+    if (!["http:", "https:"].includes(approvedUrl.protocol) || approvedUrl.username || approvedUrl.password) {
+      res.status(400).json({ error: "The reviewed website must be a public HTTP or HTTPS URL without embedded credentials." });
+      return;
+    }
+    const reviewedFinalUrl = req.body?.source?.finalUrl;
+    if (typeof reviewedFinalUrl !== "string" || new URL(reviewedFinalUrl).toString() !== approvedUrl.toString()) {
+      res.status(400).json({ error: "The approved URL does not match the scanned website. Scan it again before applying." });
+      return;
+    }
+    const preview = sanitisePreview(raw, approvedUrl.toString());
     const company = await currentCompany();
     const client = await pool.connect();
 
@@ -266,10 +338,11 @@ router.post("/business-setup/apply", async (req, res): Promise<void> => {
       );
 
       let assistant = await client.query<{ id: number; name: string }>(
-        `SELECT id,name
-           FROM assistants
-          WHERE company_id=$1 AND type='phone' AND active=true
-          ORDER BY created_at
+        `SELECT a.id,a.name
+           FROM assistants a
+           LEFT JOIN phone_numbers pn ON pn.assistant_id=a.id AND pn.company_id=a.company_id AND pn.active=true
+          WHERE a.company_id=$1 AND a.type='phone' AND a.active=true
+          ORDER BY (pn.id IS NOT NULL) DESC,a.created_at
           LIMIT 1`,
         [company.id],
       );
@@ -277,8 +350,8 @@ router.post("/business-setup/apply", async (req, res): Promise<void> => {
       if (!assistant.rows[0]) {
         assistant = await client.query<{ id: number; name: string }>(
           `INSERT INTO assistants(
-             company_id,name,type,voice,personality,greeting,instructions,active
-           ) VALUES ($1,'CREWON Receptionist','phone','marin','professional',$2,$3,true)
+             company_id,name,type,voice,realtime_voice,personality,greeting,instructions,active
+           ) VALUES ($1,'CREWON Receptionist','phone','alloy','marin','professional',$2,$3,true)
            RETURNING id,name`,
           [
             company.id,

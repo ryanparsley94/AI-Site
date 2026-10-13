@@ -39,6 +39,7 @@ export default function BusinessSetup() {
   const [website, setWebsite] = useState("");
   const [source, setSource] = useState<PreviewResponse["source"] | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
+  const [previewNotice, setPreviewNotice] = useState("");
   const [services, setServices] = useState("");
   const [areas, setAreas] = useState("");
   const [hours, setHours] = useState("");
@@ -62,6 +63,7 @@ export default function BusinessSetup() {
       if (!response.ok) throw new Error(body.error || "The website could not be scanned.");
       setSource(body.source);
       setPreview(body.preview);
+      setPreviewNotice(body.notice);
       setWebsite(body.preview.website);
       setServices(body.preview.services.join("\n"));
       setAreas(body.preview.serviceAreas.join("\n"));
@@ -83,6 +85,10 @@ export default function BusinessSetup() {
 
   const apply = async () => {
     if (!preview) return;
+    if (source && website.trim() !== source.finalUrl) {
+      toast({ title: "Scan the updated website first", description: "The URL changed after preview. Scan it again so the approved facts match the website being saved.", variant: "destructive" });
+      return;
+    }
     setApplying(true);
     try {
       const reviewed: Preview = {
@@ -95,7 +101,7 @@ export default function BusinessSetup() {
       const response = await fetch(base + "/api/business-setup/apply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ preview: reviewed }),
+        body: JSON.stringify({ preview: reviewed, source }),
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "Business setup could not be applied.");
@@ -191,6 +197,7 @@ export default function BusinessSetup() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-5">
+                {previewNotice && <p className="rounded-lg border border-[#36C6D5]/20 bg-[#36C6D5]/5 p-3 text-sm text-muted-foreground">{previewNotice}</p>}
                 {source && (
                   <div className="rounded-lg border bg-muted/20 p-3 text-xs text-muted-foreground">
                     Source: <span className="font-medium text-foreground">{source.title || source.finalUrl}</span>

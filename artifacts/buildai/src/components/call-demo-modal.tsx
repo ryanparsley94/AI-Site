@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
   AlertCircle, ArrowLeft, ArrowRight, AudioLines, CheckCircle2, Globe2,
-  LoaderCircle, Mic, MicOff, Phone, RotateCcw, ShieldCheck, Sparkles, UserRound, X,
+  Headphones, LoaderCircle, Mic, MicOff, Phone, RotateCcw, ShieldCheck, Sparkles, UserRound, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -21,6 +21,7 @@ type FinalizeResponse = {
 type AvailableSlot = { iso: string; label: string };
 type Stage = "profile" | "call" | "result";
 type CallStatus = "idle" | "connecting" | "live" | "ending" | "error";
+type DemoMode = "choose" | "sample" | "browser" | "phone";
 
 const RECEPTIONIST_NAME = "Maya";
 function apiPath(path: string) {
@@ -78,6 +79,13 @@ export function CallDemoModal({
   onOpenChange: (v: boolean) => void;
 }) {
   const [stage, setStage] = useState<Stage>("profile");
+  const [demoMode, setDemoMode] = useState<DemoMode>("choose");
+  const [sampleAudioUrl, setSampleAudioUrl] = useState("");
+  const [sampleLoading, setSampleLoading] = useState(false);
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [phoneConsent, setPhoneConsent] = useState(false);
+  const [phoneDemoId, setPhoneDemoId] = useState("");
+  const [phoneStatus, setPhoneStatus] = useState("");
   const [receptionistName, setReceptionistName] = useState(RECEPTIONIST_NAME);
   const [website, setWebsite] = useState("");
   const [profile, setProfile] = useState<BusinessProfile | null>(null);
@@ -137,6 +145,12 @@ export function CallDemoModal({
     setAvailableSlots([]);
     demoIdRef.current = null;
     itemIndexesRef.current = {};
+    setDemoMode("choose");
+    setSampleAudioUrl("");
+    setPhoneNumber("");
+    setPhoneConsent(false);
+    setPhoneDemoId("");
+    setPhoneStatus("");
   }, [closeConnection]);
 
   useEffect(() => {
@@ -178,6 +192,60 @@ export function CallDemoModal({
       setPreviewBusy(false);
     }
   }
+
+  async function playSample() {
+    setSampleLoading(true);
+    setError("");
+    try {
+      const response = await fetch(apiPath("/api/public-demo/sample-audio"));
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({})) as { error?: string };
+        throw new Error(result.error || "The recorded sample is unavailable.");
+      }
+      const blob = await response.blob();
+      if (sampleAudioUrl) URL.revokeObjectURL(sampleAudioUrl);
+      setSampleAudioUrl(URL.createObjectURL(blob));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "The sample could not be played.");
+    } finally {
+      setSampleLoading(false);
+    }
+  }
+
+  async function requestPhoneDemo(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setPhoneStatus("Requesting a live call…");
+    try {
+      const result = await postJson<{ demoId: string; status: string; message: string }>(
+        "/api/public-demo/phone-call",
+        { phone: phoneNumber.trim(), consent: phoneConsent },
+      );
+      setPhoneDemoId(result.demoId);
+      setPhoneStatus(result.message);
+    } catch (caught) {
+      setPhoneStatus("");
+      setError(caught instanceof Error ? caught.message : "The call could not be requested.");
+    }
+  }
+
+  useEffect(() => {
+    if (!phoneDemoId || !open) return;
+    const timer = window.setInterval(async () => {
+      try {
+        const response = await fetch(apiPath(`/api/public-demo/phone-call/${encodeURIComponent(phoneDemoId)}`));
+        if (!response.ok) return;
+        const result = await response.json() as { status: string; error?: string | null };
+        setPhoneStatus(result.error || `Phone call status: ${result.status}`);
+        if (["completed", "busy", "failed", "no-answer", "canceled"].includes(result.status)) {
+          window.clearInterval(timer);
+        }
+      } catch {
+        setPhoneStatus("Call requested; status updates are temporarily unavailable.");
+      }
+    }, 2500);
+    return () => window.clearInterval(timer);
+  }, [phoneDemoId, open]);
 
   async function startCall() {
     if (!profile || callStatus === "connecting" || callStatus === "live") return;
@@ -428,8 +496,60 @@ export function CallDemoModal({
               </div>
             )}
 
-            {stage === "profile" && (
+            {stage === "profile" && demoMode === "choose" && (
+              <section aria-labelledby="demo-mode-heading">
+                <p className="text-xs font-semibold uppercase tracking-[.14em] text-[#36C6D5]">Choose a demo</p>
+                <h2 id="demo-mode-heading" className="mt-1 text-xl font-bold">Three ways to try CREWON</h2>
+                <div className="mt-4 grid gap-3">
+                  <button type="button" onClick={() => { setDemoMode("sample"); void playSample(); }} className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[.03] p-4 text-left hover:border-[#36C6D5]/50">
+                    <Headphones className="mt-0.5 text-[#36C6D5]" size={19} />
+                    <span><strong className="block text-sm">Hear a sample conversation</strong><span className="mt-1 block text-xs text-white/50">A generated, dramatized audio preview—not a real customer recording.</span></span>
+                  </button>
+                  <button type="button" onClick={() => { setDemoMode("browser"); setStage("profile"); }} className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[.03] p-4 text-left hover:border-[#36C6D5]/50">
+                    <Mic className="mt-0.5 text-[#36C6D5]" size={19} />
+                    <span><strong className="block text-sm">Talk live in your browser</strong><span className="mt-1 block text-xs text-white/50">OpenAI Realtime voice, website/business grounding and call capture.</span></span>
+                  </button>
+                  <button type="button" onClick={() => setDemoMode("phone")} className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[.03] p-4 text-left hover:border-[#36C6D5]/50">
+                    <Phone className="mt-0.5 text-[#36C6D5]" size={19} />
+                    <span><strong className="block text-sm">Receive an instant phone demo</strong><span className="mt-1 block text-xs text-white/50">A real Twilio call using the active Parsley Electrical bot and its saved OpenAI voice.</span></span>
+                  </button>
+                </div>
+              </section>
+            )}
+
+            {stage === "profile" && demoMode === "sample" && (
+              <section aria-labelledby="sample-heading">
+                <button type="button" onClick={() => { setDemoMode("choose"); setError(""); }} className="mb-4 inline-flex items-center gap-1.5 text-xs font-semibold text-white/45 hover:text-white"><ArrowLeft size={14} /> Demo choices</button>
+                <h2 id="sample-heading" className="text-xl font-bold">Sample call recording</h2>
+                <p className="mt-1 text-sm text-white/55">Dramatized example audio generated for this demo. It is not a recording of a real customer call.</p>
+                {sampleLoading && <p className="mt-4 text-sm text-white/60">Preparing sample audio…</p>}
+                {sampleAudioUrl && <audio className="mt-5 w-full" controls src={sampleAudioUrl} />}
+              </section>
+            )}
+
+            {stage === "profile" && demoMode === "phone" && (
+              <section aria-labelledby="phone-demo-heading">
+                <button type="button" onClick={() => { setDemoMode("choose"); setPhoneDemoId(""); setPhoneStatus(""); }} className="mb-4 inline-flex items-center gap-1.5 text-xs font-semibold text-white/45 hover:text-white"><ArrowLeft size={14} /> Demo choices</button>
+                <h2 id="phone-demo-heading" className="text-xl font-bold">Get a live demonstration call</h2>
+                <p className="mt-1 text-sm text-white/55">We’ll call the number you enter using the configured Twilio caller ID and the active Parsley bot. No call is placed until you consent.</p>
+                <form onSubmit={requestPhoneDemo} className="mt-4 space-y-4">
+                  <label className="block text-xs font-semibold text-white/60" htmlFor="demo-phone">Your phone number (international format)</label>
+                  <input id="demo-phone" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} placeholder="+44…" type="tel" autoComplete="tel" className="h-11 w-full rounded-lg border border-white/15 bg-[#0b1418] px-3 text-sm text-white" required disabled={!!phoneDemoId} />
+                  <label className="flex items-start gap-2 text-xs leading-relaxed text-white/60">
+                    <input type="checkbox" checked={phoneConsent} onChange={(e) => setPhoneConsent(e.target.checked)} disabled={!!phoneDemoId} className="mt-0.5 accent-[#36C6D5]" />
+                    I agree to receive one automated demonstration call from CREWON. I understand this is a demo and can hang up at any time.
+                  </label>
+                  <Button type="submit" disabled={!phoneConsent || !phoneNumber.trim() || !!phoneDemoId} className="w-full bg-[#36C6D5] font-semibold text-[#0D171C]">
+                    {phoneDemoId ? "Call requested" : "Call me now"}
+                  </Button>
+                </form>
+                {phoneStatus && <p className="mt-4 rounded-lg border border-white/10 bg-white/[.04] p-3 text-sm text-white/75" role="status">{phoneStatus}</p>}
+              </section>
+            )}
+
+            {stage === "profile" && demoMode === "browser" && (
               <section aria-labelledby="profile-heading">
+                <button type="button" onClick={() => { setDemoMode("choose"); setError(""); }} className="mb-4 inline-flex items-center gap-1.5 text-xs font-semibold text-white/45 hover:text-white"><ArrowLeft size={14} /> Demo choices</button>
                 <div className="mb-5">
                   <p className="text-xs font-semibold uppercase tracking-[.14em] text-[#36C6D5]">First, make it yours</p>
                   <h2 id="profile-heading" className="mt-1 text-xl font-bold tracking-tight">Your website, in the room.</h2>

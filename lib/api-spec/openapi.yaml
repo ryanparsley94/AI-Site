@@ -2025,6 +2025,17 @@ components:
         voice:
           type: string
           enum: [alloy, ash, ballad, coral, echo, sage, shimmer, verse, marin, cedar]
+        realtimeVoice:
+          type: string
+          enum: [alloy, ash, ballad, coral, echo, sage, shimmer, verse, marin, cedar]
+        twilioPhoneNumber:
+          type: ["string", "null"]
+        businessName:
+          type: ["string", "null"]
+        twilioVoice:
+          type: string
+        receptionistStyle:
+          type: string
         personality:
           type: string
           enum: [professional, friendly, direct]
@@ -2054,6 +2065,17 @@ components:
         voice:
           type: string
           enum: [alloy, ash, ballad, coral, echo, sage, shimmer, verse, marin, cedar]
+        realtimeVoice:
+          type: string
+          enum: [alloy, ash, ballad, coral, echo, sage, shimmer, verse, marin, cedar]
+        twilioPhoneNumber:
+          type: ["string", "null"]
+        businessName:
+          type: ["string", "null"]
+        twilioVoice:
+          type: string
+        receptionistStyle:
+          type: string
         personality:
           type: string
           enum: [professional, friendly, direct]
@@ -2131,6 +2153,17 @@ components:
         voice:
           type: string
           enum: [alloy, ash, ballad, coral, echo, sage, shimmer, verse, marin, cedar]
+        realtimeVoice:
+          type: string
+          enum: [alloy, ash, ballad, coral, echo, sage, shimmer, verse, marin, cedar]
+        twilioPhoneNumber:
+          type: ["string", "null"]
+        businessName:
+          type: ["string", "null"]
+        twilioVoice:
+          type: string
+        receptionistStyle:
+          type: string
         personality:
           type: string
           enum: [professional, friendly, direct]
