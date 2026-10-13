@@ -9,13 +9,13 @@ Use CREWON consistently as the platform's user-facing name, replacing BuildAI in
 
 **How to apply:** New product copy, assistant signatures, navigation, metadata and mobile labels should say CREWON. Legacy package names, storage keys, widget attributes, app schemes and integration addresses are compatibility identifiers, not invitations to rename them. Do not assume a CREWON domain or registered company name without confirmation.
 
-The approved identity uses a bold, compact engineered wordmark: CREW in near white, ON in active cyan. A small hard hat is centred directly over the O, with two evenly spaced Wi-Fi arcs and a dot centred above the hat. Compact icons and single-colour variants must preserve that same geometry.
+The approved identity uses the supplied final brand-pack wordmark: CREW in white, ON in vivid cyan, with the same-height block O carrying a power stem and fuller Wi-Fi signal below the close hard hat. Use the pack's mono variants and emblem for single-colour and icon contexts.
 
-The approved palette is deep graphite #0D171C, structure #203038, active cyan #36C6D5, and near white #F7FAF9. The tagline is “YOUR CREW. SWITCHED ON.”
+The final brand pack supersedes the earlier logo treatment: use its vivid cyan mark on dark graphite, with near-white wordmark text and “YOUR CREW. SWITCHED ON.” where a tagline fits. Keep existing contractor-specific quote, invoice, and widget branding intact.
 
 **Why:** The user explicitly approved this logo arrangement and palette and requested that the existing app use it, with tight, legible spacing on phones.
 
-**How to apply:** Keep this identity consistent across web/mobile headers, sign-in, app icons and sharing graphics. Avoid unsupported company-registration or compliance guarantees in marketing copy. Respect saved customer/company branding rather than overwriting their data to apply platform branding.
+**How to apply:** Treat the uploaded final pack as the sole source for brand artwork: use its Dark wordmark on dark UI, supplied light/transparent variants on light UI, and Dark App Icon for app/favicon uses. Use supplied artwork directly for social previews; never redraw, recompose, or approximate it. Respect saved customer/company branding.
 
 **Why:** The live site retained an older logo after republishing, showing that browser and social-preview caches can outlive replaced files at stable URLs.
 
