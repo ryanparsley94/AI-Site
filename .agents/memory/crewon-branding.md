@@ -17,6 +17,10 @@ The approved palette is deep graphite #0D171C, structure #203038, active cyan #3
 
 **How to apply:** Keep this identity consistent across web/mobile headers, sign-in, app icons and sharing graphics. Avoid unsupported company-registration or compliance guarantees in marketing copy. Respect saved customer/company branding rather than overwriting their data to apply platform branding.
 
+**Why:** The live site retained an older logo after republishing, showing that browser and social-preview caches can outlive replaced files at stable URLs.
+
+**How to apply:** When approved public brand artwork changes, version its web image URLs (wordmark, favicon and social/share image) so browsers and preview crawlers fetch the new asset. Expo app icons and bundled images should continue to point only at the approved assets; ignore unreferenced legacy files unless they are wired into a build.
+
 The caller-facing phone agent uses the business-selected display name and voice; CREWON is the platform name, not the agent's spoken identity. Do not identify the agent as CREWON or as an AI receptionist in its greeting.
 
 **Why:** The user clarified that the receptionist should sound like a helpful employee and that each business controls its spoken agent name and voice.
