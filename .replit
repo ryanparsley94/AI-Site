@@ -27,3 +27,4 @@ packages = ["chromium"]
 
 [userenv.shared]
 VOICE_PUBLIC_BASE_URL = "  https://crew-on.replit.app"
+VOICE_REALTIME_ENABLED = "true"
