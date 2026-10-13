@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { JobMarketingMessages } from "@/components/job-marketing-messages";
 import { formatCurrency } from "@/lib/utils";
 import type { ReactNode } from "react";
 
@@ -155,6 +156,7 @@ export default function JobWorkspace() {
               <Button variant="outline" onClick={() => { setNotesDraft(job.notes ?? ""); setActiveTab("notes"); setEditingNotes(true); }} className="gap-2" data-testid="button-edit-job-notes"><Pencil size={15} />Add note</Button>
             </div>
           </div>
+          <JobMarketingMessages key={job.id} job={job} />
         </section>
 
         <div className="workspace-nav -mx-3 my-4 flex gap-1 overflow-x-auto border-b border-border/80 px-3 sm:mx-0 sm:px-0">
