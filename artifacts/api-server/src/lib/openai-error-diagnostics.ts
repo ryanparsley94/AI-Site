@@ -5,12 +5,33 @@ export interface OpenAiErrorDiagnostic {
   type: string | null;
   code: string | null;
   requestId: string | null;
+  message: string | null;
+  param: string | null;
 }
 
 function safeToken(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return /^[a-zA-Z0-9_.-]{1,80}$/.test(trimmed) ? trimmed : null;
+}
+
+function safeParam(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return /^[a-zA-Z0-9_.\[\]-]{1,120}$/.test(trimmed) ? trimmed : null;
+}
+
+function safeMessage(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const message = value
+    .replace(/Bearer\s+\S+/gi, "Bearer [redacted]")
+    .replace(/\bsk-[A-Za-z0-9_-]{8,}\b/g, "[redacted]")
+    .replace(/\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b/g, "[redacted email]")
+    .replace(/\+?\d[\d ().-]{7,}\d/g, "[redacted number]")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 400);
+  return message || null;
 }
 
 export function getOpenAiErrorDiagnostic(
@@ -24,6 +45,8 @@ export function getOpenAiErrorDiagnostic(
   const type = safeToken(rawError.type);
   const code = safeToken(rawError.code);
   const requestId = safeToken(requestIdHeader);
+  const message = safeMessage(rawError.message);
+  const param = safeParam(rawError.param);
   const marker = `${type ?? ""} ${code ?? ""}`.toLowerCase();
   const category: OpenAiLimitCategory =
     /insufficient_quota|billing_hard_limit|quota_exceeded/.test(marker)
@@ -31,7 +54,28 @@ export function getOpenAiErrorDiagnostic(
       : /rate_limit/.test(marker)
         ? "transient_rate_limit"
         : "other";
-  return { category, type, code, requestId };
+  return { category, type, code, requestId, message, param };
+}
+
+export function getRealtimeSessionErrorMessage(status: number, diagnostic: OpenAiErrorDiagnostic): string {
+  const code = diagnostic.code ? ` ${diagnostic.code}` : "";
+  const param = diagnostic.param ? ` (${diagnostic.param})` : "";
+  const detail = diagnostic.message ? ` ${diagnostic.message}` : "";
+  const request = diagnostic.requestId ? ` Reference: ${diagnostic.requestId}.` : "";
+
+  if (status === 401 || status === 403) {
+    return `OpenAI rejected authentication for the Realtime session (HTTP ${status}). Check the production OpenAI credential and project access; the credential value is not shown.${request}`;
+  }
+  if (status === 429 && diagnostic.category === "quota_or_billing") {
+    return `OpenAI rejected the Realtime session because the project quota or billing limit was reached (HTTP 429). Check project usage and billing.${request}`;
+  }
+  if (status === 429 && diagnostic.category === "transient_rate_limit") {
+    return `OpenAI is temporarily rate-limiting Realtime session creation (HTTP 429). Wait briefly and retry.${request}`;
+  }
+  if (status === 400) {
+    return `OpenAI rejected the Realtime session settings (HTTP 400${code}${param}).${detail}${request}`;
+  }
+  return `OpenAI could not create the Realtime session (HTTP ${status}${code}${param}).${detail}${request}`;
 }
 
 export function getSampleAudioErrorMessage(diagnostic: OpenAiErrorDiagnostic): string {

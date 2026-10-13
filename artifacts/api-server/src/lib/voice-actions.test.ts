@@ -5,7 +5,7 @@ import { executeVoiceAction, intentSchema, resolveNamed, localDay, type VoiceDat
 import { blankQuoteWorkflow } from "@workspace/api-zod";
 import { getVoicePublicBaseUrl, CANONICAL_VOICE_PUBLIC_BASE_URL } from "./voice-config";
 import { validTwilioRequest } from "./voice-security";
-import { getOpenAiErrorDiagnostic, getSampleAudioErrorMessage } from "./openai-error-diagnostics";
+import { getOpenAiErrorDiagnostic, getRealtimeSessionErrorMessage, getSampleAudioErrorMessage } from "./openai-error-diagnostics";
 
 test("canonical voice URL rejects whitespace and alternate callback hosts", () => {
   assert.equal(getVoicePublicBaseUrl(CANONICAL_VOICE_PUBLIC_BASE_URL)?.origin, CANONICAL_VOICE_PUBLIC_BASE_URL);
@@ -38,15 +38,23 @@ test("Twilio signatures validate against the canonical public callback URL and r
   assert.equal(validTwilioRequest(req), false);
 });
 
-test("OpenAI 429 diagnostics distinguish quota from temporary rate limiting without exposing messages", () => {
+test("OpenAI diagnostics distinguish quota from rate limits and retain only redacted provider details", () => {
   const quota = getOpenAiErrorDiagnostic(
-    { error: { type: "insufficient_quota", code: "billing_hard_limit_reached", message: "private provider detail" } },
+    { error: { type: "insufficient_quota", code: "billing_hard_limit_reached", message: "private provider detail; bearer sk-abcdefghijklmnopqrstuvwxyz012345; +441234567890" } },
     "req_safe-123",
   );
   assert.equal(quota.category, "quota_or_billing");
   assert.equal(quota.requestId, "req_safe-123");
   assert.match(getSampleAudioErrorMessage(quota), /quota or billing limit/i);
-  assert.doesNotMatch(JSON.stringify(quota), /private provider detail/);
+  assert.match(quota.message ?? "", /private provider detail/);
+  assert.doesNotMatch(JSON.stringify(quota), /sk-abcdefghijklmnopqrstuvwxyz|441234567890/);
+  assert.match(getRealtimeSessionErrorMessage(400, {
+    ...quota,
+    category: "other",
+    type: "invalid_request_error",
+    code: "unknown_parameter",
+    param: "session.tools[1].strict",
+  }), /unknown_parameter \(session\.tools\[1\]\.strict\).*Reference: req_safe-123/i);
 
   const rate = getOpenAiErrorDiagnostic(
     { error: { type: "rate_limit_error", code: "rate_limit_exceeded" } },
