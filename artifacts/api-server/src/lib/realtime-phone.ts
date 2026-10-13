@@ -47,6 +47,7 @@ type AssistantContext = {
   instructions: string | null;
   training: Array<{ category: string; question: string; answer: string }>;
 };
+const selectableRealtimeVoices = new Set(["alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse", "marin", "cedar"]);
 
 const REALTIME_PATH = "/api/voice/media";
 const MAX_PENDING_AUDIO = 250;
@@ -77,7 +78,7 @@ function realtimeVoice(value: string): string {
   return aliases[value.toLowerCase()] ?? "marin";
 }
 
-async function loadContext(companyId: number, assistantId: number): Promise<AssistantContext> {
+async function loadContext(companyId: number, assistantId: number, selectedVoice?: string): Promise<AssistantContext> {
   const company = await pool.query<{
     id: number;
     name: string;
@@ -116,7 +117,9 @@ async function loadContext(companyId: number, assistantId: number): Promise<Assi
     companyEmail: company.rows[0].email,
     assistantId,
     assistantName: assistant.rows[0].name,
-    voice: realtimeVoice(assistant.rows[0].realtime_voice),
+    voice: selectedVoice && selectableRealtimeVoices.has(selectedVoice)
+      ? selectedVoice
+      : realtimeVoice(assistant.rows[0].realtime_voice),
     personality: assistant.rows[0].personality,
     receptionistStyle: assistant.rows[0].receptionist_style,
     greeting: assistant.rows[0].greeting,
@@ -234,6 +237,7 @@ export function attachRealtimePhone(server: HttpServer): void {
     let callId: number | null = null;
     let companyId: number | null = null;
     let assistantId: number | null = null;
+    let selectedVoice: string | undefined;
     let startedAt = Date.now();
     let openaiReady = false;
     let finalised = false;
@@ -424,7 +428,7 @@ export function attachRealtimePhone(server: HttpServer): void {
       const apiKey = process.env.OPENAI_API_KEY;
       if (!apiKey) throw new Error("OPENAI_API_KEY is not configured");
 
-      const ctx = await loadContext(companyId, assistantId);
+      const ctx = await loadContext(companyId, assistantId, selectedVoice);
       const model = process.env.OPENAI_REALTIME_MODEL || "gpt-realtime-2.1";
       openai = new WebSocket(
         `wss://api.openai.com/v1/realtime?model=${encodeURIComponent(model)}`,
@@ -655,6 +659,7 @@ export function attachRealtimePhone(server: HttpServer): void {
         callId = toInt(params.callId);
         companyId = toInt(params.companyId);
         assistantId = toInt(params.assistantId);
+        selectedVoice = selectableRealtimeVoices.has(params.voice ?? "") ? params.voice : undefined;
 
         try {
           await startOpenAI();

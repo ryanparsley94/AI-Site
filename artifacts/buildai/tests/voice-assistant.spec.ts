@@ -4,6 +4,12 @@ test.beforeEach(async ({ page }) => {
   await page.route("**/api/**", async route => {
     const path = new URL(route.request().url()).pathname;
     if (path.startsWith("/api/voice/")) return route.fallback();
+    if (path === "/api/public-demo/options") return route.fulfill({ json: {
+      businessName: "Parsley Electrical",
+      bots: [{ id: 7, name: "Oliver", defaultVoice: "marin" }],
+      voices: ["alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse", "marin", "cedar"].map(id => ({ id, label: id[0].toUpperCase() + id.slice(1) })),
+      languagePreference: "British English · UK pronunciation (guided by instructions; voice accent can vary)",
+    } });
     await route.fulfill({ json: path === "/api/auth/check" ? { authenticated: true } : path === "/api/company" ? { name: "Test contractor" } : path.includes("count") ? { count: 0 } : [] });
   });
   await page.addInitScript(() => {
@@ -81,7 +87,7 @@ test("embedded browser demo explains microphone denial and offers standalone ope
   }));
   await page.route("**/api/public-demo/realtime-session", route => {
     realtimeStarts++;
-    return route.fulfill({ json: { clientSecret: "test-only", demoId: "test-demo", receptionistName: "Maya" } });
+    return route.fulfill({ json: { clientSecret: "test-only", demoId: "test-demo", receptionistName: "Oliver", assistantId: 7, voice: "marin" } });
   });
   await page.goto("/");
   await page.getByRole("button", { name: "Hear a Demo Call" }).click();
@@ -89,7 +95,7 @@ test("embedded browser demo explains microphone denial and offers standalone ope
   await page.getByTestId("input-business-website").fill("https://www.parsleyelectrical.co.uk");
   await page.getByTestId("button-preview-website").click();
   await page.getByRole("checkbox").check();
-  await page.getByRole("button", { name: "Meet Maya" }).click();
+  await page.getByRole("button", { name: "Meet Oliver" }).click();
   await page.getByTestId("button-start-live-call").click();
   await expect(page.getByTestId("status-live-demo-error")).toContainText("browser or embedded preview did not grant microphone access");
   await expect(page.getByTestId("status-live-demo-error")).toContainText("Nothing was recorded and no call started");
@@ -101,7 +107,7 @@ test("embedded browser demo explains microphone denial and offers standalone ope
 
 test("quota sample failure shows one clear diagnostic and makes no automatic retry", async ({ page }) => {
   let requests = 0;
-  await page.route("**/api/public-demo/sample-audio", async route => {
+  await page.route("**/api/public-demo/sample-audio**", async route => {
     requests++;
     await route.fulfill({
       status: 503,
@@ -128,7 +134,7 @@ test("quota sample failure shows one clear diagnostic and makes no automatic ret
 test("generated demo sample is reused by audio replay and never falls back to browser speech", async ({ page }) => {
   let sampleRequests = 0;
   let browserSpeech = 0;
-  await page.route("**/api/public-demo/sample-audio", async route => {
+  await page.route("**/api/public-demo/sample-audio**", async route => {
     sampleRequests++;
     await route.fulfill({ status: 200, contentType: "audio/wav", body: Buffer.from("RIFFtestWAVE") });
   });
@@ -148,6 +154,31 @@ test("generated demo sample is reused by audio replay and never falls back to br
   expect(sampleRequests).toBe(1);
   browserSpeech = await page.evaluate(() => (window as any).__speechCalls as number);
   expect(browserSpeech).toBe(0);
+});
+
+test("voice preview and instant callback carry the selected bot and supported Realtime voice", async ({ page }) => {
+  let previewUrl = "";
+  let callbackBody: Record<string, unknown> | null = null;
+  await page.route("**/api/public-demo/sample-audio?**", async route => {
+    previewUrl = route.request().url();
+    await route.fulfill({ status: 200, contentType: "audio/wav", body: Buffer.from("RIFFtestWAVE") });
+  });
+  await page.route("**/api/public-demo/phone-call", async route => {
+    callbackBody = route.request().postDataJSON();
+    await route.fulfill({ status: 202, json: { demoId: "test-demo", status: "queued", message: "Call requested for Oliver using OpenAI Realtime voice cedar.", assistantId: 7, assistantName: "Oliver", voice: "cedar" } });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Hear a Demo Call" }).click();
+  await page.getByLabel("OpenAI Realtime voice").selectOption("cedar");
+  await page.getByRole("button", { name: "Preview selected voice" }).click();
+  await expect(page.locator('audio[aria-label="Voice preview for cedar"]')).toBeVisible();
+  expect(new URL(previewUrl).searchParams.get("assistantId")).toBe("7");
+  expect(new URL(previewUrl).searchParams.get("voice")).toBe("cedar");
+  await page.getByRole("button", { name: "Receive an instant phone demo" }).click();
+  await page.getByLabel("Your phone number (international format)").fill("+447700900123");
+  await page.getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Call me now" }).click();
+  await expect.poll(() => callbackBody).toMatchObject({ assistantId: 7, voice: "cedar", consent: true });
 });
 
 test("release before permission resolves stops tracks and does not submit", async ({ page }) => {
