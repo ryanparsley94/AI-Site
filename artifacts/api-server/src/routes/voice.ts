@@ -218,6 +218,21 @@ async function ensureSession(sid: string, from: string, to: string): Promise<Ses
 
     let route = routed.rows[0];
     if (!route) {
+      const assignedBot = await client.query<{
+        company_id: number;
+        assistant_id: number;
+        assistant_name: string;
+      }>(
+        `SELECT company_id,id AS assistant_id,name AS assistant_name
+           FROM assistants
+          WHERE active=true AND type='phone' AND twilio_phone_number=$1
+          ORDER BY created_at
+          LIMIT 1`,
+        [to],
+      );
+      route = assignedBot.rows[0];
+    }
+    if (!route) {
       const fallback = await client.query<{
         company_id: number;
         assistant_id: number | null;

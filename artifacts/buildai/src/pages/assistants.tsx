@@ -497,19 +497,6 @@ function PhoneFormFields({
             <Label>Business name callers hear</Label>
             <Input name="businessName" placeholder="Parsley Electrical" defaultValue={defaults?.businessName} />
           </div>
-          <div className="space-y-2 sm:col-span-2">
-            <Label>Legacy Twilio voice (not used for Realtime calls)</Label>
-            <select
-              name="twilioVoice"
-              defaultValue={defaults?.twilioVoice || "Polly.Amy-Neural"}
-              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-            >
-              <option value="Polly.Amy-Neural">Amy · Female</option>
-              <option value="Polly.Emma-Neural">Emma · Female</option>
-              <option value="Polly.Arthur-Neural">Arthur · Male</option>
-              <option value="Polly.Brian-Neural">Brian · Male</option>
-            </select>
-          </div>
           <div className="space-y-2">
             <Label>OpenAI Realtime voice</Label>
             <select
@@ -529,6 +516,7 @@ function PhoneFormFields({
               <option value="shimmer">Shimmer · light</option>
               <option value="verse">Verse · animated</option>
             </select>
+            <p className="text-xs text-muted-foreground">This is the single voice selection used by OpenAI Realtime on Twilio calls. A browser preview is not a completed phone-call test.</p>
           </div>
           <div className="flex items-end">
             <Button type="button" variant="outline" disabled={previewing} onClick={playRealtimePreview} className="w-full gap-2">
@@ -1049,9 +1037,9 @@ function AssistantEditDialog({
                       instructions: assistant.instructions ?? "",
                       twilioPhoneNumber: assistant.twilioPhoneNumber ?? "",
                       businessName: assistant.businessName ?? "",
-                      twilioVoice: assistant.twilioVoice,
-                      realtimeVoice: assistant.realtimeVoice,
-                      receptionistStyle: assistant.receptionistStyle,
+                      twilioVoice: assistant.twilioVoice ?? "Polly.Amy-Neural",
+                      realtimeVoice: assistant.realtimeVoice ?? "marin",
+                      receptionistStyle: assistant.receptionistStyle ?? "Warm, professional, concise and naturally British where appropriate.",
                     }}
                     voice={voice}
                     onVoiceChange={setVoice}

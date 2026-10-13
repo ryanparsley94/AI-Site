@@ -5,10 +5,14 @@ import { fetchPublicWebsiteText } from "../lib/safe-website";
 import { logger } from "../lib/logger";
 import { getAvailableAppointmentSlots, bookRealtimeAppointment } from "../lib/appointment-scheduling";
 import { finaliseRealtimeEnquiry, type PhoneTranscriptEntry } from "../lib/realtime-finalise";
+import { realtimePhoneStreamUrl } from "../lib/realtime-phone";
+import { validTwilioRequest } from "../lib/voice-security";
 
 const router = Router();
 const allowedVoices = new Set(["alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse", "marin", "cedar"]);
 const requestTimes = new Map<string, number[]>();
+const phoneDemoRequests = new Map<string, number[]>();
+let cachedSampleAudio: Buffer | null = null;
 
 function allowRequest(req: Request, res: Response): boolean {
   const key = req.ip || "unknown";
@@ -37,6 +41,47 @@ function jsonContent(body: unknown): string {
   return data.choices?.[0]?.message?.content || "";
 }
 
+router.get("/public-demo/sample-audio", async (_req, res): Promise<void> => {
+  if (cachedSampleAudio) {
+    res.type("audio/wav").setHeader("Cache-Control", "public, max-age=3600").send(cachedSampleAudio);
+    return;
+  }
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) { res.status(503).json({ error: "Sample audio is unavailable until OpenAI is configured." }); return; }
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "gpt-audio",
+        modalities: ["text", "audio"],
+        audio: { voice: "marin", format: "wav" },
+        messages: [
+          { role: "system", content: "Read this clearly as a short, natural UK trades receptionist sample. It is a dramatized demo script, not a real customer call. Read the dialogue naturally and do not add words." },
+          { role: "user", content: "Caller: Hello, I need an electrician to look at a faulty kitchen socket. Receptionist: Of course. Is there any immediate danger, such as smoke, heat or sparking? Caller: No, it has stopped working but there is no smoke. Receptionist: Thank you. Could I take your name and the postcode for the property? Caller: James Thornton, M14 7JB. Receptionist: Thanks, James. I’ll pass those details to the team so they can arrange the next step with you." },
+        ],
+      }),
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!response.ok) {
+      res.status(response.status === 429 ? 503 : 502).json({
+        error: response.status === 429
+          ? "OpenAI rate-limited or declined sample-audio generation (HTTP 429). Try again later or use the live browser demo."
+          : `OpenAI sample audio failed (HTTP ${response.status}).`,
+      });
+      return;
+    }
+    const result = await response.json() as { choices?: Array<{ message?: { audio?: { data?: string } } }> };
+    const data = result.choices?.[0]?.message?.audio?.data;
+    if (!data) { res.status(502).json({ error: "OpenAI returned no sample audio." }); return; }
+    cachedSampleAudio = Buffer.from(data, "base64");
+    res.type("audio/wav").setHeader("Cache-Control", "public, max-age=3600").send(cachedSampleAudio);
+  } catch (error) {
+    logger.warn({ err: error }, "Public demo sample audio failed");
+    res.status(502).json({ error: "Sample audio could not be prepared. Try the live browser demo instead." });
+  }
+});
+
 async function loadParsleyPilot() {
   const result = await pool.query<{
     company_id: number; company_name: string; assistant_id: number;
@@ -47,8 +92,9 @@ async function loadParsleyPilot() {
             a.name AS assistant_name,a.greeting,a.instructions,a.personality,a.realtime_voice
        FROM companies c
        JOIN assistants a ON a.company_id=c.id AND a.active=true AND a.type='phone'
+       LEFT JOIN phone_numbers pn ON pn.assistant_id=a.id AND pn.company_id=c.id AND pn.active=true
        WHERE regexp_replace(lower(trim(c.name)), '\\s+(limited|ltd\\.?)$', '', 'i')='parsley electrical'
-      ORDER BY a.created_at
+       ORDER BY (pn.id IS NOT NULL) DESC,a.created_at
       LIMIT 1`,
   );
   const pilot = result.rows[0];
@@ -59,6 +105,179 @@ async function loadParsleyPilot() {
   );
   return { ...pilot, training: training.rows };
 }
+
+function publicBaseUrl(): URL | null {
+  try {
+    const value = new URL(process.env.VOICE_PUBLIC_BASE_URL || "");
+    if (value.protocol !== "https:") return null;
+    return value;
+  } catch { return null; }
+}
+
+function xml(value: string): string {
+  return value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[char]!);
+}
+
+function allowPhoneDemo(req: Request, phone: string, res: Response): boolean {
+  const now = Date.now();
+  const keys = [req.ip || "unknown", `phone:${phone}`];
+  for (const key of keys) {
+    const recent = (phoneDemoRequests.get(key) || []).filter((time) => now - time < 60 * 60 * 1000);
+    if (recent.length >= 2) {
+      res.status(429).json({ error: "Demo call limit reached. Please try again later or use the browser demo." });
+      return false;
+    }
+    recent.push(now);
+    phoneDemoRequests.set(key, recent);
+  }
+  return true;
+}
+
+router.post("/public-demo/phone-call", async (req, res): Promise<void> => {
+  const phone = text(req.body?.phone, 32);
+  if (req.body?.consent !== true) {
+    res.status(400).json({ error: "Consent is required before CREWON can place a demonstration call." });
+    return;
+  }
+  if (!/^\+[1-9]\d{7,14}$/.test(phone)) {
+    res.status(400).json({ error: "Enter a valid phone number in international format, such as +44…" });
+    return;
+  }
+  if (!allowPhoneDemo(req, phone, res)) return;
+  const base = publicBaseUrl();
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const from = process.env.TWILIO_PHONE_NUMBER;
+  if (!accountSid || !authToken || !from || !base || !process.env.OPENAI_API_KEY || process.env.VOICE_REALTIME_ENABLED !== "true") {
+    res.status(503).json({
+      error: "Instant phone demo is not configured. It needs Twilio account credentials, a Twilio demo caller ID, a public HTTPS voice URL, OPENAI_API_KEY, and VOICE_REALTIME_ENABLED=true.",
+    });
+    return;
+  }
+
+  try {
+    const pilot = await loadParsleyPilot();
+    const voice = allowedVoices.has(pilot.realtime_voice) ? pilot.realtime_voice : "marin";
+    const demoId = randomUUID();
+    const profile = { companyName: pilot.company_name, website: "Parsley Electrical saved business profile" };
+    await pool.query(
+      `INSERT INTO public_demo_sessions(id,profile,receptionist_name,voice,company_id,assistant_id,result)
+       VALUES($1,$2::jsonb,$3,$4,$5,$6,$7::jsonb)`,
+      [demoId, JSON.stringify(profile), pilot.assistant_name, voice, pilot.company_id, pilot.assistant_id, JSON.stringify({ phoneStatus: "queued" })],
+    );
+    const answerUrl = new URL(`/api/public-demo/phone-answer?demoId=${encodeURIComponent(demoId)}`, base);
+    const statusUrl = new URL(`/api/public-demo/phone-status?demoId=${encodeURIComponent(demoId)}`, base);
+    const form = new URLSearchParams({
+      To: phone, From: from, Url: answerUrl.toString(), Method: "POST",
+      StatusCallback: statusUrl.toString(), StatusCallbackMethod: "POST",
+      Timeout: "25",
+    });
+    for (const event of ["initiated", "ringing", "answered", "completed"]) form.append("StatusCallbackEvent", event);
+    const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(accountSid)}/Calls.json`, {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString("base64")}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: form,
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) {
+      await pool.query("UPDATE public_demo_sessions SET result=$2::jsonb WHERE id=$1", [demoId, JSON.stringify({ phoneStatus: "failed", error: `Twilio rejected the call request (HTTP ${response.status}).` })]);
+      res.status(502).json({ error: `Twilio could not start the demo call (HTTP ${response.status}). Check the Twilio number and account configuration.` });
+      return;
+    }
+    const call = await response.json() as { sid?: string; status?: string };
+    await pool.query("UPDATE public_demo_sessions SET call_sid=$2,result=$3::jsonb WHERE id=$1", [
+      demoId, call.sid || null, JSON.stringify({ phoneStatus: call.status || "queued" }),
+    ]);
+    res.status(202).json({ demoId, status: call.status || "queued", message: "The demonstration call has been requested. Answer the incoming call to begin." });
+  } catch (error) {
+    logger.warn({ err: error }, "Instant phone demo request failed");
+    res.status(503).json({ error: error instanceof Error ? error.message : "The phone demo could not be started." });
+  }
+});
+
+router.get("/public-demo/phone-call/:demoId", async (req, res): Promise<void> => {
+  const result = await pool.query<{ result: { phoneStatus?: string; error?: string } | null }>(
+    "SELECT result FROM public_demo_sessions WHERE id=$1 AND created_at > now() - interval '2 hours'",
+    [req.params.demoId],
+  );
+  const status = result.rows[0]?.result;
+  if (!status) { res.status(404).json({ error: "Demo call session not found." }); return; }
+  res.json({ status: status.phoneStatus || "queued", error: status.error || null });
+});
+
+router.post("/public-demo/phone-status", async (req, res): Promise<void> => {
+  if (!validTwilioRequest(req)) { res.status(403).end(); return; }
+  const demoId = text(req.query.demoId, 80);
+  const status = text(req.body?.CallStatus, 40);
+  if (!demoId || !status) { res.status(400).end(); return; }
+  await pool.query(
+    `UPDATE public_demo_sessions
+        SET result=COALESCE(result,'{}'::jsonb) || $2::jsonb
+      WHERE id=$1`,
+    [demoId, JSON.stringify({ phoneStatus: status })],
+  );
+  res.sendStatus(204);
+});
+
+router.post("/public-demo/phone-answer", async (req, res): Promise<void> => {
+  if (!validTwilioRequest(req)) { res.status(403).end(); return; }
+  const demoId = text(req.query.demoId, 80);
+  const callSid = text(req.body?.CallSid, 64);
+  const base = publicBaseUrl();
+  const streamUrl = realtimePhoneStreamUrl();
+  if (!demoId || !callSid || !base || !streamUrl || !process.env.OPENAI_API_KEY || process.env.VOICE_REALTIME_ENABLED !== "true") {
+    res.status(503).type("text/xml").send("<Response><Say>The demonstration call is not available at the moment. Please try the browser demo.</Say><Hangup/></Response>");
+    return;
+  }
+  const session = await pool.query<{ company_id: number; assistant_id: number; receptionist_name: string }>(
+    "SELECT company_id,assistant_id,receptionist_name FROM public_demo_sessions WHERE id=$1 AND created_at > now() - interval '2 hours'",
+    [demoId],
+  );
+  if (!session.rows[0]) { res.status(404).end(); return; }
+  const { company_id: companyId, assistant_id: assistantId, receptionist_name: assistantName } = session.rows[0];
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `INSERT INTO voice_call_sessions(call_sid,caller_phone,called_phone,call_id,company_id,assistant_id,mode)
+       VALUES($1,$2,$3,$4,$5,$6,'realtime')
+       ON CONFLICT(call_sid) DO UPDATE SET
+         company_id=COALESCE(voice_call_sessions.company_id,EXCLUDED.company_id),
+         assistant_id=COALESCE(voice_call_sessions.assistant_id,EXCLUDED.assistant_id)`,
+      [callSid, text(req.body?.To, 40), text(req.body?.From, 40), null, companyId, assistantId],
+    );
+    const sessionRow = await client.query<{ call_id: number | null }>(
+      "SELECT call_id FROM voice_call_sessions WHERE call_sid=$1 FOR UPDATE",
+      [callSid],
+    );
+    let callId = sessionRow.rows[0]?.call_id;
+    if (!callId) {
+      const call = await client.query<{ id: number }>(
+        `INSERT INTO calls(caller_name,caller_phone,assistant_name,status,outcome,notes,transcript,company_id)
+         VALUES('Demo caller',$1,$2,'unresolved','Live phone demo','Phone demo in progress','[]'::jsonb,$3) RETURNING id`,
+        [text(req.body?.To, 40), assistantName, companyId],
+      );
+      callId = call.rows[0].id;
+      await client.query("UPDATE voice_call_sessions SET call_id=$2 WHERE call_sid=$1", [callSid, callId]);
+    }
+    await client.query("UPDATE public_demo_sessions SET call_sid=$2,call_id=$3 WHERE id=$1", [demoId, callSid, callId]);
+    await client.query("COMMIT");
+    res.type("text/xml").send(
+      `<?xml version="1.0" encoding="UTF-8"?><Response><Connect><Stream url="${xml(streamUrl)}">` +
+      `<Parameter name="callId" value="${callId}"/><Parameter name="companyId" value="${companyId}"/><Parameter name="assistantId" value="${assistantId}"/>` +
+      `</Stream></Connect></Response>`,
+    );
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    logger.error({ err: error }, "Instant phone demo answer setup failed");
+    res.status(503).type("text/xml").send("<Response><Say>The demonstration call could not connect. Please try the browser demo.</Say><Hangup/></Response>");
+  } finally {
+    client.release();
+  }
+});
 
 async function getDemoSession(demoId: string) {
   const result = await pool.query<{ company_id: number; assistant_id: number; call_sid: string; call_id: number }>(

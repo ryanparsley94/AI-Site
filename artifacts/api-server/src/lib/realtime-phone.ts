@@ -40,6 +40,7 @@ type AssistantContext = {
   assistantId: number;
   assistantName: string;
   voice: string;
+  receptionistStyle: string;
   personality: string;
   greeting: string;
   instructions: string | null;
@@ -87,12 +88,13 @@ async function loadContext(companyId: number, assistantId: number): Promise<Assi
   const assistant = await pool.query<{
     id: number;
     name: string;
-    voice: string;
+    realtime_voice: string;
     personality: string;
+    receptionist_style: string;
     greeting: string;
     instructions: string | null;
   }>(
-    `SELECT id,name,voice,personality,greeting,instructions
+    `SELECT id,name,realtime_voice,personality,receptionist_style,greeting,instructions
        FROM assistants
       WHERE id=$1 AND active=true AND type='phone'
         AND (company_id=$2 OR company_id IS NULL)
@@ -113,8 +115,9 @@ async function loadContext(companyId: number, assistantId: number): Promise<Assi
     companyEmail: company.rows[0].email,
     assistantId,
     assistantName: assistant.rows[0].name,
-    voice: realtimeVoice(assistant.rows[0].voice),
+    voice: realtimeVoice(assistant.rows[0].realtime_voice),
     personality: assistant.rows[0].personality,
+    receptionistStyle: assistant.rows[0].receptionist_style,
     greeting: assistant.rows[0].greeting,
     instructions: assistant.rows[0].instructions,
     training: training.rows,
@@ -157,7 +160,7 @@ BUSINESS DETAILS
 Company: ${ctx.companyName}
 Main number: ${ctx.companyPhone || "not configured"}
 Email: ${ctx.companyEmail || "not configured"}
-Receptionist personality: ${ctx.personality}
+Receptionist personality: ${ctx.personality}. Style: ${ctx.receptionistStyle}
 Additional instructions: ${ctx.instructions || "None"}
 
 BUSINESS KNOWLEDGE
