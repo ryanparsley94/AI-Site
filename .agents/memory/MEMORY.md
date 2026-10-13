@@ -13,3 +13,4 @@
 - [OpenAI WAV headers](openai-audio-wav.md) — normalize RIFF/data sizes before serving generated audio; some responses retain sentinel lengths that break browser duration metadata.
 - [Workspace access](workspace-access.md) — businesses are private workspaces with invited, role-based members; business contact emails stay separate from user login and invitation addresses.
 - [Drizzle schema drift](drizzle-schema-drift.md) — avoid force-pushing the whole schema when legacy tables trigger interactive conflicts; apply verified additive changes only.
+- [Outbound delivery safety](outbound-delivery-safety.md) — uncertain sends are not confirmed failures; reconcile before retrying to prevent duplicate customer messages.

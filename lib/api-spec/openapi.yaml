@@ -3204,6 +3204,24 @@ components:
         clientPhone:
           type: string
           nullable: true
+        clientEmail:
+          type: string
+          nullable: true
+        channel:
+          type: string
+          enum: [sms, email]
+        deliveryStatus:
+          type: string
+          enum: [not_sent, sending, queued, sent, delivered, failed, unknown]
+        deliveryError:
+          type: string
+          nullable: true
+        providerMessageId:
+          type: string
+          nullable: true
+        sentAt:
+          type: string
+          nullable: true
         companyName:
           type: string
         type:
@@ -3250,6 +3268,14 @@ components:
       type: object
       properties:
         editedMessage:
+          type: string
+          minLength: 1
+        channel:
+          type: string
+          enum: [sms, email]
+        clientPhone:
+          type: string
+        clientEmail:
           type: string
 
     UpdateMarketingDraftResponse:

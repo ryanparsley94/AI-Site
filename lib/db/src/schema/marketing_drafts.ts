@@ -8,6 +8,13 @@ export const marketingDraftsTable = pgTable("marketing_drafts", {
   jobTitle: text("job_title").notNull(),
   clientName: text("client_name").notNull(),
   clientPhone: text("client_phone"),
+  clientEmail: text("client_email"),
+  channel: text("channel").notNull().default("sms"),
+  deliveryStatus: text("delivery_status").notNull().default("not_sent"),
+  deliveryVersion: integer("delivery_version").notNull().default(0),
+  deliveryError: text("delivery_error"),
+  providerMessageId: text("provider_message_id"),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
   companyName: text("company_name").notNull().default(""),
   // review_request | followup
   type: text("type").notNull().default("review_request"),

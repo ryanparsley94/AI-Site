@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test:marketing": "node test/build-marketing-delivery.mjs && node --test test/.marketing-delivery.test.mjs; result=$?; rm -f test/.marketing-delivery.test.mjs; exit $result",
     "test:quote-acceptance": "node test/build-quote-acceptance.mjs && node --test test/.quote-acceptance.test.mjs; result=$?; rm -f test/.quote-acceptance.test.mjs; exit $result",
     "test:voice": "esbuild src/lib/voice-actions.test.ts --bundle --platform=node --format=esm --outfile=/tmp/buildai-voice-actions.test.mjs && node --test /tmp/buildai-voice-actions.test.mjs",
     "dev": "export NODE_ENV=development && pnpm run build && pnpm run start",
@@ -12,6 +13,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@replit/connectors-sdk": "^0.4.1",
     "@workspace/api-zod": "workspace:*",
     "@workspace/db": "workspace:*",
     "@workspace/integrations-openai-ai-server": "workspace:*",
