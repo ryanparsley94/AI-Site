@@ -11,11 +11,12 @@ import { getVoicePublicBaseUrl } from "../lib/voice-config";
 import { getOpenAiErrorDiagnostic, getSampleAudioErrorMessage } from "../lib/openai-error-diagnostics";
 
 const router = Router();
-const allowedVoices = new Set(["alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse", "marin", "cedar"]);
+export const PUBLIC_DEMO_VOICES = ["alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse", "marin", "cedar"] as const;
+const allowedVoices = new Set<string>(PUBLIC_DEMO_VOICES);
 const requestTimes = new Map<string, number[]>();
 const phoneDemoRequests = new Map<string, number[]>();
-let cachedSampleAudio: Buffer | null = null;
-let sampleAudioGeneration: Promise<Buffer | null> | null = null;
+const cachedSampleAudio = new Map<string, Buffer>();
+const sampleAudioGeneration = new Map<string, Promise<Buffer | null>>();
 
 function allowRequest(req: Request, res: Response): boolean {
   const key = req.ip || "unknown";
@@ -44,25 +45,42 @@ function jsonContent(body: unknown): string {
   return data.choices?.[0]?.message?.content || "";
 }
 
-router.get("/public-demo/sample-audio", async (req, res): Promise<void> => {
-  if (cachedSampleAudio) {
-    res.type("audio/wav").setHeader("Cache-Control", "public, max-age=3600").send(cachedSampleAudio);
-    return;
+function normalizeWavLengths(audio: Buffer): Buffer {
+  const dataChunk = audio.indexOf("data", 12, "ascii");
+  if (audio.length < 44 || audio.toString("ascii", 0, 4) !== "RIFF" || dataChunk < 0 || audio.length > 0xffffffff) {
+    throw new Error("OpenAI returned an invalid WAV sample.");
   }
+  const normalized = Buffer.from(audio);
+  normalized.writeUInt32LE(normalized.length - 8, 4);
+  normalized.writeUInt32LE(normalized.length - dataChunk - 8, dataChunk + 4);
+  return normalized;
+}
+
+router.get("/public-demo/sample-audio", async (req, res): Promise<void> => {
+  let pilot: Awaited<ReturnType<typeof loadParsleyPilot>>;
+  try {
+    const assistantId = Number(req.query.assistantId);
+    pilot = await loadParsleyPilot(Number.isInteger(assistantId) && assistantId > 0 ? assistantId : undefined);
+  } catch (error) { res.status(503).json({ error: error instanceof Error ? error.message : "Demo receptionist is unavailable." }); return; }
+  const voice = text(req.query.voice, 20) || pilot.realtime_voice;
+  if (!allowedVoices.has(voice)) { res.status(400).json({ error: "Choose a supported OpenAI Realtime voice." }); return; }
+  const cacheKey = `${pilot.company_id}:${pilot.assistant_id}:${voice}:${pilot.assistant_name}:${pilot.greeting}:${pilot.personality}:${pilot.instructions}`;
+  const cached = cachedSampleAudio.get(cacheKey);
+  if (cached) { res.type("audio/wav").setHeader("Cache-Control", "public, max-age=3600").send(cached); return; }
   const key = process.env.OPENAI_API_KEY;
   if (!key) { res.status(503).json({ error: "Sample audio is unavailable until OpenAI is configured." }); return; }
   try {
-    if (!sampleAudioGeneration) sampleAudioGeneration = (async () => {
+    if (!sampleAudioGeneration.has(cacheKey)) sampleAudioGeneration.set(cacheKey, (async () => {
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "gpt-audio",
         modalities: ["text", "audio"],
-        audio: { voice: "marin", format: "wav" },
+        audio: { voice, format: "wav" },
         messages: [
-          { role: "system", content: "Read this clearly as a short, natural UK trades receptionist sample. It is a dramatized demo script, not a real customer call. Read the dialogue naturally and do not add words." },
-          { role: "user", content: "Caller: Hello, I need an electrician to look at a faulty kitchen socket. Receptionist: Of course. Is there any immediate danger, such as smoke, heat or sparking? Caller: No, it has stopped working but there is no smoke. Receptionist: Thank you. Could I take your name and the postcode for the property? Caller: James Thornton, M14 7JB. Receptionist: Thanks, James. I’ll pass those details to the team so they can arrange the next step with you." },
+          { role: "system", content: `Speak the following short dramatized sample as ${pilot.assistant_name}, a ${pilot.personality} receptionist for ${pilot.company_name}. Use natural British English and UK pronunciation as an instruction; the selected voice itself does not guarantee a particular accent. Follow these saved receptionist instructions where relevant: ${pilot.instructions || "Be warm, concise and helpful."} Do not add words.` },
+          { role: "user", content: `Receptionist: ${pilot.greeting} Caller: I need help with an electrical fault. Receptionist: I can take the details and pass them to the team. Is there any immediate danger, such as smoke, heat or sparking?` },
         ],
       }),
       signal: AbortSignal.timeout(20_000),
@@ -91,18 +109,18 @@ router.get("/public-demo/sample-audio", async (req, res): Promise<void> => {
       }
     const result = await response.json() as { choices?: Array<{ message?: { audio?: { data?: string } } }> };
     const data = result.choices?.[0]?.message?.audio?.data;
-      return data ? Buffer.from(data, "base64") : null;
-    })();
-    const generated = await sampleAudioGeneration;
-    sampleAudioGeneration = null;
+      return data ? normalizeWavLengths(Buffer.from(data, "base64")) : null;
+    })());
+    const generated = await sampleAudioGeneration.get(cacheKey)!;
+    sampleAudioGeneration.delete(cacheKey);
     if (!generated) {
       res.status(502).json({ error: "OpenAI returned no sample audio. Retry once or use the live browser demo." });
       return;
     }
-    cachedSampleAudio = generated;
-    res.type("audio/wav").setHeader("Cache-Control", "public, max-age=3600").send(cachedSampleAudio);
+    cachedSampleAudio.set(cacheKey, generated);
+    res.type("audio/wav").setHeader("Cache-Control", "public, max-age=3600").send(generated);
   } catch (error) {
-    sampleAudioGeneration = null;
+    sampleAudioGeneration.delete(cacheKey);
     const failure = error as Error & { publicStatus?: number; diagnostic?: ReturnType<typeof getOpenAiErrorDiagnostic> };
     const diagnostic = failure.diagnostic;
     req.log.warn({
@@ -121,7 +139,7 @@ router.get("/public-demo/sample-audio", async (req, res): Promise<void> => {
   }
 });
 
-async function loadParsleyPilot() {
+async function loadParsleyPilot(requestedAssistantId?: number) {
   const result = await pool.query<{
     company_id: number; company_name: string; assistant_id: number;
     assistant_name: string; greeting: string; instructions: string | null;
@@ -132,9 +150,11 @@ async function loadParsleyPilot() {
        FROM companies c
        JOIN assistants a ON a.company_id=c.id AND a.active=true AND a.type='phone'
        LEFT JOIN phone_numbers pn ON pn.assistant_id=a.id AND pn.company_id=c.id AND pn.active=true
-       WHERE regexp_replace(lower(trim(c.name)), '\\s+(limited|ltd\\.?)$', '', 'i')='parsley electrical'
+        WHERE regexp_replace(lower(trim(c.name)), '\\s+(limited|ltd\\.?)$', '', 'i')='parsley electrical'
+          AND ($1::int IS NULL OR a.id=$1)
        ORDER BY (pn.id IS NOT NULL) DESC,a.created_at
       LIMIT 1`,
+    [requestedAssistantId ?? null],
   );
   const pilot = result.rows[0];
   if (!pilot) throw new Error("Parsley Electrical's active phone receptionist is not configured.");
@@ -144,6 +164,29 @@ async function loadParsleyPilot() {
   );
   return { ...pilot, training: training.rows };
 }
+
+router.get("/public-demo/options", async (_req, res): Promise<void> => {
+  try {
+    const result = await pool.query<{ id: number; name: string; realtime_voice: string; greeting: string }>(
+      `SELECT a.id,a.name,a.realtime_voice,a.greeting
+         FROM companies c JOIN assistants a ON a.company_id=c.id
+        WHERE regexp_replace(lower(trim(c.name)), '\\s+(limited|ltd\\.?)$', '', 'i')='parsley electrical'
+          AND a.active=true AND a.type='phone'
+        ORDER BY a.created_at`,
+    );
+    if (!result.rows.length) { res.status(503).json({ error: "No active Parsley Electrical phone receptionist is configured." }); return; }
+    res.json({
+      businessName: "Parsley Electrical",
+      bots: result.rows.map((bot) => ({
+        id: bot.id, name: bot.name, defaultVoice: allowedVoices.has(bot.realtime_voice) ? bot.realtime_voice : "marin",
+      })),
+      voices: PUBLIC_DEMO_VOICES.map((id) => ({ id, label: id[0].toUpperCase() + id.slice(1) })),
+      languagePreference: "British English · UK pronunciation (guided by instructions; voice accent can vary)",
+    });
+  } catch {
+    res.status(503).json({ error: "The Parsley Electrical demo options could not be loaded." });
+  }
+});
 
 function publicBaseUrl(): URL | null {
   return getVoicePublicBaseUrl();
@@ -191,8 +234,11 @@ router.post("/public-demo/phone-call", async (req, res): Promise<void> => {
   }
 
   try {
-    const pilot = await loadParsleyPilot();
-    const voice = allowedVoices.has(pilot.realtime_voice) ? pilot.realtime_voice : "marin";
+    const requestedAssistantId = Number(req.body?.assistantId);
+    if (!Number.isInteger(requestedAssistantId) || requestedAssistantId <= 0) { res.status(400).json({ error: "Select a demo receptionist." }); return; }
+    const pilot = await loadParsleyPilot(requestedAssistantId);
+    const voice = text(req.body?.voice, 20);
+    if (!allowedVoices.has(voice)) { res.status(400).json({ error: "Choose a supported OpenAI Realtime voice." }); return; }
     const demoId = randomUUID();
     const profile = { companyName: pilot.company_name, website: "Parsley Electrical saved business profile" };
     await pool.query(
@@ -226,7 +272,11 @@ router.post("/public-demo/phone-call", async (req, res): Promise<void> => {
     await pool.query("UPDATE public_demo_sessions SET call_sid=$2,result=$3::jsonb WHERE id=$1", [
       demoId, call.sid || null, JSON.stringify({ phoneStatus: call.status || "queued" }),
     ]);
-    res.status(202).json({ demoId, status: call.status || "queued", message: "The demonstration call has been requested. Answer the incoming call to begin." });
+    res.status(202).json({
+      demoId, status: call.status || "queued",
+      message: `Call requested for ${pilot.assistant_name} using OpenAI Realtime voice ${voice}. Answer the incoming call to begin.`,
+      assistantId: pilot.assistant_id, assistantName: pilot.assistant_name, voice,
+    });
   } catch (error) {
     logger.warn({ err: error }, "Instant phone demo request failed");
     res.status(503).json({ error: error instanceof Error ? error.message : "The phone demo could not be started." });
@@ -267,12 +317,13 @@ router.post("/public-demo/phone-answer", async (req, res): Promise<void> => {
     res.status(503).type("text/xml").send("<Response><Say>The demonstration call is not available at the moment. Please try the browser demo.</Say><Hangup/></Response>");
     return;
   }
-  const session = await pool.query<{ company_id: number; assistant_id: number; receptionist_name: string }>(
-    "SELECT company_id,assistant_id,receptionist_name FROM public_demo_sessions WHERE id=$1 AND created_at > now() - interval '2 hours'",
+  const session = await pool.query<{ company_id: number; assistant_id: number; receptionist_name: string; voice: string }>(
+    "SELECT company_id,assistant_id,receptionist_name,voice FROM public_demo_sessions WHERE id=$1 AND created_at > now() - interval '2 hours'",
     [demoId],
   );
   if (!session.rows[0]) { res.status(404).end(); return; }
-  const { company_id: companyId, assistant_id: assistantId, receptionist_name: assistantName } = session.rows[0];
+  const { company_id: companyId, assistant_id: assistantId, receptionist_name: assistantName, voice } = session.rows[0];
+  if (!allowedVoices.has(voice)) { res.status(400).type("text/xml").send("<Response><Say>The selected demo voice is unavailable.</Say><Hangup/></Response>"); return; }
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -302,7 +353,7 @@ router.post("/public-demo/phone-answer", async (req, res): Promise<void> => {
     await client.query("COMMIT");
     res.type("text/xml").send(
       `<?xml version="1.0" encoding="UTF-8"?><Response><Connect><Stream url="${xml(streamUrl)}">` +
-      `<Parameter name="callId" value="${callId}"/><Parameter name="companyId" value="${companyId}"/><Parameter name="assistantId" value="${assistantId}"/>` +
+      `<Parameter name="callId" value="${callId}"/><Parameter name="companyId" value="${companyId}"/><Parameter name="assistantId" value="${assistantId}"/><Parameter name="voice" value="${xml(voice)}"/>` +
       `</Stream></Connect></Response>`,
     );
   } catch (error) {
@@ -430,10 +481,11 @@ router.post("/public-demo/website-preview", async (req, res): Promise<void> => {
 router.post("/public-demo/realtime-session", async (req, res): Promise<void> => {
   if (!allowRequest(req, res)) return;
   const profile = req.body?.profile;
-  const receptionistName = text(req.body?.receptionistName, 40);
+  const requestedAssistantId = Number(req.body?.assistantId);
+  const selectedVoice = text(req.body?.voice, 20);
   const website = text((profile as Record<string, unknown> | null)?.website, 2000);
-  if (!profile || typeof profile !== "object" || !receptionistName || !website || req.body?.consent !== true) {
-    res.status(400).json({ error: "A reviewed profile, consent and Parsley website are required." });
+  if (!profile || typeof profile !== "object" || !website || req.body?.consent !== true || !Number.isInteger(requestedAssistantId) || requestedAssistantId <= 0 || !allowedVoices.has(selectedVoice)) {
+    res.status(400).json({ error: "A reviewed profile, consent, Parsley website and supported voice are required." });
     return;
   }
   if (!process.env.OPENAI_API_KEY) {
@@ -442,7 +494,7 @@ router.post("/public-demo/realtime-session", async (req, res): Promise<void> => 
   }
   let pilot: Awaited<ReturnType<typeof loadParsleyPilot>>;
   try {
-    pilot = await loadParsleyPilot();
+    pilot = await loadParsleyPilot(Number.isInteger(requestedAssistantId) && requestedAssistantId > 0 ? requestedAssistantId : undefined);
     const host = new URL(website).hostname.toLowerCase().replace(/^www\./, "");
     if (host !== "parsleyelectrical.co.uk") {
       res.status(400).json({ error: "This live pilot demo is currently configured for Parsley Electrical's reviewed website only." });
@@ -454,11 +506,11 @@ router.post("/public-demo/realtime-session", async (req, res): Promise<void> => 
   }
   const demoId = randomUUID();
   const callSid = `DEMO-${demoId}`;
-  const voice = allowedVoices.has(pilot.realtime_voice) ? pilot.realtime_voice : "marin";
+  const voice = selectedVoice;
   const facts = text(JSON.stringify({ savedBusinessTraining: pilot.training, scannedWebsiteProfile: req.body?.websiteFacts ?? profile }), 12000);
   const businessName = pilot.company_name;
   const instructions = [
-    `You are ${pilot.assistant_name || receptionistName}, a warm, concise, natural British English receptionist for ${businessName}. You are speaking aloud in a live phone-style conversation.`,
+    `You are ${pilot.assistant_name}, a warm, concise, natural British English receptionist for ${businessName}. You are speaking aloud in a live phone-style conversation.`,
     `Use the saved receptionist greeting and style: ${pilot.greeting} ${pilot.personality}. ${pilot.instructions || ""}`,
     "Greet the caller as a helpful employee. Speak conversationally, listen carefully, allow interruptions, and answer questions only from saved business training or the reviewed website profile below. Prefer saved training when sources conflict. If unsure, say so and offer to pass the question to the team.",
     "Naturally collect caller name, callback number, work needed, site address/postcode, urgency and availability. Do not invent prices, services, appointments or attendance promises.",
@@ -548,7 +600,7 @@ router.post("/public-demo/realtime-session", async (req, res): Promise<void> => 
     } finally {
       client.release();
     }
-    res.json({ clientSecret, demoId, receptionistName: pilot.assistant_name, businessName });
+    res.json({ clientSecret, demoId, receptionistName: pilot.assistant_name, assistantId: pilot.assistant_id, voice, businessName });
   } catch (error) {
     logger.error({ err: error }, "Public demo Realtime session creation failed");
     res.status(503).json({ error: error instanceof Error && error.message.includes("OPENAI_API_KEY") ? error.message : "The live demo session could not be started." });

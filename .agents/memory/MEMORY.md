@@ -10,5 +10,6 @@
 - [Expo browser checks](expo-browser-checks.md) — retained tabs and Chromium connectivity emulation need care; intercepted UI checks do not prove native or live API behavior.
 - [Task carry-forward dates](task-carry-forward.md) — preserve original task deadlines; compare calendar dates against the contractor's local day.
 - [Live Parsley demo data](live-parsley-demo.md) — use saved knowledge and CRM records after consent; direct booking is weekdays 08:30–16:30 UK time, otherwise follow-up only.
+- [OpenAI WAV headers](openai-audio-wav.md) — normalize RIFF/data sizes before serving generated audio; some responses retain sentinel lengths that break browser duration metadata.
 - [Workspace access](workspace-access.md) — businesses are private workspaces with invited, role-based members; business contact emails stay separate from user login and invitation addresses.
 - [Drizzle schema drift](drizzle-schema-drift.md) — avoid force-pushing the whole schema when legacy tables trigger interactive conflicts; apply verified additive changes only.
