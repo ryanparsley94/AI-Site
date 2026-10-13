@@ -3,7 +3,7 @@ import {
   useGetCompany,
   useGetDashboardSummary,
   useGetPilotReadiness,
-  useGetUpcomingJobs,
+  useListJobs,
   useListAssistants,
   useListCalls,
   useListInvoices,
@@ -21,6 +21,7 @@ import {
   Clock3,
   FileText,
   Mail,
+  MapPin,
   Phone,
   PhoneMissed,
   Plus,
@@ -113,7 +114,9 @@ export default function Dashboard() {
   // The current route returns configuration and observed-activity fields; its
   // generated schema is older, so keep this response aligned to the handler.
   const readinessQuery = useGetPilotReadiness<PilotReadiness>();
-  const jobsQuery = useGetUpcomingJobs();
+  // Home and Scheduler share the same live job collection so saved schedule
+  // changes invalidate and appear consistently in both views.
+  const jobsQuery = useListJobs();
   const assistantsQuery = useListAssistants();
   const invoicesQuery = useListInvoices();
   const quotesQuery = useListQuotes();
@@ -124,6 +127,8 @@ export default function Dashboard() {
   const summary = summaryQuery.data;
   const readiness = readinessQuery.data;
   const jobs = jobsQuery.data ?? [];
+  const todayJobs = jobs.filter((job) => isToday(new Date(job.scheduledAt)) && job.status !== "cancelled")
+    .sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt));
   const assistants = assistantsQuery.data ?? [];
   const invoices = invoicesQuery.data ?? [];
   const quotes = quotesQuery.data ?? [];
@@ -355,6 +360,32 @@ export default function Dashboard() {
             </div>
           </section>
         </div>
+
+        <section className="mt-7" aria-label="Today's jobs and operations map">
+          <div className="mb-3"><SectionHeading eyebrow="Dispatch" title="Today’s jobs & operations map" href="/schedule" linkText="Open scheduler" /></div>
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(310px,.75fr)]">
+            <div className="overflow-hidden border border-border bg-card" data-testid="list-todays-jobs">
+              {jobsQuery.isLoading ? <div className="p-4"><LoadingLines count={3} /></div> : jobsQuery.isError ? <p className="p-5 text-sm text-muted-foreground">Today’s jobs could not be loaded.</p> :
+                todayJobs.length === 0 ? <div className="px-4 py-7"><p className="text-sm font-medium">No jobs scheduled today</p><p className="mt-1 text-xs text-muted-foreground">New and rescheduled work will appear here automatically.</p><Link href="/jobs" className="mt-3 inline-flex text-xs font-medium text-primary">Create or schedule a job <ArrowUpRight size={12} className="ml-1" /></Link></div> :
+                <div className="divide-y divide-border">{todayJobs.map((job) => <Link key={job.id} href={`/jobs/${job.id}`} data-testid={`today-job-${job.id}`} className="grid gap-2 px-4 py-3 hover:bg-muted/30 sm:grid-cols-[54px_minmax(0,1fr)_auto] sm:items-center">
+                  <span className="font-mono text-xs tabular-nums text-primary">{format(new Date(job.scheduledAt), "HH:mm")}</span>
+                  <span className="min-w-0"><span className="block truncate text-sm font-medium">{job.title} · {job.contactName}</span><span className="mt-1 flex items-center gap-1 truncate text-xs text-muted-foreground"><MapPin size={12} />{job.address || "Site address not recorded"}</span></span>
+                  <span className="text-left text-[11px] capitalize text-muted-foreground sm:text-right">{job.status.replaceAll("_", " ")} · Engineer assignment not recorded</span>
+                </Link>)}</div>}
+            </div>
+            <div className="flex min-h-[250px] flex-col border border-border bg-card" data-testid="operations-map">
+              <div className="flex items-center justify-between border-b border-border px-4 py-3"><div><p className="text-[10px] font-semibold uppercase tracking-[.14em] text-primary">Live operations</p><h3 className="mt-1 text-sm font-semibold">Sites & engineer locations</h3></div><span className="rounded-sm border border-amber-400/30 bg-amber-400/10 px-2 py-1 text-[10px] text-amber-300">Map integration needed</span></div>
+              <div className="flex flex-1 flex-col justify-center px-4 py-4">
+                <p className="text-sm font-medium">Live pins aren’t available yet</p>
+                <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground">Job records currently contain site addresses but no map coordinates, and CREWON Mobile shift-based location sharing is not connected. No locations are simulated or sent to a third-party geocoder.</p>
+                {todayJobs.length > 0 && <div className="mt-3 max-h-28 space-y-2 overflow-auto border-t border-border pt-3">
+                  {todayJobs.slice(0, 4).map((job) => <div key={job.id} className="flex items-center justify-between gap-2 text-xs"><span className="min-w-0 truncate text-muted-foreground">{job.address || `${job.contactName} · address missing`}</span>{job.address && <a href={`https://www.openstreetmap.org/search?query=${encodeURIComponent(job.address)}`} target="_blank" rel="noreferrer" className="shrink-0 text-primary hover:underline">Open map</a>}</div>)}
+                </div>}
+                <p className="mt-3 text-[11px] text-muted-foreground">Engineer tracking requires CREWON Mobile permission, active-shift reporting and company-scoped location storage.</p>
+              </div>
+            </div>
+          </div>
+        </section>
 
         <div className="mt-7 grid gap-6 xl:grid-cols-[minmax(0,1.48fr)_minmax(330px,.82fr)]">
           <section className="min-w-0" aria-label="Today's operational timeline">

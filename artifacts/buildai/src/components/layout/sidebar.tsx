@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   Phone,
   CalendarDays,
+  BriefcaseBusiness,
   Bot,
   Users,
   Settings,
@@ -32,13 +33,15 @@ const navGroups = [
       { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
       { href: "/tasks", label: "Tasks", icon: ClipboardList },
       { href: "/calls", label: "Enquiries", icon: Phone },
+      { href: "/sales", label: "Sales", icon: BriefcaseBusiness },
     ],
   },
   {
     title: "Customers & jobs",
     items: [
       { href: "/contacts", label: "Customers", icon: Users },
-        { href: "/jobs", label: "Schedule", icon: CalendarDays },
+        { href: "/schedule", label: "Schedule", icon: CalendarDays },
+        { href: "/jobs", label: "Jobs", icon: ClipboardList },
     ],
   },
   {
