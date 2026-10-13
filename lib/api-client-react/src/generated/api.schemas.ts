@@ -564,6 +564,8 @@ export interface Job {
   contactPhone: string;
   /** @nullable */
   contactId?: number | null;
+  /** @nullable */
+  assignedEngineer: string | null;
   serviceType: string;
   /** @nullable */
   address?: string | null;
@@ -593,6 +595,8 @@ export interface JobInput {
   contactName: string;
   contactPhone: string;
   contactId?: number;
+  /** @nullable */
+  assignedEngineer?: string | null;
   serviceType: string;
   address?: string;
   notes?: string;
@@ -618,6 +622,8 @@ export interface JobUpdate {
   estimatedDuration?: number;
   contactName?: string;
   contactPhone?: string;
+  /** @nullable */
+  assignedEngineer?: string | null;
   serviceType?: string;
   address?: string;
   notes?: string;

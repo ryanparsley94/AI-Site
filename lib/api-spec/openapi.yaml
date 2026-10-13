@@ -2290,7 +2290,7 @@ components:
     # ── Jobs ─────────────────────────────────────────────────────────────────
     Job:
       type: object
-      required: [id, title, status, scheduledAt, contactName, contactPhone, serviceType, createdAt]
+      required: [id, title, status, scheduledAt, contactName, contactPhone, serviceType, createdAt, assignedEngineer]
       properties:
         id:
           type: number
@@ -2313,6 +2313,8 @@ components:
           type: string
         contactId:
           type: ["integer", "null"]
+        assignedEngineer:
+          type: ["string", "null"]
         serviceType:
           type: string
         address:
@@ -2344,6 +2346,8 @@ components:
           type: string
         contactId:
           type: number
+        assignedEngineer:
+          type: ["string", "null"]
         serviceType:
           type: string
         address:
@@ -2372,6 +2376,8 @@ components:
           type: string
         contactPhone:
           type: string
+        assignedEngineer:
+          type: ["string", "null"]
         serviceType:
           type: string
         address:

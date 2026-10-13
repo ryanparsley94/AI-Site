@@ -467,8 +467,8 @@ phoneRouter.post("/voice/incoming", async (req, res): Promise<void> => {
       return;
     }
 
-    // Resilient fallback: if Realtime or credentials are unavailable, capture
-    // the enquiry with the existing speech interview rather than dropping calls.
+    // The legacy Gather interview is intentionally disclosed as message-taking:
+    // it does not use the assistant's selected OpenAI Realtime voice.
     await pool.query(
       "UPDATE voice_call_sessions SET mode='gather',updated_at=now() WHERE call_sid=$1",
       [sid],
@@ -478,7 +478,7 @@ phoneRouter.post("/voice/incoming", async (req, res): Promise<void> => {
       ask(
         session.step,
         session.step === 0
-          ? "Thank you for calling. I'll take your full message so the team can get back to you. "
+          ? "Thank you for calling. Our live conversational assistant is unavailable, but I can take a message for the team. Please answer a few short questions, starting with your full name. "
           : "",
       ),
     );

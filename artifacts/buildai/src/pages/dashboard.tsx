@@ -370,7 +370,7 @@ export default function Dashboard() {
                 <div className="divide-y divide-border">{todayJobs.map((job) => <Link key={job.id} href={`/jobs/${job.id}`} data-testid={`today-job-${job.id}`} className="grid gap-2 px-4 py-3 hover:bg-muted/30 sm:grid-cols-[54px_minmax(0,1fr)_auto] sm:items-center">
                   <span className="font-mono text-xs tabular-nums text-primary">{format(new Date(job.scheduledAt), "HH:mm")}</span>
                   <span className="min-w-0"><span className="block truncate text-sm font-medium">{job.title} · {job.contactName}</span><span className="mt-1 flex items-center gap-1 truncate text-xs text-muted-foreground"><MapPin size={12} />{job.address || "Site address not recorded"}</span></span>
-                  <span className="text-left text-[11px] capitalize text-muted-foreground sm:text-right">{job.status.replaceAll("_", " ")} · Engineer assignment not recorded</span>
+                   <span className="text-left text-[11px] capitalize text-muted-foreground sm:text-right">{job.status.replaceAll("_", " ")} · {job.assignedEngineer || "Unassigned"}</span>
                 </Link>)}</div>}
             </div>
             <div className="flex min-h-[250px] flex-col border border-border bg-card" data-testid="operations-map">
