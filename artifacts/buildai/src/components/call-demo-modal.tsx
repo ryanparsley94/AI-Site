@@ -471,7 +471,7 @@ export function CallDemoModal({
           peer.addEventListener("icegatheringstatechange", onGatheringComplete);
         });
       }
-      const answer = await postJson<{ clientSecret: string; demoId: string; receptionistName: string; assistantId: number; voice: string }>(
+      const answer = await postJson<{ clientSecret: string; demoId: string; receptionistName: string; assistantId: number; voice: string; model: string }>(
         "/api/public-demo/realtime-session",
         {
           profile,
@@ -490,7 +490,7 @@ export function CallDemoModal({
       receptionistNameRef.current = answer.receptionistName;
       setReceptionistName(answer.receptionistName);
       const sdp = peer.localDescription?.sdp ?? offer.sdp;
-      const realtimeResponse = await fetch("https://api.openai.com/v1/realtime/calls?model=gpt-realtime-2.1", {
+      const realtimeResponse = await fetch(`https://api.openai.com/v1/realtime/calls?model=${encodeURIComponent(answer.model)}`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${answer.clientSecret}`,

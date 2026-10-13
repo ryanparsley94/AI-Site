@@ -8,7 +8,11 @@ import { finaliseRealtimeEnquiry, type PhoneTranscriptEntry } from "../lib/realt
 import { realtimePhoneStreamUrl } from "../lib/realtime-phone";
 import { validTwilioRequest } from "../lib/voice-security";
 import { getVoicePublicBaseUrl } from "../lib/voice-config";
-import { getOpenAiErrorDiagnostic, getSampleAudioErrorMessage } from "../lib/openai-error-diagnostics";
+import {
+  getOpenAiErrorDiagnostic,
+  getRealtimeSessionErrorMessage,
+  getSampleAudioErrorMessage,
+} from "../lib/openai-error-diagnostics";
 
 const router = Router();
 export const PUBLIC_DEMO_VOICES = ["alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse", "marin", "cedar"] as const;
@@ -522,13 +526,14 @@ router.post("/public-demo/realtime-session", async (req, res): Promise<void> => 
 
   try {
     await pool.query("DELETE FROM public_demo_sessions WHERE created_at < now() - interval '7 days'");
+    const model = process.env.OPENAI_REALTIME_MODEL || "gpt-realtime-2.1";
     const openAiResponse = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
       method: "POST",
       headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         session: {
           type: "realtime",
-          model: process.env.OPENAI_REALTIME_MODEL || "gpt-realtime-2.1",
+          model,
           instructions,
           audio: {
             input: { turn_detection: { type: "semantic_vad", eagerness: "medium", create_response: true }, transcription: { model: "gpt-4o-mini-transcribe", language: "en" } },
@@ -557,7 +562,6 @@ router.post("/public-demo/realtime-session", async (req, res): Promise<void> => 
                 address: { type: "string" },
               },
             },
-            strict: true,
             },
           ],
           tool_choice: "auto",
@@ -565,8 +569,32 @@ router.post("/public-demo/realtime-session", async (req, res): Promise<void> => 
       }),
     });
     if (!openAiResponse.ok) {
-      logger.warn({ status: openAiResponse.status }, "Realtime demo client secret creation failed");
-      res.status(502).json({ error: "OpenAI could not start the live voice session. Check the server key and Realtime model access." });
+      const providerBody = await openAiResponse.json().catch(() => null);
+      const diagnostic = getOpenAiErrorDiagnostic(
+        providerBody,
+        openAiResponse.headers.get("x-request-id"),
+      );
+      logger.warn(
+        {
+          status: openAiResponse.status,
+          type: diagnostic.type,
+          code: diagnostic.code,
+          param: diagnostic.param,
+          message: diagnostic.message,
+          requestId: diagnostic.requestId,
+        },
+        "Realtime demo client secret creation failed",
+      );
+      res.status(502).json({
+        error: getRealtimeSessionErrorMessage(openAiResponse.status, diagnostic),
+        diagnostic: {
+          status: openAiResponse.status,
+          type: diagnostic.type,
+          code: diagnostic.code,
+          param: diagnostic.param,
+          requestId: diagnostic.requestId,
+        },
+      });
       return;
     }
     const secretBody = await openAiResponse.json() as { value?: string; client_secret?: { value?: string } };
@@ -600,7 +628,7 @@ router.post("/public-demo/realtime-session", async (req, res): Promise<void> => 
     } finally {
       client.release();
     }
-    res.json({ clientSecret, demoId, receptionistName: pilot.assistant_name, assistantId: pilot.assistant_id, voice, businessName });
+    res.json({ clientSecret, demoId, receptionistName: pilot.assistant_name, assistantId: pilot.assistant_id, voice, businessName, model });
   } catch (error) {
     logger.error({ err: error }, "Public demo Realtime session creation failed");
     res.status(503).json({ error: error instanceof Error && error.message.includes("OPENAI_API_KEY") ? error.message : "The live demo session could not be started." });
