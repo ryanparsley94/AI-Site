@@ -2,12 +2,12 @@ import { Link, useLocation } from "wouter";
 import { BrandLogo } from "@/components/brand-logo";
 import { cn } from "@/lib/utils";
 import { getListTasksQueryKey, useListTasks, useUnreviewedWidgetCount } from "@workspace/api-client-react";
-import { 
-  LayoutDashboard, 
-  Phone, 
-  CalendarDays, 
-  Bot, 
-  Users, 
+import {
+  LayoutDashboard,
+  Phone,
+  CalendarDays,
+  Bot,
+  Users,
   Settings,
   Calculator,
   Award,
@@ -17,13 +17,55 @@ import {
   Database,
   CreditCard,
   WandSparkles,
-  X
+  X,
 } from "lucide-react";
 
 interface SidebarProps {
   open?: boolean;
   onClose?: () => void;
 }
+
+const navGroups = [
+  {
+    title: "Daily work",
+    items: [
+      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/tasks", label: "Tasks", icon: ClipboardList },
+      { href: "/calls", label: "Enquiries", icon: Phone },
+    ],
+  },
+  {
+    title: "Customers & jobs",
+    items: [
+      { href: "/contacts", label: "Customers", icon: Users },
+        { href: "/jobs", label: "Schedule", icon: CalendarDays },
+    ],
+  },
+  {
+    title: "Money & documents",
+    items: [
+      { href: "/quotes", label: "Quote Builder", icon: Calculator },
+      { href: "/invoices", label: "Invoices", icon: Receipt },
+        { href: "/certificates", label: "Certificates", icon: Award },
+    ],
+  },
+  {
+    title: "Communications & AI",
+    items: [
+      { href: "/email-inbox", label: "Email Inbox", icon: Inbox },
+      { href: "/assistants", label: "AI Receptionist", icon: Bot },
+    ],
+  },
+  {
+    title: "Business admin",
+    items: [
+      { href: "/business-setup", label: "Business Setup", icon: WandSparkles },
+      { href: "/data-import", label: "Data Import", icon: Database },
+      { href: "/billing", label: "Billing", icon: CreditCard },
+      { href: "/settings", label: "Settings", icon: Settings },
+    ],
+  },
+];
 
 export default function Sidebar({ open, onClose }: SidebarProps) {
   const [location] = useLocation();
@@ -34,115 +76,67 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   });
   const pendingTaskCount = tasks.filter((task) => task.status === "pending").length;
 
-  const navItems = [
-    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/tasks", label: "Tasks", icon: ClipboardList },
-    { href: "/calls", label: "Enquiries", icon: Phone },
-    { href: "/jobs", label: "Schedule", icon: CalendarDays },
-    { href: "/quotes", label: "Quote Builder", icon: Calculator },
-    { href: "/invoices", label: "Invoices", icon: Receipt },
-    { href: "/certificates", label: "Certificates", icon: Award },
-    { href: "/assistants", label: "AI Receptionist", icon: Bot },
-    { href: "/email-inbox", label: "Email Inbox", icon: Inbox },
-    { href: "/contacts", label: "Customers", icon: Users },
-    { href: "/business-setup", label: "Business Setup", icon: WandSparkles },
-    { href: "/data-import", label: "Data Import", icon: Database },
-    { href: "/billing", label: "Billing", icon: CreditCard },
-    { href: "/settings", label: "Settings", icon: Settings },
-  ];
-
   const sidebarContent = (
-    <div className="w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border flex flex-col h-full overflow-y-auto shrink-0">
-      <div className="p-6 flex items-center justify-between">
-        <Link
-          href="/dashboard"
-          onClick={onClose}
-          className="flex items-center hover:opacity-90 transition-opacity"
-        >
-          <BrandLogo className="h-12 w-auto" />
+    <div className="flex h-full w-64 shrink-0 flex-col overflow-y-auto border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
+      <div className="flex items-center justify-between border-b border-sidebar-border/70 px-5 py-4">
+        <Link href="/dashboard" onClick={onClose} className="flex items-center transition-opacity hover:opacity-85" data-testid="link-sidebar-home">
+          <BrandLogo className="h-10 w-auto" />
         </Link>
-        {/* Close button — mobile only */}
         {onClose && (
-          <button
-            onClick={onClose}
-            className="md:hidden p-1 rounded-md text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
-            aria-label="Close menu"
-          >
-            <X size={20} />
+          <button onClick={onClose} className="rounded-sm p-1.5 text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground md:hidden" aria-label="Close menu" data-testid="button-close-sidebar">
+            <X size={19} />
           </button>
         )}
       </div>
 
-      <div className="flex-1 px-4 space-y-1">
-        <div className="text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider mb-4 px-2">
-          Command Center
-        </div>
-        {navItems.map((item) => {
-          const isActive = location === item.href || location.startsWith(`${item.href}/`);
-          const badgeCount = item.href === "/tasks" ? pendingTaskCount
-            : item.href === "/calls" ? unreviewedCount : 0;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={onClose}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors",
-                isActive
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
-              )}
-            >
-              <item.icon size={18} className={isActive ? "text-sidebar-primary" : "opacity-70"} />
-              <span className="flex-1">{item.label}</span>
-              {badgeCount > 0 && (
-                <span
-                  aria-label={item.href === "/tasks"
-                    ? `${badgeCount} pending task${badgeCount === 1 ? "" : "s"}`
-                    : `${badgeCount} unreviewed calls`}
-                  className="ml-auto min-w-[1.25rem] h-5 px-1 rounded-full bg-red-600 text-white text-xs font-bold flex items-center justify-center leading-none"
-                >
-                  {item.href === "/calls" && badgeCount > 99 ? "99+" : badgeCount}
-                </span>
-              )}
-            </Link>
-          );
-        })}
-      </div>
-
-      <div className="p-4 border-t border-sidebar-border mt-auto">
-        <div className="bg-sidebar-accent/50 p-4 rounded-lg">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="h-2 w-2 rounded-full bg-amber-500"></div>
-            <span className="text-xs font-medium">Pilot verification required</span>
+      <nav className="flex-1 px-3 pb-5 pt-3" aria-label="Main navigation">
+        {navGroups.map((group) => (
+          <div key={group.title} className="mb-4" data-testid={`nav-group-${group.title.toLowerCase().replaceAll(/[^a-z]+/g, "-")}`}>
+            <p className="mb-1.5 px-3 pt-2 text-[9px] font-semibold uppercase tracking-[.16em] text-sidebar-foreground/40">{group.title}</p>
+            <div className="space-y-0.5">
+              {group.items.map((item) => {
+                const isActive = location === item.href || location.startsWith(`${item.href}/`);
+                const badgeCount = item.href === "/tasks" ? pendingTaskCount : item.href === "/calls" ? unreviewedCount : 0;
+                return (
+                  <Link key={item.href} href={item.href} onClick={onClose} data-testid={`nav-${item.label.toLowerCase().replaceAll(" ", "-")}`}
+                    className={cn(
+                      "relative flex items-center gap-3 rounded-sm px-3 py-[9px] text-[13px] font-medium transition-colors",
+                      isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground/65 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
+                    )}>
+                    <item.icon size={16} strokeWidth={1.8} className={isActive ? "text-sidebar-primary" : "opacity-75"} />
+                    <span className="flex-1">{item.label}</span>
+                    {badgeCount > 0 && <span aria-label={item.href === "/tasks" ? `${badgeCount} pending tasks` : `${badgeCount} unreviewed calls`}
+                      data-testid={`badge-${item.label.toLowerCase().replaceAll(" ", "-")}`}
+                      className="ml-auto flex h-[18px] min-w-[18px] items-center justify-center rounded-sm bg-primary/15 px-1 text-[10px] font-semibold leading-none text-primary">
+                      {item.href === "/calls" && badgeCount > 99 ? "99+" : badgeCount}
+                    </span>}
+                  </Link>
+                );
+              })}
+            </div>
           </div>
-          <p className="text-xs text-sidebar-foreground/60 leading-relaxed">
-            Demo activity is not proof of a live receptionist. Phone and email setup must be verified.
-          </p>
-        </div>
+        ))}
+      </nav>
+      <div className="mt-auto border-t border-sidebar-border p-3">
+        <Link href="/business-setup" onClick={onClose} data-testid="link-sidebar-pilot-setup"
+          className="block rounded-sm border border-sidebar-border/80 bg-sidebar-accent/35 px-3 py-3 transition-colors hover:bg-sidebar-accent/70">
+          <div className="mb-1.5 flex items-center gap-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-sidebar-primary/70" />
+            <span className="text-[11px] font-semibold">Business setup</span>
+          </div>
+          <p className="text-[10px] leading-relaxed text-sidebar-foreground/50">Company profile, phone and email connections.</p>
+        </Link>
       </div>
     </div>
   );
 
   return (
     <>
-      {/* Desktop: always visible */}
-      <div className="hidden md:flex h-screen">
-        {sidebarContent}
-      </div>
-
-      {/* Mobile: slide-in overlay */}
+      <div className="hidden h-screen md:flex">{sidebarContent}</div>
       {open && (
         <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 z-40 bg-black/60 md:hidden"
-            onClick={onClose}
-          />
-          {/* Drawer */}
-          <div className="fixed inset-y-0 left-0 z-50 h-full md:hidden">
-            {sidebarContent}
-          </div>
+          <button aria-label="Close navigation" className="fixed inset-0 z-40 bg-background/75 md:hidden" onClick={onClose} data-testid="button-sidebar-backdrop" />
+          <div className="fixed inset-y-0 left-0 z-50 h-full md:hidden">{sidebarContent}</div>
         </>
       )}
     </>
