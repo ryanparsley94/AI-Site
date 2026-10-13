@@ -4,6 +4,7 @@ import { pool } from "@workspace/db";
 import { logger } from "./logger";
 import { validTwilioWebSocketRequest } from "./voice-security";
 import { finaliseRealtimeEnquiry } from "./realtime-finalise";
+import { getVoicePublicBaseUrl } from "./voice-config";
 import {
   getAvailableAppointmentSlots,
   bookRealtimeAppointment,
@@ -183,7 +184,7 @@ function safeJson(raw: RawData): unknown {
 }
 
 export function realtimePhoneStreamUrl(): string | null {
-  const base = process.env.VOICE_PUBLIC_BASE_URL;
+  const base = getVoicePublicBaseUrl();
   if (!base) return null;
   try {
     const url = new URL(base);

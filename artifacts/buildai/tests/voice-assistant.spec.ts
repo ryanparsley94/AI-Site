@@ -68,39 +68,86 @@ test("permission denied is visible and a rapid release never sends", async ({ pa
   expect(commands).toBe(0);
 });
 
-test("public demo speaks only after a tap and clearly stays a scripted sample", async ({ page }) => {
-  let serverTtsRequests = 0;
-  await page.route("**/api/assistants/voice-preview", async route => {
-    serverTtsRequests++;
-    await route.fulfill({ status: 401, json: { error: "Sign-in required" } });
+test("embedded browser demo explains microphone denial and offers standalone open without starting Realtime", async ({ page }) => {
+  let realtimeStarts = 0;
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: { getUserMedia: async () => { throw new DOMException("Denied by embedded browser", "NotAllowedError"); } },
+    });
   });
+  await page.route("**/api/public-demo/website-preview", route => route.fulfill({
+    json: { preview: { companyName: "Parsley Electrical", trade: "Electrical" }, source: "parsleyelectrical.co.uk" },
+  }));
+  await page.route("**/api/public-demo/realtime-session", route => {
+    realtimeStarts++;
+    return route.fulfill({ json: { clientSecret: "test-only", demoId: "test-demo", receptionistName: "Maya" } });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Hear a Demo Call" }).click();
+  await page.getByRole("button", { name: /Talk live in your browser/ }).click();
+  await page.getByTestId("input-business-website").fill("https://www.parsleyelectrical.co.uk");
+  await page.getByTestId("button-preview-website").click();
+  await page.getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Meet Maya" }).click();
+  await page.getByTestId("button-start-live-call").click();
+  await expect(page.getByTestId("status-live-demo-error")).toContainText("browser or embedded preview did not grant microphone access");
+  await expect(page.getByTestId("status-live-demo-error")).toContainText("Nothing was recorded and no call started");
+  const standalone = page.getByRole("link", { name: "Open standalone demo" });
+  await expect(standalone).toHaveAttribute("target", "_blank");
+  await expect(standalone).toHaveAttribute("href", /https?:/);
+  expect(realtimeStarts).toBe(0);
+});
 
+test("quota sample failure shows one clear diagnostic and makes no automatic retry", async ({ page }) => {
+  let requests = 0;
+  await page.route("**/api/public-demo/sample-audio", async route => {
+    requests++;
+    await route.fulfill({
+      status: 503,
+      json: {
+        error: "OpenAI did not allow sample generation because the project may have reached its quota or billing limit.",
+        category: "quota_or_billing",
+        type: "insufficient_quota",
+        code: "billing_hard_limit_reached",
+        requestId: "req-safe-test",
+      },
+    });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Hear a Demo Call" }).click();
+  await page.getByRole("button", { name: "Hear a sample conversation" }).click();
+  await expect(page.getByTestId("status-live-demo-error")).toContainText("quota or billing limit");
+  await expect(page.getByText(/insufficient_quota.*billing_hard_limit_reached.*req-safe-test/)).toBeVisible();
+  await expect(page.getByText("No automatic retry was made")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Retry sample once" })).toHaveCount(0);
+  await page.waitForTimeout(500);
+  expect(requests).toBe(1);
+});
+
+test("generated demo sample is reused by audio replay and never falls back to browser speech", async ({ page }) => {
+  let sampleRequests = 0;
+  let browserSpeech = 0;
+  await page.route("**/api/public-demo/sample-audio", async route => {
+    sampleRequests++;
+    await route.fulfill({ status: 200, contentType: "audio/wav", body: Buffer.from("RIFFtestWAVE") });
+  });
   await page.goto("/");
   await page.evaluate(() => {
-    const spoken: string[] = [];
-    (window as any).__demoSpoken = spoken;
-    const speech = window.speechSynthesis as any;
-    speech.speak = (utterance: SpeechSynthesisUtterance) => {
-      spoken.push(utterance.text);
-      queueMicrotask(() => {
-        utterance.onstart?.(new Event("start") as SpeechSynthesisEvent);
-        utterance.onend?.(new Event("end") as SpeechSynthesisEvent);
-      });
-    };
+    (window as any).__speechCalls = 0;
+    (window.speechSynthesis as any).speak = () => { (window as any).__speechCalls++; };
   });
-
   await page.getByRole("button", { name: "Hear a Demo Call" }).click();
-  await expect(page.getByText("Scripted electrical enquiry")).toBeVisible();
-  await expect(page.getByText("no call, enquiry, or booking is created")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Play Demo Call" })).toBeVisible();
-
-  await page.getByRole("button", { name: "Play Demo Call" }).click();
-  await page.waitForFunction(() => (window as any).__demoSpoken?.length === 20);
-  const spoken = await page.evaluate(() => (window as any).__demoSpoken as string[]);
-  expect(spoken[0]).toContain("electrical problem");
-  expect(spoken.at(-1)).toContain("The office will review");
-  expect(serverTtsRequests).toBe(0);
-  await expect(page.getByText("Demo ended · no enquiry or booking was created")).toBeVisible();
+  await page.getByRole("button", { name: "Hear a sample conversation" }).click();
+  const audio = page.locator('audio[aria-label="Play generated sample conversation"]');
+  await expect(audio).toBeVisible();
+  await expect(audio).toHaveAttribute("src", /^blob:/);
+  expect(sampleRequests).toBe(1);
+  await page.getByRole("button", { name: "Demo choices" }).click();
+  await page.getByRole("button", { name: "Hear a sample conversation" }).click();
+  expect(sampleRequests).toBe(1);
+  browserSpeech = await page.evaluate(() => (window as any).__speechCalls as number);
+  expect(browserSpeech).toBe(0);
 });
 
 test("release before permission resolves stops tracks and does not submit", async ({ page }) => {

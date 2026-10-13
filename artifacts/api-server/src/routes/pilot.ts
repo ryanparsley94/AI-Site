@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { GetPilotReadinessResponse } from "@workspace/api-zod";
+import { CANONICAL_VOICE_PUBLIC_BASE_URL, getVoicePublicBaseUrl, getVoicePublicBaseUrlIssue } from "../lib/voice-config";
 
 const router = Router();
 router.get("/pilot/readiness", (_req, res) => {
@@ -8,7 +9,8 @@ router.get("/pilot/readiness", (_req, res) => {
   const twilioConfigured = Boolean(
     process.env.TWILIO_ACCOUNT_SID &&
     process.env.TWILIO_AUTH_TOKEN &&
-    process.env.VOICE_PUBLIC_BASE_URL
+    process.env.TWILIO_PHONE_NUMBER &&
+    getVoicePublicBaseUrl()
   );
   const realtimeConfigured = Boolean(
     process.env.OPENAI_API_KEY &&
@@ -43,6 +45,7 @@ router.get("/pilot/readiness", (_req, res) => {
     ],
     missingSetup: [
       ...(!twilioConfigured ? ["Add the Twilio account, auth token, public voice URL and UK inbound number."] : []),
+      ...(getVoicePublicBaseUrlIssue() ? [`Set VOICE_PUBLIC_BASE_URL to exactly ${CANONICAL_VOICE_PUBLIC_BASE_URL} with no extra whitespace, path or query.`] : []),
       ...(!realtimeConfigured ? ["Add OPENAI_API_KEY and enable VOICE_REALTIME_ENABLED for the pilot."] : []),
       ...(!receivingConfigured ? ["Configure the signed inbound email webhook."] : []),
       ...(!sendingConfigured ? ["Configure the verified owner/customer notification sender."] : []),

@@ -22,6 +22,7 @@ type AvailableSlot = { iso: string; label: string };
 type Stage = "profile" | "call" | "result";
 type CallStatus = "idle" | "connecting" | "live" | "ending" | "error";
 type DemoMode = "choose" | "sample" | "browser" | "phone";
+type SampleFailure = { category: string | null; type: string | null; code: string | null; requestId: string | null };
 
 const RECEPTIONIST_NAME = "Maya";
 function apiPath(path: string) {
@@ -82,6 +83,9 @@ export function CallDemoModal({
   const [demoMode, setDemoMode] = useState<DemoMode>("choose");
   const [sampleAudioUrl, setSampleAudioUrl] = useState("");
   const [sampleLoading, setSampleLoading] = useState(false);
+  const [sampleRequestMade, setSampleRequestMade] = useState(false);
+  const [sampleFailure, setSampleFailure] = useState<SampleFailure | null>(null);
+  const [sampleRetryUsed, setSampleRetryUsed] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState("");
   const [phoneConsent, setPhoneConsent] = useState(false);
   const [phoneDemoId, setPhoneDemoId] = useState("");
@@ -100,6 +104,8 @@ export function CallDemoModal({
   const [livePilotConsent, setLivePilotConsent] = useState(false);
   const [availableSlots, setAvailableSlots] = useState<AvailableSlot[]>([]);
   const [micReady, setMicReady] = useState(false);
+  const [audioPlaybackBlocked, setAudioPlaybackBlocked] = useState(false);
+  const [embeddedContext, setEmbeddedContext] = useState(false);
 
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -109,6 +115,11 @@ export function CallDemoModal({
   const demoIdRef = useRef<string | null>(null);
   const receptionistNameRef = useRef(RECEPTIONIST_NAME);
   const itemIndexesRef = useRef<Record<string, number>>({});
+
+  useEffect(() => {
+    try { setEmbeddedContext(window.self !== window.top); }
+    catch { setEmbeddedContext(true); }
+  }, []);
 
   const closeConnection = useCallback(() => {
     channelRef.current?.close();
@@ -123,6 +134,7 @@ export function CallDemoModal({
       audioRef.current.srcObject = null;
     }
     setMicReady(false);
+    setAudioPlaybackBlocked(false);
   }, []);
 
   const reset = useCallback(() => {
@@ -147,6 +159,9 @@ export function CallDemoModal({
     itemIndexesRef.current = {};
     setDemoMode("choose");
     setSampleAudioUrl("");
+    setSampleRequestMade(false);
+    setSampleFailure(null);
+    setSampleRetryUsed(false);
     setPhoneNumber("");
     setPhoneConsent(false);
     setPhoneDemoId("");
@@ -193,20 +208,41 @@ export function CallDemoModal({
     }
   }
 
-  async function playSample() {
+  async function playSample(retry = false) {
+    if (!retry && sampleRequestMade) return;
+    setSampleRequestMade(true);
     setSampleLoading(true);
     setError("");
+    setSampleFailure(null);
     try {
       const response = await fetch(apiPath("/api/public-demo/sample-audio"));
       if (!response.ok) {
-        const result = await response.json().catch(() => ({})) as { error?: string };
+        const result = await response.json().catch(() => ({})) as { error?: string; category?: string | null; type?: string | null; code?: string | null; requestId?: string | null };
+        setSampleFailure({
+          category: result.category ?? null,
+          type: result.type ?? null,
+          code: result.code ?? null,
+          requestId: result.requestId ?? null,
+        });
         throw new Error(result.error || "The recorded sample is unavailable.");
       }
       const blob = await response.blob();
       if (sampleAudioUrl) URL.revokeObjectURL(sampleAudioUrl);
       setSampleAudioUrl(URL.createObjectURL(blob));
+      setSampleFailure(null);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "The sample could not be played.");
+      setError(caught instanceof TypeError
+        ? "The sample service could not be reached. Check your connection; you can retry once."
+        : caught instanceof Error
+          ? caught.message
+          : "The sample could not be played.");
+      setSampleFailure((current) => current ?? {
+        category: "network_error",
+        type: null,
+        code: null,
+        requestId: null,
+      });
+      if (retry) setSampleRetryUsed(true);
     } finally {
       setSampleLoading(false);
     }
@@ -260,6 +296,9 @@ export function CallDemoModal({
     itemIndexesRef.current = {};
     let stream: MediaStream | null = null;
     try {
+      if (!window.isSecureContext) {
+        throw new Error("Microphone access requires a secure HTTPS page. Open the standalone demo in Safari or Chrome.");
+      }
       if (!navigator.mediaDevices?.getUserMedia || !window.RTCPeerConnection) {
         throw new Error("Live audio isn't supported in this browser. Try a current version of Chrome, Safari or Edge.");
       }
@@ -275,7 +314,8 @@ export function CallDemoModal({
         if (audioRef.current) {
           audioRef.current.srcObject = event.streams[0];
           void audioRef.current.play().catch(() => {
-            setError("Your browser blocked call audio. Check your sound settings and try again.");
+            setAudioPlaybackBlocked(true);
+            setError("The call connected, but your browser paused the receptionist audio. Use Enable audio to resume playback.");
           });
         }
       };
@@ -403,7 +443,13 @@ export function CallDemoModal({
       stream?.getTracks().forEach((track) => track.stop());
       closeConnection();
       setCallStatus("error");
-      setError(caught instanceof Error ? caught.message : "Live demo is unavailable. No device voice fallback is used.");
+      const permissionError = caught instanceof DOMException &&
+        (caught.name === "NotAllowedError" || caught.name === "SecurityError");
+      setError(permissionError
+        ? "This browser or embedded preview did not grant microphone access. Nothing was recorded and no call started. Open the demo directly in Safari or Chrome, allow Microphone for this site, then try again."
+        : caught instanceof Error
+          ? caught.message
+          : "Live demo is unavailable. No device voice fallback is used.");
     }
   }
 
@@ -428,6 +474,18 @@ export function CallDemoModal({
     } catch (caught) {
       setCallStatus("error");
       setError(caught instanceof Error ? caught.message : "We couldn't prepare the enquiry summary. Please retry.");
+    }
+  }
+
+  async function retryCallAudio() {
+    if (!audioRef.current) return;
+    try {
+      await audioRef.current.play();
+      setAudioPlaybackBlocked(false);
+      setError("");
+    } catch {
+      setAudioPlaybackBlocked(true);
+      setError("Audio is still blocked by the browser. Check site sound permissions and tap Enable audio again.");
     }
   }
 
@@ -501,7 +559,7 @@ export function CallDemoModal({
                 <p className="text-xs font-semibold uppercase tracking-[.14em] text-[#36C6D5]">Choose a demo</p>
                 <h2 id="demo-mode-heading" className="mt-1 text-xl font-bold">Three ways to try CREWON</h2>
                 <div className="mt-4 grid gap-3">
-                  <button type="button" onClick={() => { setDemoMode("sample"); void playSample(); }} className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[.03] p-4 text-left hover:border-[#36C6D5]/50">
+                  <button type="button" onClick={() => { setDemoMode("sample"); if (!sampleRequestMade) void playSample(); }} className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[.03] p-4 text-left hover:border-[#36C6D5]/50">
                     <Headphones className="mt-0.5 text-[#36C6D5]" size={19} />
                     <span><strong className="block text-sm">Hear a sample conversation</strong><span className="mt-1 block text-xs text-white/50">A generated, dramatized audio preview—not a real customer recording.</span></span>
                   </button>
@@ -523,11 +581,18 @@ export function CallDemoModal({
                 <h2 id="sample-heading" className="text-xl font-bold">Sample conversation</h2>
                 <p className="mt-1 text-sm text-white/55">Dramatized example audio generated for this demo. It is not a recording of a real customer call.</p>
                 {sampleLoading && <p className="mt-4 text-sm text-white/60">Preparing sample audio…</p>}
-                {sampleAudioUrl && <audio className="mt-5 w-full" controls src={sampleAudioUrl} />}
+                {sampleAudioUrl && <audio className="mt-5 w-full" controls preload="metadata" src={sampleAudioUrl} aria-label="Play generated sample conversation" />}
+                {sampleFailure && (sampleFailure.type || sampleFailure.code || sampleFailure.requestId) && (
+                  <p className="mt-2 text-xs text-white/45">
+                    Diagnostic{sampleFailure.type ? ` · ${sampleFailure.type}` : ""}{sampleFailure.code ? ` · ${sampleFailure.code}` : ""}{sampleFailure.requestId ? ` · Ref ${sampleFailure.requestId}` : ""}
+                  </p>
+                )}
                 {!sampleLoading && !sampleAudioUrl && (
-                  <button type="button" onClick={() => void playSample()} className="mt-4 rounded-sm border border-[#36C6D5]/50 px-3 py-2 text-sm font-semibold text-[#36C6D5] hover:bg-[#36C6D5]/10">
-                    Try sample audio again
-                  </button>
+                  ["transient_rate_limit", "network_error"].includes(sampleFailure?.category ?? "") && !sampleRetryUsed
+                    ? <button type="button" onClick={() => void playSample(true)} className="mt-4 rounded-sm border border-[#36C6D5]/50 px-3 py-2 text-sm font-semibold text-[#36C6D5] hover:bg-[#36C6D5]/10">Retry sample once</button>
+                    : sampleFailure
+                      ? <p className="mt-3 text-xs text-white/50">No automatic retry was made. Review the guidance above, then use the browser demo or try again later.</p>
+                      : <button type="button" onClick={() => void playSample()} className="mt-4 rounded-sm border border-[#36C6D5]/50 px-3 py-2 text-sm font-semibold text-[#36C6D5] hover:bg-[#36C6D5]/10">Generate sample</button>
                 )}
               </section>
             )}
@@ -647,6 +712,14 @@ export function CallDemoModal({
                   <p className="mx-auto mt-1.5 max-w-sm text-sm leading-relaxed text-white/55">
                     {callStatus === "live" ? "Speak naturally. The receptionist can answer from saved training and the website profile." : "This connects to OpenAI Realtime. Your microphone starts only after you tap below; no synthetic browser voice is used."}
                   </p>
+                  {(embeddedContext || callStatus === "error") && (
+                    <div className="mx-auto mt-3 max-w-md rounded-lg border border-[#36C6D5]/25 bg-[#36C6D5]/[.06] p-3 text-left text-xs leading-relaxed text-white/70" role="note">
+                      <p>Some embedded previews block microphone permissions on iPhone. Open this demo as a standalone page in Safari or Chrome, allow microphone access for the site, then tap Start live call. Permission is requested only after that tap.</p>
+                      <a href={window.location.href} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex font-semibold text-[#71d4de] underline underline-offset-2">
+                        Open standalone demo
+                      </a>
+                    </div>
+                  )}
                 </div>
 
                 <div className="my-5 rounded-xl border border-white/10 bg-[#122128] px-4 py-3">
@@ -673,6 +746,11 @@ export function CallDemoModal({
 
                 <audio ref={audioRef} autoPlay playsInline className="sr-only" aria-label="Receptionist audio" />
                 <div className="flex flex-col items-center gap-3">
+                  {audioPlaybackBlocked && (
+                    <Button type="button" variant="outline" onClick={() => void retryCallAudio()} className="h-10 gap-2 border-[#36C6D5]/40 text-[#8be2e9]">
+                      <AudioLines size={16} /> Enable audio
+                    </Button>
+                  )}
                   {callStatus === "idle" || callStatus === "error" ? (
                     <Button type="button" onClick={startCall} className="h-12 w-full gap-2 rounded-xl bg-[#36C6D5] font-bold text-[#0D171C] hover:bg-[#58d3de] sm:w-auto sm:min-w-56" data-testid="button-start-live-call">
                       <Mic size={17} /> Start live call

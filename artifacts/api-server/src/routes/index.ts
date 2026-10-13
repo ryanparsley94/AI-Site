@@ -40,6 +40,8 @@ router.use(authRouter);
 router.use(widgetRouter);
 router.use(emailInboundRouter);
 router.use(supportQuestionsRouter);
+// Public demo Twilio callbacks live here, before adminOnly; their own HMAC
+// signature validation is mandatory and invalid signatures return 403.
 router.use(publicDemoRouter);
 router.use(phoneRouter);
 router.use(billingWebhookRouter);
