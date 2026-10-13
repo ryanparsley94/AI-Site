@@ -22,3 +22,8 @@ timeoutMs = 20000
 [nix]
 channel = "stable-25_05"
 packages = ["chromium"]
+
+[userenv]
+
+[userenv.shared]
+VOICE_PUBLIC_BASE_URL = "  https://crew-on.replit.app"

@@ -520,10 +520,15 @@ export function CallDemoModal({
             {stage === "profile" && demoMode === "sample" && (
               <section aria-labelledby="sample-heading">
                 <button type="button" onClick={() => { setDemoMode("choose"); setError(""); }} className="mb-4 inline-flex items-center gap-1.5 text-xs font-semibold text-white/45 hover:text-white"><ArrowLeft size={14} /> Demo choices</button>
-                <h2 id="sample-heading" className="text-xl font-bold">Sample call recording</h2>
+                <h2 id="sample-heading" className="text-xl font-bold">Sample conversation</h2>
                 <p className="mt-1 text-sm text-white/55">Dramatized example audio generated for this demo. It is not a recording of a real customer call.</p>
                 {sampleLoading && <p className="mt-4 text-sm text-white/60">Preparing sample audio…</p>}
                 {sampleAudioUrl && <audio className="mt-5 w-full" controls src={sampleAudioUrl} />}
+                {!sampleLoading && !sampleAudioUrl && (
+                  <button type="button" onClick={() => void playSample()} className="mt-4 rounded-sm border border-[#36C6D5]/50 px-3 py-2 text-sm font-semibold text-[#36C6D5] hover:bg-[#36C6D5]/10">
+                    Try sample audio again
+                  </button>
+                )}
               </section>
             )}
 

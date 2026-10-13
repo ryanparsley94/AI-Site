@@ -231,6 +231,7 @@ function JobEditDialog({
         title: fd.get("title") as string,
         contactName: fd.get("contactName") as string,
         contactPhone: fd.get("contactPhone") as string,
+        assignedEngineer: (fd.get("assignedEngineer") as string).trim() || null,
         serviceType: fd.get("serviceType") as string,
         address: fd.get("address") as string,
         scheduledAt: fd.get("scheduledAt") as string,
@@ -299,6 +300,10 @@ function JobEditDialog({
                 <div className="space-y-2">
                   <Label htmlFor="edit-contactPhone">Phone</Label>
                   <Input id="edit-contactPhone" name="contactPhone" defaultValue={job.contactPhone} required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-assignedEngineer">Assigned engineer</Label>
+                  <Input id="edit-assignedEngineer" name="assignedEngineer" defaultValue={job.assignedEngineer || ""} placeholder="Engineer name" />
                 </div>
                 <div className="col-span-2 space-y-2">
                   <Label htmlFor="edit-address">Address</Label>
@@ -372,6 +377,7 @@ export default function Jobs() {
         title: fd.get("title") as string,
         contactName: fd.get("contactName") as string,
         contactPhone: fd.get("contactPhone") as string,
+        assignedEngineer: (fd.get("assignedEngineer") as string).trim() || null,
         serviceType: fd.get("serviceType") as string,
         address: fd.get("address") as string,
         scheduledAt: fd.get("scheduledAt") as string || new Date().toISOString(),
@@ -439,6 +445,10 @@ export default function Jobs() {
                   <div className="space-y-2">
                     <Label htmlFor="contactPhone">Phone</Label>
                     <Input id="contactPhone" name="contactPhone" required />
+                  </div>
+                  <div className="col-span-2 space-y-2">
+                    <Label htmlFor="assignedEngineer">Assigned engineer</Label>
+                    <Input id="assignedEngineer" name="assignedEngineer" placeholder="Engineer name" />
                   </div>
                   <div className="col-span-2 space-y-2">
                     <Label htmlFor="address">Address</Label>

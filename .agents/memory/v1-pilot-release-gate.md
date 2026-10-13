@@ -28,3 +28,9 @@ Keep customer-facing pilot data behind authenticated team access, including in d
 **Why:** Importing genuine enquiry ingestion makes the former open-dashboard testing approach inappropriate; preserving existing features means adapting their sign-in, not exposing customer records.
 
 **How to apply:** Retain public, signed provider callbacks separately from private office commands. Where authorised owner credentials are unavailable, label fixture-based UI checks as mocked and keep real-session/provider verification outstanding.
+
+Do not place a real phone call without explicit consent for that call, publish automatically, or change API/service billing without explicit approval.
+
+**Why:** The user explicitly set these boundaries while asking for live demo and phone-path testing.
+
+**How to apply:** Use local checks and configuration inspection first; require the caller's clear consent before a test callback, and leave deployment and billing untouched unless separately requested.

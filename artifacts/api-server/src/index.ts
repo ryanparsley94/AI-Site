@@ -27,6 +27,8 @@ const MIGRATIONS = [
     ADD COLUMN IF NOT EXISTS accepted_at timestamptz`,
   // 003: Add company_id to jobs for per-company tenant scoping
   `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS company_id integer`,
+  // Persist the crew label selected on a job without changing existing rows.
+  `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS assigned_engineer text`,
   // 004: Create tasks table for AI-generated and manual to-do items
   `CREATE TABLE IF NOT EXISTS tasks (
     id serial PRIMARY KEY,
