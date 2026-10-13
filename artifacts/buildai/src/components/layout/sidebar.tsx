@@ -1,7 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { BrandLogo } from "@/components/brand-logo";
 import { cn } from "@/lib/utils";
-import { getListTasksQueryKey, useListTasks, useUnreviewedWidgetCount } from "@workspace/api-client-react";
+import { getListTasksQueryKey, useListMarketingDrafts, useListTasks, useUnreviewedWidgetCount } from "@workspace/api-client-react";
 import {
   LayoutDashboard,
   Phone,
@@ -78,6 +78,10 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     query: { queryKey: getListTasksQueryKey(), refetchInterval: 30_000, refetchOnWindowFocus: true },
   });
   const pendingTaskCount = tasks.filter((task) => task.status === "pending").length;
+  const { data: marketingDrafts = [] } = useListMarketingDrafts(undefined, {
+    query: { refetchInterval: 15_000, refetchOnWindowFocus: true },
+  });
+  const pendingMarketingCount = marketingDrafts.filter((draft) => draft.status === "pending").length;
 
   const sidebarContent = (
     <div className="flex h-full w-64 shrink-0 flex-col overflow-y-auto border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
@@ -99,7 +103,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
             <div className="space-y-0.5">
               {group.items.map((item) => {
                 const isActive = location === item.href || location.startsWith(`${item.href}/`);
-                const badgeCount = item.href === "/tasks" ? pendingTaskCount : item.href === "/calls" ? unreviewedCount : 0;
+                const badgeCount = item.href === "/tasks" ? pendingTaskCount : item.href === "/calls" ? unreviewedCount : item.href === "/assistants" ? pendingMarketingCount : 0;
                 return (
                   <Link key={item.href} href={item.href} onClick={onClose} data-testid={`nav-${item.label.toLowerCase().replaceAll(" ", "-")}`}
                     className={cn(
@@ -108,9 +112,12 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
                     )}>
                     <item.icon size={16} strokeWidth={1.8} className={isActive ? "text-sidebar-primary" : "opacity-75"} />
                     <span className="flex-1">{item.label}</span>
-                    {badgeCount > 0 && <span aria-label={item.href === "/tasks" ? `${badgeCount} pending tasks` : `${badgeCount} unreviewed calls`}
+                    {badgeCount > 0 && <span aria-label={item.href === "/assistants" ? `${badgeCount} pending marketing ${badgeCount === 1 ? "draft" : "drafts"}` : item.href === "/tasks" ? `${badgeCount} pending tasks` : `${badgeCount} unreviewed calls`}
                       data-testid={`badge-${item.label.toLowerCase().replaceAll(" ", "-")}`}
-                      className="ml-auto flex h-[18px] min-w-[18px] items-center justify-center rounded-sm bg-primary/15 px-1 text-[10px] font-semibold leading-none text-primary">
+                      className={cn(
+                        "ml-auto flex h-[18px] min-w-[18px] items-center justify-center rounded-sm px-1 text-[10px] font-semibold leading-none",
+                        item.href === "/assistants" ? "bg-red-600 text-white" : "bg-primary/15 text-primary",
+                      )}>
                       {item.href === "/calls" && badgeCount > 99 ? "99+" : badgeCount}
                     </span>}
                   </Link>
