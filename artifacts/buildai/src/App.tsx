@@ -20,6 +20,8 @@ import Tasks from '@/pages/tasks';
 import DataImport from '@/pages/data-import';
 import Billing from '@/pages/billing';
 import BusinessSetup from '@/pages/business-setup';
+import Schedule from '@/pages/schedule';
+import Sales from '@/pages/sales';
 import PublicQuotePage from '@/pages/public-quote';
 import { useRoute } from 'wouter';
 import VoiceAssistant from '@/components/layout/voice-assistant';
@@ -68,6 +70,12 @@ function Router() {
       </Route>
       <Route path="/jobs">
         <AppLayout><Jobs /></AppLayout>
+      </Route>
+      <Route path="/schedule">
+        <AppLayout><Schedule /></AppLayout>
+      </Route>
+      <Route path="/sales">
+        <AppLayout><Sales /></AppLayout>
       </Route>
       <Route path="/assistants">
         <AppLayout><Assistants /></AppLayout>
