@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { eq, gte, and, lte } from "drizzle-orm";
-import { db, jobsTable, quotesTable, marketingDraftsTable } from "@workspace/db";
+import { db, jobsTable, quotesTable, marketingDraftsTable, contactsTable } from "@workspace/db";
 import {
   ListJobsResponse,
   CreateJobBody,
@@ -135,6 +135,7 @@ router.patch("/jobs/:id", async (req, res): Promise<void> => {
     (async () => {
       try {
         const companyName = await getCompanyName();
+        const [contact] = row.contactId ? await db.select().from(contactsTable).where(eq(contactsTable.id, row.contactId)) : [];
 
         const types = ["review_request", "followup"] as const;
         for (const type of types) {
@@ -147,6 +148,7 @@ router.patch("/jobs/:id", async (req, res): Promise<void> => {
                 jobTitle: row.title,
                 clientName: row.contactName,
                 clientPhone: row.contactPhone || null,
+                clientEmail: contact?.email ?? null,
                 companyName,
                 type,
                 status: "pending",

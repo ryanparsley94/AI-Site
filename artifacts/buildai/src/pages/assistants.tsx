@@ -1317,6 +1317,8 @@ function DraftTypeLabel({ type }: { type: string }) {
 
 function MarketingDraftCard({ draft }: { draft: MarketingDraft }) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ["/api/marketing-drafts"] });
   const approve = useApproveMarketingDraft();
   const dismiss = useDismissMarketingDraft();
   const update = useUpdateMarketingDraft();
@@ -1324,21 +1326,42 @@ function MarketingDraftCard({ draft }: { draft: MarketingDraft }) {
 
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState(draft.editedMessage ?? draft.draftMessage ?? "");
+  const [channel, setChannel] = useState<"sms" | "email">(draft.channel ?? "sms");
+  const [phone, setPhone] = useState(draft.clientPhone ?? "");
+  const [email, setEmail] = useState(draft.clientEmail ?? "");
+  const [preparing, setPreparing] = useState(false);
 
   const message = draft.editedMessage ?? draft.draftMessage;
-  const isLoading = !draft.draftMessage && draft.status === "pending";
+  const isLoading = !draft.draftMessage && !draft.editedMessage && draft.status === "pending";
+  const busy = approve.isPending || update.isPending || dismiss.isPending || deleteDraft.isPending || preparing;
 
-  const handleApprove = () => {
-    approve.mutate({ id: draft.id }, {
-      onSuccess: () => toast({ title: "Message approved ✓" }),
-      onError: () => toast({ title: "Failed to approve", variant: "destructive" }),
-    });
+  const handleApprove = async () => {
+    setPreparing(true);
+    try {
+      if (channel !== draft.channel || phone !== (draft.clientPhone ?? "") || email !== (draft.clientEmail ?? "")) {
+        await update.mutateAsync({ id: draft.id, data: { channel, clientPhone: phone.trim(), clientEmail: email.trim() } });
+      }
+      const result = await approve.mutateAsync({ id: draft.id });
+      const failed = result.deliveryStatus === "failed" || result.deliveryStatus === "unknown";
+      toast({
+        title: failed ? "Message not confirmed sent" : result.deliveryStatus === "queued" ? "SMS queued" : "Message sent",
+        description: result.deliveryError ?? "Accepted by the provider. Delivery status will update here.",
+        variant: failed ? "destructive" : "default",
+      });
+    } catch (error) {
+      const detail = (error as { data?: { error?: string } }).data?.error;
+      toast({ title: "Could not send message", description: detail ?? "Refresh to check its status before trying again.", variant: "destructive" });
+    } finally {
+      setPreparing(false);
+      void refresh();
+    }
   };
 
   const handleDismiss = () => {
     dismiss.mutate({ id: draft.id }, {
       onSuccess: () => toast({ title: "Message dismissed" }),
       onError: () => toast({ title: "Failed to dismiss", variant: "destructive" }),
+      onSettled: refresh,
     });
   };
 
@@ -1346,16 +1369,18 @@ function MarketingDraftCard({ draft }: { draft: MarketingDraft }) {
     update.mutate({ id: draft.id, data: { editedMessage: editText } }, {
       onSuccess: () => { setEditing(false); toast({ title: "Message updated" }); },
       onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+      onSettled: refresh,
     });
   };
 
   const handleDelete = () => {
     deleteDraft.mutate({ id: draft.id }, {
       onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
+      onSettled: refresh,
     });
   };
 
-  if (draft.status === "approved") {
+  if (["sending", "queued", "sent", "delivered", "unknown"].includes(draft.deliveryStatus ?? "")) {
     return (
       <div className="border rounded-xl p-4 bg-green-50/60 border-green-200 flex items-start gap-3">
         <CheckCircle2 size={16} className="text-green-600 mt-0.5 shrink-0" />
@@ -1363,13 +1388,19 @@ function MarketingDraftCard({ draft }: { draft: MarketingDraft }) {
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-semibold text-secondary">{draft.clientName}</span>
             <DraftTypeLabel type={draft.type} />
-            <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-green-100 text-green-700">Approved</span>
+            <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+              {draft.deliveryStatus === "unknown" ? "Not confirmed" : draft.deliveryStatus === "queued" ? "SMS queued" : draft.deliveryStatus === "sending" ? "Sending" : draft.deliveryStatus === "delivered" ? "Delivered" : "Sent"}
+            </span>
           </div>
           <p className="text-xs text-secondary/80 mt-1 leading-relaxed">{message}</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {draft.channel === "email" ? `Email to ${draft.clientEmail}` : `SMS to ${draft.clientPhone}`}
+            {draft.sentAt ? ` · ${new Date(draft.sentAt).toLocaleString()}` : ""}
+          </p>
+          {draft.deliveryStatus === "sent" || draft.deliveryStatus === "queued" ? <p className="text-xs text-muted-foreground mt-1">Awaiting delivery confirmation.</p> : null}
+          {draft.deliveryError ? <p role="alert" className="text-xs text-destructive mt-2">{draft.deliveryError}</p> : null}
+          {draft.providerMessageId ? <p className="text-xs text-muted-foreground mt-1 break-all">Receipt: {draft.providerMessageId}</p> : null}
         </div>
-        <button type="button" onClick={handleDelete} className="shrink-0 text-muted-foreground hover:text-destructive transition-colors p-1">
-          <X size={13} />
-        </button>
       </div>
     );
   }
@@ -1384,7 +1415,7 @@ function MarketingDraftCard({ draft }: { draft: MarketingDraft }) {
             <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-muted text-muted-foreground">Dismissed</span>
           </div>
         </div>
-        <button type="button" onClick={handleDelete} className="shrink-0 text-muted-foreground hover:text-destructive transition-colors p-1">
+        <button type="button" disabled={busy} onClick={handleDelete} className="shrink-0 text-muted-foreground hover:text-destructive transition-colors p-1">
           <X size={13} />
         </button>
       </div>
@@ -1404,7 +1435,7 @@ function MarketingDraftCard({ draft }: { draft: MarketingDraft }) {
             <p className="text-xs text-muted-foreground mt-0.5">Job: {draft.jobTitle}</p>
           )}
         </div>
-        <button type="button" onClick={handleDelete} className="shrink-0 text-muted-foreground hover:text-destructive transition-colors p-1">
+        <button type="button" disabled={busy} onClick={handleDelete} className="shrink-0 text-muted-foreground hover:text-destructive transition-colors p-1">
           <X size={13} />
         </button>
       </div>
@@ -1415,7 +1446,7 @@ function MarketingDraftCard({ draft }: { draft: MarketingDraft }) {
           <Loader2 size={12} className="animate-spin" />
           AI is drafting the message…
         </div>
-      ) : draft.draftMessage === "__FAILED__" && !draft.editedMessage ? (
+      ) : draft.draftMessage === "__FAILED__" && !draft.editedMessage && !editing ? (
         <div className="flex items-center gap-2 text-xs text-destructive bg-destructive/5 border border-destructive/20 rounded-lg p-3">
           <X size={12} />
           Draft generation failed. Edit manually to write your own message.
@@ -1428,7 +1459,7 @@ function MarketingDraftCard({ draft }: { draft: MarketingDraft }) {
             className="h-24 resize-none text-sm"
           />
           <div className="flex gap-2">
-            <Button size="sm" className="gap-1.5" onClick={handleSaveEdit} disabled={update.isPending}>
+            <Button size="sm" className="gap-1.5" onClick={handleSaveEdit} disabled={busy || !editText.trim()}>
               {update.isPending ? <Loader2 size={12} className="animate-spin" /> : null}
               Save
             </Button>
@@ -1445,23 +1476,39 @@ function MarketingDraftCard({ draft }: { draft: MarketingDraft }) {
       )}
 
       {/* Actions */}
+      {draft.deliveryError && <p role="alert" className="text-xs text-destructive">{draft.deliveryError}</p>}
+      {draft.status === "approved" && draft.deliveryStatus === "not_sent" && <p className="text-xs text-muted-foreground">Previously approved — not sent.</p>}
+      <div className="flex flex-wrap gap-2">
+        <label className="text-xs space-y-1">
+          <span>Send via</span>
+          <select aria-label="Delivery channel" className="block border rounded-md p-2" value={channel} disabled={busy} onChange={e => setChannel(e.target.value as "sms" | "email")}>
+            <option value="sms">SMS</option><option value="email">Email</option>
+          </select>
+        </label>
+        <label className="text-xs space-y-1 flex-1 min-w-40">
+          <span>{channel === "sms" ? "Client phone (international format)" : "Client email"}</span>
+          <Input type={channel === "sms" ? "tel" : "email"} value={channel === "sms" ? phone : email} disabled={busy}
+            onChange={e => channel === "sms" ? setPhone(e.target.value) : setEmail(e.target.value)}
+            placeholder={channel === "sms" ? "+447700900123" : "client@example.com"} />
+        </label>
+      </div>
       {!editing && (
         <div className="flex gap-2 pt-1">
           <Button
             size="sm"
             className="flex-1 gap-1.5 bg-green-600 hover:bg-green-700 text-white"
             onClick={handleApprove}
-            disabled={approve.isPending || isLoading}
+            disabled={busy || isLoading || !message?.trim() || message === "__FAILED__"}
           >
-            {approve.isPending ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={13} />}
-            Approve
+            {busy ? <Loader2 size={12} className="animate-spin" /> : <Send size={13} />}
+            {draft.deliveryStatus === "failed" ? "Retry sending" : "Approve & send"}
           </Button>
           <Button
             size="sm"
             variant="outline"
             className="gap-1.5"
             onClick={() => { setEditText(draft.editedMessage ?? draft.draftMessage ?? ""); setEditing(true); }}
-            disabled={isLoading}
+            disabled={busy}
           >
             <Pencil size={13} /> Edit
           </Button>
@@ -1470,7 +1517,7 @@ function MarketingDraftCard({ draft }: { draft: MarketingDraft }) {
             variant="outline"
             className="text-muted-foreground hover:text-destructive"
             onClick={handleDismiss}
-            disabled={dismiss.isPending}
+            disabled={busy || draft.status !== "pending"}
           >
             Dismiss
           </Button>
@@ -1481,8 +1528,11 @@ function MarketingDraftCard({ draft }: { draft: MarketingDraft }) {
 }
 
 function MarketingQueueSection() {
-  const [filter, setFilter] = useState<"pending" | "approved" | "dismissed" | "all">("pending");
-  const { data: drafts = [], isLoading } = useListMarketingDrafts(filter !== "all" ? { status: filter } : undefined);
+  const [filter, setFilter] = useState<"pending" | "sent" | "all">("pending");
+  const { data: allDrafts = [], isLoading, isError } = useListMarketingDrafts(undefined, { query: { refetchInterval: 15000 } });
+  const drafts = allDrafts.filter(d => filter === "all" || (filter === "sent"
+    ? ["queued", "sent", "delivered"].includes(d.deliveryStatus ?? "")
+    : d.status !== "dismissed" && !["queued", "sent", "delivered"].includes(d.deliveryStatus ?? "")));
 
   const pendingCount = drafts.filter((d) => d.status === "pending").length;
 
@@ -1511,7 +1561,7 @@ function MarketingQueueSection() {
 
         {/* Filter tabs */}
         <div className="flex gap-1 shrink-0">
-          {(["pending", "approved", "all"] as const).map((f) => (
+          {(["pending", "sent", "all"] as const).map((f) => (
             <button
               key={f}
               type="button"
@@ -1531,6 +1581,7 @@ function MarketingQueueSection() {
 
       {/* Draft list */}
       <div className="p-4 space-y-3">
+        {isError ? <p role="alert" className="text-sm text-destructive">Unable to refresh marketing messages. Delivery status may be out of date.</p> : null}
         {isLoading ? (
           <div className="text-center py-8 text-muted-foreground text-sm">Loading…</div>
         ) : drafts.length === 0 ? (

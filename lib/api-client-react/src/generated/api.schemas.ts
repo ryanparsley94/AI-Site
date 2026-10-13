@@ -1370,6 +1370,7 @@ export type UpdateTaskResponse = Task;
 
 export type GenerateTasksResponse = Task[];
 
+export type MarketingDraftChannel = typeof MarketingDraftChannel[keyof typeof MarketingDraftChannel];
 export type MarketingDraftType = typeof MarketingDraftType[keyof typeof MarketingDraftType];
 
 
@@ -1393,6 +1394,12 @@ export interface MarketingDraft {
   jobTitle: string;
   clientName: string;
   clientPhone?: string | null;
+  clientEmail?: string | null;
+  channel?: MarketingDraftChannel;
+  deliveryStatus?: MarketingDraftDeliveryStatus;
+  deliveryError?: string | null;
+  providerMessageId?: string | null;
+  sentAt?: string | null;
   companyName: string;
   type: MarketingDraftType;
   status: MarketingDraftStatus;
@@ -1413,8 +1420,13 @@ export interface GenerateMarketingDraftsBody {
 
 export type GenerateMarketingDraftsResponse = MarketingDraft[];
 
+export type UpdateMarketingDraftBodyChannel = typeof UpdateMarketingDraftBodyChannel[keyof typeof UpdateMarketingDraftBodyChannel];
 export interface UpdateMarketingDraftBody {
+  /** @minLength 1 */
   editedMessage?: string;
+  channel?: UpdateMarketingDraftBodyChannel;
+  clientPhone?: string;
+  clientEmail?: string;
 }
 
 export type UpdateMarketingDraftResponse = MarketingDraft;
@@ -1625,3 +1637,25 @@ export const ListMarketingDraftsStatus = {
   all: 'all',
 } as const;
 
+
+export const UpdateMarketingDraftBodyChannel = {
+  sms: 'sms',
+  email: 'email',
+} as const;
+
+export const MarketingDraftDeliveryStatus = {
+  not_sent: 'not_sent',
+  sending: 'sending',
+  queued: 'queued',
+  sent: 'sent',
+  delivered: 'delivered',
+  failed: 'failed',
+  unknown: 'unknown',
+} as const;
+
+export type MarketingDraftDeliveryStatus = typeof MarketingDraftDeliveryStatus[keyof typeof MarketingDraftDeliveryStatus];
+
+export const MarketingDraftChannel = {
+  sms: 'sms',
+  email: 'email',
+} as const;

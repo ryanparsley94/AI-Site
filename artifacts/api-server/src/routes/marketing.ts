@@ -1,6 +1,8 @@
 import { Router } from "express";
-import { eq, desc, and } from "drizzle-orm";
-import { db, marketingDraftsTable, companiesTable } from "@workspace/db";
+import { eq, desc, and, inArray, sql } from "drizzle-orm";
+import { db, marketingDraftsTable, companiesTable, jobsTable, contactsTable } from "@workspace/db";
+import { logger } from "../lib/logger";
+import { checkMarketingDelivery, sendMarketingMessage, validateMarketingDelivery } from "../lib/marketing-delivery";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import {
   ListMarketingDraftsResponse,
@@ -22,6 +24,7 @@ function mapDraft(d: typeof marketingDraftsTable.$inferSelect) {
   return {
     ...d,
     createdAt: d.createdAt.toISOString(),
+    sentAt: d.sentAt?.toISOString() ?? null,
   };
 }
 
@@ -85,6 +88,23 @@ router.get("/marketing-drafts", async (req, res): Promise<void> => {
   }
 
   const rows = await query;
+  // Provider acceptance is not proof of delivery. Refresh outstanding receipts.
+  for (let i = 0; i < rows.length; i += 5) {
+    await Promise.all(rows.slice(i, i + 5).map(async (row) => {
+      if (row.deliveryStatus === "sending" && Date.now() - row.updatedAt.getTime() > 120000) {
+        const [saved] = await db.update(marketingDraftsTable).set({
+          deliveryStatus: "unknown", deliveryError: "Sending was interrupted. It may have been sent. Check the provider before sending again.",
+        }).where(and(eq(marketingDraftsTable.id, row.id), eq(marketingDraftsTable.deliveryStatus, "sending"), eq(marketingDraftsTable.deliveryVersion, row.deliveryVersion))).returning();
+        if (saved) Object.assign(row, saved);
+      } else if (row.providerMessageId && ["queued", "sent"].includes(row.deliveryStatus)) {
+        const result = await checkMarketingDelivery(row.channel, row.providerMessageId);
+        if (result && (result.deliveryStatus !== row.deliveryStatus || result.deliveryError !== row.deliveryError)) {
+          const [saved] = await db.update(marketingDraftsTable).set(result).where(and(eq(marketingDraftsTable.id, row.id), eq(marketingDraftsTable.providerMessageId, row.providerMessageId), eq(marketingDraftsTable.deliveryVersion, row.deliveryVersion))).returning();
+          if (saved) Object.assign(row, saved);
+        }
+      }
+    }));
+  }
   res.json(ListMarketingDraftsResponse.parse(rows.map(mapDraft)));
 });
 
@@ -98,6 +118,8 @@ router.post("/marketing-drafts/generate", async (req, res): Promise<void> => {
   }
 
   const { jobId, jobTitle, clientName, clientPhone, companyName } = parsed.data;
+  const [contact] = await db.select({ email: contactsTable.email }).from(jobsTable)
+    .innerJoin(contactsTable, eq(jobsTable.contactId, contactsTable.id)).where(eq(jobsTable.id, jobId));
 
   // Guard: return existing drafts if already generated for this job
   const existing = await db
@@ -118,7 +140,7 @@ router.post("/marketing-drafts/generate", async (req, res): Promise<void> => {
 
   let inserted: (typeof marketingDraftsTable.$inferSelect)[];
   try {
-    inserted = await db.insert(marketingDraftsTable).values(insertValues).returning();
+    inserted = await db.insert(marketingDraftsTable).values(insertValues.map(value => ({ ...value, clientEmail: contact?.email ?? null }))).returning();
   } catch (err: unknown) {
     // Unique-constraint violation — a concurrent request already inserted these rows
     const code = (err as { code?: string })?.code;
@@ -147,7 +169,7 @@ router.post("/marketing-drafts/generate", async (req, res): Promise<void> => {
           .set({ draftMessage: msg })
           .where(eq(marketingDraftsTable.id, row.id));
       } catch (err) {
-        console.error(`Failed to draft marketing message for draft ${row.id}:`, err);
+        logger.error({ err, draftId: row.id }, "Failed to draft marketing message");
         // Write failure sentinel so the UI exits the polling/loading state
         await db
           .update(marketingDraftsTable)
@@ -171,11 +193,11 @@ router.patch("/marketing-drafts/:id", async (req, res): Promise<void> => {
 
   const [row] = await db
     .update(marketingDraftsTable)
-    .set(parsed.data)
-    .where(eq(marketingDraftsTable.id, params.data.id))
+    .set({ ...parsed.data, deliveryVersion: sql`${marketingDraftsTable.deliveryVersion} + 1` })
+    .where(and(eq(marketingDraftsTable.id, params.data.id), inArray(marketingDraftsTable.status, ["pending", "approved"]), inArray(marketingDraftsTable.deliveryStatus, ["not_sent", "failed"])))
     .returning();
 
-  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  if (!row) { res.status(409).json({ error: "Draft not found or cannot be edited after sending." }); return; }
   res.json(UpdateMarketingDraftResponse.parse(mapDraft(row)));
 });
 
@@ -184,14 +206,29 @@ router.patch("/marketing-drafts/:id", async (req, res): Promise<void> => {
 router.post("/marketing-drafts/:id/approve", async (req, res): Promise<void> => {
   const params = ApproveMarketingDraftParams.safeParse({ id: Number(req.params.id) });
   if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+  const [draft] = await db.select().from(marketingDraftsTable).where(eq(marketingDraftsTable.id, params.data.id));
+  if (!draft) { res.status(404).json({ error: "Not found" }); return; }
+  if (!["pending", "approved"].includes(draft.status) || !["not_sent", "failed"].includes(draft.deliveryStatus)) {
+    res.status(409).json({ error: "This draft has already been sent or is awaiting confirmation. It cannot be sent again." }); return;
+  }
+  const message = draft.editedMessage ?? draft.draftMessage;
+  const error = await validateMarketingDelivery(draft.channel, draft.clientPhone, draft.clientEmail, message);
+  if (error) {
+    const [failed] = await db.update(marketingDraftsTable).set({ deliveryStatus: "failed", deliveryError: error, deliveryVersion: sql`${marketingDraftsTable.deliveryVersion} + 1` })
+      .where(and(eq(marketingDraftsTable.id, draft.id), eq(marketingDraftsTable.status, draft.status), eq(marketingDraftsTable.deliveryVersion, draft.deliveryVersion))).returning();
+    if (!failed) { res.status(409).json({ error: "Draft changed. Refresh and try again." }); return; }
+    res.json(ApproveMarketingDraftResponse.parse(mapDraft(failed))); return;
+  }
 
   const [row] = await db
     .update(marketingDraftsTable)
-    .set({ status: "approved" })
+    .set({ status: "approved", deliveryStatus: "sending", deliveryError: null, providerMessageId: null, sentAt: null, deliveryVersion: sql`${marketingDraftsTable.deliveryVersion} + 1` })
     .where(
       and(
         eq(marketingDraftsTable.id, params.data.id),
-        eq(marketingDraftsTable.status, "pending"),
+        inArray(marketingDraftsTable.status, ["pending", "approved"]),
+        inArray(marketingDraftsTable.deliveryStatus, ["not_sent", "failed"]),
+        eq(marketingDraftsTable.deliveryVersion, draft.deliveryVersion),
       )
     )
     .returning();
@@ -203,7 +240,12 @@ router.post("/marketing-drafts/:id/approve", async (req, res): Promise<void> => 
     return;
   }
 
-  res.json(ApproveMarketingDraftResponse.parse(mapDraft(row)));
+  const result = await sendMarketingMessage(row, message!);
+  const [sent] = await db.update(marketingDraftsTable).set({
+    ...result, sentAt: result.providerMessageId && result.deliveryStatus !== "failed" ? new Date() : null,
+  }).where(and(eq(marketingDraftsTable.id, row.id), eq(marketingDraftsTable.deliveryVersion, row.deliveryVersion))).returning();
+  if (!sent) { res.status(409).json({ error: "Delivery state changed. Refresh to check the receipt." }); return; }
+  res.json(ApproveMarketingDraftResponse.parse(mapDraft(sent)));
 });
 
 // ─── Dismiss ──────────────────────────────────────────────────────────────────
@@ -239,7 +281,8 @@ router.delete("/marketing-drafts/:id", async (req, res): Promise<void> => {
   const params = DeleteMarketingDraftParams.safeParse({ id: Number(req.params.id) });
   if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  await db.delete(marketingDraftsTable).where(eq(marketingDraftsTable.id, params.data.id));
+  const [row] = await db.delete(marketingDraftsTable).where(and(eq(marketingDraftsTable.id, params.data.id), inArray(marketingDraftsTable.deliveryStatus, ["not_sent", "failed"]))).returning();
+  if (!row) { res.status(409).json({ error: "Sent or unconfirmed messages must be retained as delivery records." }); return; }
   res.status(204).end();
 });
 

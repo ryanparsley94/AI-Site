@@ -2695,6 +2695,12 @@ export const ListMarketingDraftsResponseItem = zod.object({
   "jobTitle": zod.string(),
   "clientName": zod.string(),
   "clientPhone": zod.string().nullish(),
+  "clientEmail": zod.string().nullish(),
+  "channel": zod.enum(['sms', 'email']).optional(),
+  "deliveryStatus": zod.enum(['not_sent', 'sending', 'queued', 'sent', 'delivered', 'failed', 'unknown']).optional(),
+  "deliveryError": zod.string().nullish(),
+  "providerMessageId": zod.string().nullish(),
+  "sentAt": zod.string().nullish(),
   "companyName": zod.string(),
   "type": zod.enum(['review_request', 'followup']),
   "status": zod.enum(['pending', 'approved', 'dismissed']),
@@ -2722,6 +2728,12 @@ export const GenerateMarketingDraftsResponseItem = zod.object({
   "jobTitle": zod.string(),
   "clientName": zod.string(),
   "clientPhone": zod.string().nullish(),
+  "clientEmail": zod.string().nullish(),
+  "channel": zod.enum(['sms', 'email']).optional(),
+  "deliveryStatus": zod.enum(['not_sent', 'sending', 'queued', 'sent', 'delivered', 'failed', 'unknown']).optional(),
+  "deliveryError": zod.string().nullish(),
+  "providerMessageId": zod.string().nullish(),
+  "sentAt": zod.string().nullish(),
   "companyName": zod.string(),
   "type": zod.enum(['review_request', 'followup']),
   "status": zod.enum(['pending', 'approved', 'dismissed']),
@@ -2739,8 +2751,14 @@ export const UpdateMarketingDraftParams = zod.object({
   "id": zod.coerce.number()
 })
 
+
+
+
 export const UpdateMarketingDraftBody = zod.object({
-  "editedMessage": zod.string().optional()
+  "editedMessage": zod.string().min(1).optional(),
+  "channel": zod.enum(['sms', 'email']).optional(),
+  "clientPhone": zod.string().optional(),
+  "clientEmail": zod.string().optional()
 })
 
 export const UpdateMarketingDraftResponse = zod.object({
@@ -2749,6 +2767,12 @@ export const UpdateMarketingDraftResponse = zod.object({
   "jobTitle": zod.string(),
   "clientName": zod.string(),
   "clientPhone": zod.string().nullish(),
+  "clientEmail": zod.string().nullish(),
+  "channel": zod.enum(['sms', 'email']).optional(),
+  "deliveryStatus": zod.enum(['not_sent', 'sending', 'queued', 'sent', 'delivered', 'failed', 'unknown']).optional(),
+  "deliveryError": zod.string().nullish(),
+  "providerMessageId": zod.string().nullish(),
+  "sentAt": zod.string().nullish(),
   "companyName": zod.string(),
   "type": zod.enum(['review_request', 'followup']),
   "status": zod.enum(['pending', 'approved', 'dismissed']),
@@ -2781,6 +2805,12 @@ export const ApproveMarketingDraftResponse = zod.object({
   "jobTitle": zod.string(),
   "clientName": zod.string(),
   "clientPhone": zod.string().nullish(),
+  "clientEmail": zod.string().nullish(),
+  "channel": zod.enum(['sms', 'email']).optional(),
+  "deliveryStatus": zod.enum(['not_sent', 'sending', 'queued', 'sent', 'delivered', 'failed', 'unknown']).optional(),
+  "deliveryError": zod.string().nullish(),
+  "providerMessageId": zod.string().nullish(),
+  "sentAt": zod.string().nullish(),
   "companyName": zod.string(),
   "type": zod.enum(['review_request', 'followup']),
   "status": zod.enum(['pending', 'approved', 'dismissed']),
@@ -2803,6 +2833,12 @@ export const DismissMarketingDraftResponse = zod.object({
   "jobTitle": zod.string(),
   "clientName": zod.string(),
   "clientPhone": zod.string().nullish(),
+  "clientEmail": zod.string().nullish(),
+  "channel": zod.enum(['sms', 'email']).optional(),
+  "deliveryStatus": zod.enum(['not_sent', 'sending', 'queued', 'sent', 'delivered', 'failed', 'unknown']).optional(),
+  "deliveryError": zod.string().nullish(),
+  "providerMessageId": zod.string().nullish(),
+  "sentAt": zod.string().nullish(),
   "companyName": zod.string(),
   "type": zod.enum(['review_request', 'followup']),
   "status": zod.enum(['pending', 'approved', 'dismissed']),

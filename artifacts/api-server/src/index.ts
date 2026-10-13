@@ -176,6 +176,18 @@ const MIGRATIONS = [
       ADD COLUMN IF NOT EXISTS call_sid text,
       ADD COLUMN IF NOT EXISTS call_id integer`,
   `CREATE INDEX IF NOT EXISTS public_demo_sessions_created_idx ON public_demo_sessions(created_at)`,
+  `ALTER TABLE marketing_drafts
+    ADD COLUMN IF NOT EXISTS client_email text,
+    ADD COLUMN IF NOT EXISTS channel text NOT NULL DEFAULT 'sms',
+    ADD COLUMN IF NOT EXISTS delivery_status text NOT NULL DEFAULT 'not_sent',
+    ADD COLUMN IF NOT EXISTS delivery_version integer NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS delivery_error text,
+    ADD COLUMN IF NOT EXISTS provider_message_id text,
+    ADD COLUMN IF NOT EXISTS sent_at timestamptz`,
+  `UPDATE marketing_drafts d SET client_email = c.email
+    FROM jobs j JOIN contacts c ON c.id = j.contact_id
+    WHERE d.job_id = j.id AND d.client_email IS NULL AND c.email IS NOT NULL
+      AND d.delivery_status = 'not_sent'`,
 ];
 
 async function runMigrations(): Promise<void> {
