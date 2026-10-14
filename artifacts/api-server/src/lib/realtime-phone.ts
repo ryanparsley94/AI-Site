@@ -78,7 +78,7 @@ function realtimeVoice(value: string): string {
   return aliases[value.toLowerCase()] ?? "marin";
 }
 
-async function loadContext(companyId: number, assistantId: number, selectedVoice?: string): Promise<AssistantContext> {
+async function loadContext(companyId: number, assistantId: number, selectedVoice?: string, displayName?: string): Promise<AssistantContext> {
   const company = await pool.query<{
     id: number;
     name: string;
@@ -116,7 +116,7 @@ async function loadContext(companyId: number, assistantId: number, selectedVoice
     companyPhone: company.rows[0].phone,
     companyEmail: company.rows[0].email,
     assistantId,
-    assistantName: assistant.rows[0].name,
+    assistantName: displayName?.trim() || assistant.rows[0].name,
     voice: selectedVoice && selectableRealtimeVoices.has(selectedVoice)
       ? selectedVoice
       : realtimeVoice(assistant.rows[0].realtime_voice),
@@ -238,9 +238,11 @@ export function attachRealtimePhone(server: HttpServer): void {
     let companyId: number | null = null;
     let assistantId: number | null = null;
     let selectedVoice: string | undefined;
+    let selectedDisplayName: string | undefined;
     let startedAt = Date.now();
     let openaiReady = false;
     let finalised = false;
+    let recoveryPromptSent = false;
     let pendingAudio: string[] = [];
     const transcript: TranscriptEntry[] = [];
     let persistChain: Promise<void> = Promise.resolve();
@@ -428,7 +430,7 @@ export function attachRealtimePhone(server: HttpServer): void {
       const apiKey = process.env.OPENAI_API_KEY;
       if (!apiKey) throw new Error("OPENAI_API_KEY is not configured");
 
-      const ctx = await loadContext(companyId, assistantId, selectedVoice);
+      const ctx = await loadContext(companyId, assistantId, selectedVoice, selectedDisplayName);
       const model = process.env.OPENAI_REALTIME_MODEL || "gpt-realtime-2.1";
       openai = new WebSocket(
         `wss://api.openai.com/v1/realtime?model=${encodeURIComponent(model)}`,
@@ -531,13 +533,16 @@ export function attachRealtimePhone(server: HttpServer): void {
 
         if (event.type === "session.updated") {
           openaiReady = true;
+          logger.info({ callId, callSid, assistantId, voice: selectedVoice ?? "saved-default" }, "Realtime receptionist session ready");
           for (const audio of pendingAudio.splice(0)) {
             sendToOpenAI({ type: "input_audio_buffer.append", audio });
           }
           sendToOpenAI({
             type: "response.create",
             response: {
-              instructions: `Open the call now. Use this greeting naturally: "${ctx.greeting}". Do not add a long introduction.`,
+              instructions: `Open the call now. Use this greeting naturally: "${selectedDisplayName
+                ? `Hello, you've reached ${ctx.companyName}. This is ${ctx.assistantName}. How can I help?`
+                : ctx.greeting}". Do not add a long introduction.`,
             },
           });
           return;
@@ -555,6 +560,9 @@ export function attachRealtimePhone(server: HttpServer): void {
 
             // PCMU is 8 kHz, 8-bit: 8 decoded bytes = 1 ms of audio.
             sentAudioMs += Buffer.from(event.delta, "base64").length / 8;
+            if (sentAudioMs === Buffer.from(event.delta, "base64").length / 8) {
+              logger.info({ callId, callSid, itemId, voice: selectedVoice ?? "saved-default" }, "Realtime receptionist audio playback started");
+            }
             twilio.send(
               JSON.stringify({
                 event: "media",
@@ -576,6 +584,7 @@ export function attachRealtimePhone(server: HttpServer): void {
         }
 
         if (event.type === "input_audio_buffer.speech_started") {
+          logger.debug({ callId, callSid, itemId: currentOutputItemId || undefined }, "Caller speech detected; interrupting receptionist playback");
           // Realtime cancels generation; clear any audio Twilio already buffered.
           clearTwilioPlayback();
           return;
@@ -622,16 +631,39 @@ export function attachRealtimePhone(server: HttpServer): void {
               callSid,
               realtimeCode: event.error?.code ?? event.code,
               realtimeType: event.error?.type ?? "error",
+              realtimeParam: event.error?.param ?? null,
+              realtimeMessage: typeof event.error?.message === "string" ? event.error.message.slice(0, 240) : null,
+              eventId: event.event_id ?? null,
             },
             "OpenAI Realtime returned an error",
           );
+          if (isOpen(openai) && !recoveryPromptSent) {
+            recoveryPromptSent = true;
+            sendToOpenAI({
+              type: "response.create",
+              response: {
+                instructions: "Briefly apologise that there was a momentary audio problem, ask the caller to repeat their last point, and say you can take a message if it happens again.",
+              },
+            });
+          }
+          return;
+        }
+
+        if (event.type === "response.done" && event.response?.status && event.response.status !== "completed" && event.response.status !== "cancelled") {
+          logger.warn({
+            callId, callSid, responseStatus: event.response.status,
+            statusDetails: event.response.status_details ?? null,
+            responseId: event.response.id ?? null,
+          }, "Realtime receptionist response did not complete");
         }
       });
 
       openai.on("close", (code) => {
         openaiReady = false;
         if (!finalised && twilio.readyState === WebSocket.OPEN) {
-          logger.warn({ code, callId, callSid }, "OpenAI Realtime connection closed during call");
+          logger.warn({ code, callId, callSid, sentAudioMs: Math.round(sentAudioMs), playedAudioMs: Math.round(playedAudioMs) }, "OpenAI Realtime connection closed during call");
+          // With no OpenAI audio connection, keep the call from lingering in dead air.
+          twilio.close(1011, "Realtime audio connection ended");
         }
       });
 
@@ -660,6 +692,10 @@ export function attachRealtimePhone(server: HttpServer): void {
         companyId = toInt(params.companyId);
         assistantId = toInt(params.assistantId);
         selectedVoice = selectableRealtimeVoices.has(params.voice ?? "") ? params.voice : undefined;
+        selectedDisplayName = typeof params.receptionistName === "string" && /^[\p{L}][\p{L}\p{M} .'-]{0,39}$/u.test(params.receptionistName)
+          ? params.receptionistName.trim()
+          : undefined;
+        logger.info({ callId, callSid, companyId, assistantId, voice: selectedVoice ?? "saved-default", demoDisplayName: selectedDisplayName }, "Twilio realtime stream started");
 
         try {
           await startOpenAI();

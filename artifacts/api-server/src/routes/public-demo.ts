@@ -16,7 +16,9 @@ import {
 
 const router = Router();
 export const PUBLIC_DEMO_VOICES = ["alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse", "marin", "cedar"] as const;
+export const PUBLIC_DEMO_DISPLAY_NAMES = ["Ash", "James", "Sophie", "Emma", "Oliver", "Charlotte"] as const;
 const allowedVoices = new Set<string>(PUBLIC_DEMO_VOICES);
+const allowedDisplayNames = new Set<string>(PUBLIC_DEMO_DISPLAY_NAMES.map((name) => name.toLowerCase()));
 const requestTimes = new Map<string, number[]>();
 const phoneDemoRequests = new Map<string, number[]>();
 const cachedSampleAudio = new Map<string, Buffer>();
@@ -44,6 +46,13 @@ function text(value: unknown, max: number): string {
   return typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, max) : "";
 }
 
+function demoDisplayName(value: unknown, savedBotName: string): string | null {
+  const name = text(value, 40);
+  if (!name) return savedBotName;
+  if (name === savedBotName || allowedDisplayNames.has(name.toLowerCase())) return name;
+  return null;
+}
+
 function jsonContent(body: unknown): string {
   const data = body as { choices?: Array<{ message?: { content?: string | null } }> };
   return data.choices?.[0]?.message?.content || "";
@@ -68,7 +77,9 @@ router.get("/public-demo/sample-audio", async (req, res): Promise<void> => {
   } catch (error) { res.status(503).json({ error: error instanceof Error ? error.message : "Demo receptionist is unavailable." }); return; }
   const voice = text(req.query.voice, 20) || pilot.realtime_voice;
   if (!allowedVoices.has(voice)) { res.status(400).json({ error: "Choose a supported OpenAI Realtime voice." }); return; }
-  const cacheKey = `${pilot.company_id}:${pilot.assistant_id}:${voice}:${pilot.assistant_name}:${pilot.greeting}:${pilot.personality}:${pilot.instructions}`;
+  const receptionistName = demoDisplayName(req.query.receptionistName, pilot.assistant_name);
+  if (!receptionistName) { res.status(400).json({ error: "Choose a listed demo receptionist name or use the saved bot name." }); return; }
+  const cacheKey = `${pilot.company_id}:${pilot.assistant_id}:${voice}:${receptionistName}:${pilot.greeting}:${pilot.personality}:${pilot.instructions}`;
   const cached = cachedSampleAudio.get(cacheKey);
   if (cached) { res.type("audio/wav").setHeader("Cache-Control", "public, max-age=3600").send(cached); return; }
   const key = process.env.OPENAI_API_KEY;
@@ -83,7 +94,7 @@ router.get("/public-demo/sample-audio", async (req, res): Promise<void> => {
         modalities: ["text", "audio"],
         audio: { voice, format: "wav" },
         messages: [
-          { role: "system", content: `Speak the following short dramatized sample as ${pilot.assistant_name}, a ${pilot.personality} receptionist for ${pilot.company_name}. Use natural British English and UK pronunciation as an instruction; the selected voice itself does not guarantee a particular accent. Follow these saved receptionist instructions where relevant: ${pilot.instructions || "Be warm, concise and helpful."} Do not add words.` },
+          { role: "system", content: `Speak the following short dramatized sample as ${receptionistName}, a ${pilot.personality} receptionist for ${pilot.company_name}. Use natural British English and UK pronunciation as an instruction; the selected voice itself does not guarantee a particular accent. Follow these saved receptionist instructions where relevant: ${pilot.instructions || "Be warm, concise and helpful."} Do not add words.` },
           { role: "user", content: `Receptionist: ${pilot.greeting} Caller: I need help with an electrical fault. Receptionist: I can take the details and pass them to the team. Is there any immediate danger, such as smoke, heat or sparking?` },
         ],
       }),
@@ -184,7 +195,12 @@ router.get("/public-demo/options", async (_req, res): Promise<void> => {
       bots: result.rows.map((bot) => ({
         id: bot.id, name: bot.name, defaultVoice: allowedVoices.has(bot.realtime_voice) ? bot.realtime_voice : "marin",
       })),
-      voices: PUBLIC_DEMO_VOICES.map((id) => ({ id, label: id[0].toUpperCase() + id.slice(1) })),
+      displayNames: PUBLIC_DEMO_DISPLAY_NAMES,
+      voices: PUBLIC_DEMO_VOICES.map((id) => ({
+        id,
+        label: `${id[0].toUpperCase() + id.slice(1)} — OpenAI Realtime voice`,
+        description: `Voice ID “${id}”. Preview it with the selected receptionist name. British pronunciation is guided by instructions and is not guaranteed by the voice.`,
+      })),
       languagePreference: "British English · UK pronunciation (guided by instructions; voice accent can vary)",
     });
   } catch {
@@ -241,6 +257,8 @@ router.post("/public-demo/phone-call", async (req, res): Promise<void> => {
     const requestedAssistantId = Number(req.body?.assistantId);
     if (!Number.isInteger(requestedAssistantId) || requestedAssistantId <= 0) { res.status(400).json({ error: "Select a demo receptionist." }); return; }
     const pilot = await loadParsleyPilot(requestedAssistantId);
+    const receptionistName = demoDisplayName(req.body?.receptionistName, pilot.assistant_name);
+    if (!receptionistName) { res.status(400).json({ error: "Choose a listed demo receptionist name or use the saved bot name." }); return; }
     const voice = text(req.body?.voice, 20);
     if (!allowedVoices.has(voice)) { res.status(400).json({ error: "Choose a supported OpenAI Realtime voice." }); return; }
     const demoId = randomUUID();
@@ -248,7 +266,7 @@ router.post("/public-demo/phone-call", async (req, res): Promise<void> => {
     await pool.query(
       `INSERT INTO public_demo_sessions(id,profile,receptionist_name,voice,company_id,assistant_id,result)
        VALUES($1,$2::jsonb,$3,$4,$5,$6,$7::jsonb)`,
-      [demoId, JSON.stringify(profile), pilot.assistant_name, voice, pilot.company_id, pilot.assistant_id, JSON.stringify({ phoneStatus: "queued" })],
+      [demoId, JSON.stringify(profile), receptionistName, voice, pilot.company_id, pilot.assistant_id, JSON.stringify({ phoneStatus: "queued" })],
     );
     const answerUrl = new URL(`/api/public-demo/phone-answer?demoId=${encodeURIComponent(demoId)}`, base);
     const statusUrl = new URL(`/api/public-demo/phone-status?demoId=${encodeURIComponent(demoId)}`, base);
@@ -278,8 +296,8 @@ router.post("/public-demo/phone-call", async (req, res): Promise<void> => {
     ]);
     res.status(202).json({
       demoId, status: call.status || "queued",
-      message: `Call requested for ${pilot.assistant_name} using OpenAI Realtime voice ${voice}. Answer the incoming call to begin.`,
-      assistantId: pilot.assistant_id, assistantName: pilot.assistant_name, voice,
+      message: `Call requested for ${receptionistName} using OpenAI Realtime voice ${voice}. Answer the incoming call to begin.`,
+      assistantId: pilot.assistant_id, assistantName: receptionistName, voice, receptionistName,
     });
   } catch (error) {
     logger.warn({ err: error }, "Instant phone demo request failed");
@@ -357,7 +375,7 @@ router.post("/public-demo/phone-answer", async (req, res): Promise<void> => {
     await client.query("COMMIT");
     res.type("text/xml").send(
       `<?xml version="1.0" encoding="UTF-8"?><Response><Connect><Stream url="${xml(streamUrl)}">` +
-      `<Parameter name="callId" value="${callId}"/><Parameter name="companyId" value="${companyId}"/><Parameter name="assistantId" value="${assistantId}"/><Parameter name="voice" value="${xml(voice)}"/>` +
+      `<Parameter name="callId" value="${callId}"/><Parameter name="companyId" value="${companyId}"/><Parameter name="assistantId" value="${assistantId}"/><Parameter name="voice" value="${xml(voice)}"/><Parameter name="receptionistName" value="${xml(assistantName)}"/>` +
       `</Stream></Connect></Response>`,
     );
   } catch (error) {
@@ -487,6 +505,7 @@ router.post("/public-demo/realtime-session", async (req, res): Promise<void> => 
   const profile = req.body?.profile;
   const requestedAssistantId = Number(req.body?.assistantId);
   const selectedVoice = text(req.body?.voice, 20);
+  const requestedName = text(req.body?.receptionistName, 40);
   const website = text((profile as Record<string, unknown> | null)?.website, 2000);
   if (!profile || typeof profile !== "object" || !website || req.body?.consent !== true || !Number.isInteger(requestedAssistantId) || requestedAssistantId <= 0 || !allowedVoices.has(selectedVoice)) {
     res.status(400).json({ error: "A reviewed profile, consent, Parsley website and supported voice are required." });
@@ -499,6 +518,11 @@ router.post("/public-demo/realtime-session", async (req, res): Promise<void> => 
   let pilot: Awaited<ReturnType<typeof loadParsleyPilot>>;
   try {
     pilot = await loadParsleyPilot(Number.isInteger(requestedAssistantId) && requestedAssistantId > 0 ? requestedAssistantId : undefined);
+    const receptionistName = demoDisplayName(requestedName, pilot.assistant_name);
+    if (!receptionistName) {
+      res.status(400).json({ error: "Choose a listed demo receptionist name or use the saved bot name." });
+      return;
+    }
     const host = new URL(website).hostname.toLowerCase().replace(/^www\./, "");
     if (host !== "parsleyelectrical.co.uk") {
       res.status(400).json({ error: "This live pilot demo is currently configured for Parsley Electrical's reviewed website only." });
@@ -511,10 +535,11 @@ router.post("/public-demo/realtime-session", async (req, res): Promise<void> => 
   const demoId = randomUUID();
   const callSid = `DEMO-${demoId}`;
   const voice = selectedVoice;
+  const receptionistName = demoDisplayName(requestedName, pilot.assistant_name)!;
   const facts = text(JSON.stringify({ savedBusinessTraining: pilot.training, scannedWebsiteProfile: req.body?.websiteFacts ?? profile }), 12000);
   const businessName = pilot.company_name;
   const instructions = [
-    `You are ${pilot.assistant_name}, a warm, concise, natural British English receptionist for ${businessName}. You are speaking aloud in a live phone-style conversation.`,
+    `You are ${receptionistName}, a warm, concise, natural British English receptionist for ${businessName}. You are speaking aloud in a live phone-style conversation.`,
     `Use the saved receptionist greeting and style: ${pilot.greeting} ${pilot.personality}. ${pilot.instructions || ""}`,
     "Greet the caller as a helpful employee. Speak conversationally, listen carefully, allow interruptions, and answer questions only from saved business training or the reviewed website profile below. Prefer saved training when sources conflict. If unsure, say so and offer to pass the question to the team.",
     "Naturally collect caller name, callback number, work needed, site address/postcode, urgency and availability. Do not invent prices, services, appointments or attendance promises.",
@@ -608,7 +633,7 @@ router.post("/public-demo/realtime-session", async (req, res): Promise<void> => 
         `INSERT INTO calls(caller_name,caller_phone,assistant_name,status,outcome,notes,transcript,company_id)
          VALUES ('Unknown caller','', $1,'unresolved','New live demo enquiry','Live Parsley pilot call','[]'::jsonb,$2)
          RETURNING id`,
-        [pilot.assistant_name, pilot.company_id],
+        [receptionistName, pilot.company_id],
       );
       callId = call.rows[0].id;
       await client.query(
@@ -619,7 +644,7 @@ router.post("/public-demo/realtime-session", async (req, res): Promise<void> => 
       await client.query(
         `INSERT INTO public_demo_sessions(id,profile,receptionist_name,voice,company_id,assistant_id,call_sid,call_id,created_at)
          VALUES ($1,$2::jsonb,$3,$4,$5,$6,$7,$8,now())`,
-        [demoId, JSON.stringify(profile), pilot.assistant_name, voice, pilot.company_id, pilot.assistant_id, callSid, callId],
+        [demoId, JSON.stringify(profile), receptionistName, voice, pilot.company_id, pilot.assistant_id, callSid, callId],
       );
       await client.query("COMMIT");
     } catch (error) {
@@ -628,7 +653,7 @@ router.post("/public-demo/realtime-session", async (req, res): Promise<void> => 
     } finally {
       client.release();
     }
-    res.json({ clientSecret, demoId, receptionistName: pilot.assistant_name, assistantId: pilot.assistant_id, voice, businessName, model });
+    res.json({ clientSecret, demoId, receptionistName, assistantId: pilot.assistant_id, voice, businessName, model });
   } catch (error) {
     logger.error({ err: error }, "Public demo Realtime session creation failed");
     res.status(503).json({ error: error instanceof Error && error.message.includes("OPENAI_API_KEY") ? error.message : "The live demo session could not be started." });
@@ -712,7 +737,7 @@ router.post("/public-demo/finalize", async (req, res): Promise<void> => {
       const caller = line.startsWith("Caller:");
       return {
         speaker: caller ? "caller" : "assistant",
-        text: line.replace(/^(Caller|Maya):\s*/, "").slice(0, 5000),
+      text: line.replace(/^[^:]{1,80}:\s*/, "").slice(0, 5000),
         timestamp: index,
       };
     }).filter((line) => line.text);
