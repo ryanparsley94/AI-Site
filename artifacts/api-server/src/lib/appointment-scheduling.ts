@@ -208,14 +208,10 @@ export async function getAvailableAppointmentSlots(
   const timeZone = await companyTimeZone(companyId);
   const hours = await bookingHours(companyId);
   if (!hours.length) return [];
-  const todayHours = hours.find((row) => row.day_of_week === weekdayFor(new Date(), timeZone));
-  if (!todayHours) return [];
-  const now = new Date();
-  const localTime = new Intl.DateTimeFormat("en-GB", {
-    timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23",
-  }).format(now);
-  const currentMinute = timeMinutes(localTime);
-  if (currentMinute < timeMinutes(todayHours.open_time) || currentMinute >= timeMinutes(todayHours.close_time)) return [];
+  // The receptionist can take bookings 24/7. Booking hours define when
+  // appointments may occur, not when callers are allowed to book them.
+  // buildCandidateSlots() already skips past times and rolls forward across
+  // closed days, so always offer the next future bookable slots.
   const candidates = buildCandidateSlots(timeZone, hours);
   if (!candidates.length) return [];
 
