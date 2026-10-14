@@ -17,7 +17,7 @@ import {
 } from '@expo-google-fonts/inter';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { setBaseUrl } from '@workspace/api-client-react';
+import { setBaseUrl, setAuthTokenGetter } from '@workspace/api-client-react';
 import { MobileAuthGate } from '../components/auth-gate';
 import { useColors } from '@/hooks/useColors';
 
@@ -29,6 +29,7 @@ SplashScreen.preventAutoHideAsync();
 if (process.env.EXPO_PUBLIC_DOMAIN) {
   setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
 }
+setAuthTokenGetter(() => AsyncStorage.getItem('crewon-mobile-auth-token'));
 
 // Wire React Query's online manager to NetInfo so queries pause/resume
 // automatically when connectivity changes.
