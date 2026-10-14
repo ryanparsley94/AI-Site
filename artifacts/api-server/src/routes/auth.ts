@@ -23,9 +23,9 @@ router.post("/auth/login", (req, res): void => {
     return;
   }
 
-  const ok = issueSessionIfValid(password, req, res);
-  if (ok) {
-    res.json({ ok: true });
+  const mobileToken = issueSessionIfValid(password, req, res);
+  if (mobileToken) {
+    res.json({ ok: true, token: mobileToken });
   } else {
     res.status(401).json({ error: "Incorrect password" });
   }
