@@ -5,6 +5,7 @@ import { Link, useLocation } from "wouter";
 import { BrandLogo } from "@/components/brand-logo";
 import Sidebar from "@/components/layout/sidebar";
 import { AuthGate } from "@/components/auth-gate";
+import VoiceAssistant from "@/components/layout/voice-assistant";
 
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -56,6 +57,7 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
           </div>
         </nav>
       </div>
+      <VoiceAssistant />
     </div>
   );
 }
