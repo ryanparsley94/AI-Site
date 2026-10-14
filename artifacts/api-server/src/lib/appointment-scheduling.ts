@@ -1,5 +1,5 @@
 import { pool } from "@workspace/db";
-import { createCalendarEvent } from "./google-calendar";
+import { createCalendarEvent, getCalendarBusyIntervals } from "./google-calendar";
 import { logger } from "./logger";
 
 export type AppointmentSlot = {
@@ -213,12 +213,22 @@ export async function getAvailableAppointmentSlots(
   const windowEnd = new Date(
     new Date(candidates[candidates.length - 1].iso).getTime() + CONFLICT_WINDOW_MS,
   );
-  const booked = await occupiedTimes(companyId, windowStart, windowEnd);
+  const [booked, calendarBusy] = await Promise.all([
+    occupiedTimes(companyId, windowStart, windowEnd),
+    getCalendarBusyIntervals(windowStart, windowEnd),
+  ]);
 
   return candidates
     .filter((slot) => {
       const t = new Date(slot.iso).getTime();
-      return !booked.some((existing) => Math.abs(existing - t) < CONFLICT_WINDOW_MS);
+      const slotEnd = t + SLOT_DURATION_MINUTES * 60 * 1000;
+      const clashesWithCrewonJob = booked.some(
+        (existing) => Math.abs(existing - t) < CONFLICT_WINDOW_MS,
+      );
+      const clashesWithGoogleCalendar = calendarBusy.some(
+        (event) => t < event.endMs && slotEnd > event.startMs,
+      );
+      return !clashesWithCrewonJob && !clashesWithGoogleCalendar;
     })
     .slice(0, Math.max(1, Math.min(limit, 10)));
 }
