@@ -174,6 +174,21 @@ CALL ENDING
 Before ending, briefly confirm the important details you captured and what will happen next. Never promise that a human will call at an exact time unless that has been explicitly confirmed.`;
 }
 
+function openingGreeting(ctx: AssistantContext, displayName?: string): string {
+  if (displayName) {
+    return `Hello, you've reached ${ctx.companyName}. This is ${ctx.assistantName}. How can I help?`;
+  }
+
+  const saved = ctx.greeting?.trim();
+  if (!saved) return `Hello, you've reached ${ctx.companyName}. How can I help?`;
+
+  const mentionsCompany = saved.toLocaleLowerCase("en-GB")
+    .includes(ctx.companyName.toLocaleLowerCase("en-GB"));
+  return mentionsCompany
+    ? saved
+    : `Thanks for calling ${ctx.companyName}. ${saved}`;
+}
+
 function isOpen(ws: WebSocket | null): ws is WebSocket {
   return !!ws && ws.readyState === WebSocket.OPEN;
 }
@@ -540,9 +555,7 @@ export function attachRealtimePhone(server: HttpServer): void {
           sendToOpenAI({
             type: "response.create",
             response: {
-              instructions: `Open the call now. Use this greeting naturally: "${selectedDisplayName
-                ? `Hello, you've reached ${ctx.companyName}. This is ${ctx.assistantName}. How can I help?`
-                : ctx.greeting}". Do not add a long introduction.`,
+              instructions: `Open the call now. Say this greeting naturally and immediately: "${openingGreeting(ctx, selectedDisplayName)}". Do not add a long introduction before or after it.`,
             },
           });
           return;
