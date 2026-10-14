@@ -3,10 +3,10 @@ import {
   useGetCompany,
   useGetDashboardSummary,
   useGetPilotReadiness,
-  useListJobs,
   useListAssistants,
   useListCalls,
   useListInvoices,
+  useListJobs,
   useListQuotes,
   useListTasks,
 } from "@workspace/api-client-react";
@@ -17,31 +17,22 @@ import {
   Bot,
   CalendarDays,
   Check,
+  ChevronRight,
   CircleAlert,
   Clock3,
   FileText,
   Mail,
-  MapPin,
   Phone,
   PhoneMissed,
   Plus,
   ReceiptText,
   Settings2,
+  ShieldCheck,
+  Sparkles,
   Wrench,
 } from "lucide-react";
-import { format, isToday, isTomorrow, parseISO, startOfDay } from "date-fns";
+import { format, isToday, parseISO, startOfDay } from "date-fns";
 import { formatCurrency } from "@/lib/utils";
-import { OperationsMap } from "@/components/operations-map";
-
-type FeedItem = {
-  id: string;
-  href: string;
-  title: string;
-  detail: string;
-  at: Date;
-  kind: "job" | "call" | "task";
-  state?: string;
-};
 
 type PilotReadiness = {
   phoneConfigured: boolean;
@@ -54,7 +45,17 @@ type PilotReadiness = {
   emailRepliesSent: number;
 };
 
-const dayFormatter = new Intl.DateTimeFormat("en-GB", {
+type AttentionItem = {
+  id: string;
+  href: string;
+  title: string;
+  detail: string;
+  label: string;
+  tone: "critical" | "warning" | "neutral";
+  icon: "call" | "quote" | "invoice" | "setup";
+};
+
+const londonDate = new Intl.DateTimeFormat("en-GB", {
   weekday: "long",
   day: "numeric",
   month: "long",
@@ -62,432 +63,582 @@ const dayFormatter = new Intl.DateTimeFormat("en-GB", {
   timeZone: "Europe/London",
 });
 
-function dateLabel(value: Date) {
-  if (isToday(value)) return "Today";
-  if (isTomorrow(value)) return "Tomorrow";
-  return format(value, "EEE d MMM");
+function StatusDot({ active }: { active: boolean }) {
+  return <span className={`h-2 w-2 rounded-full ${active ? "bg-primary shadow-[0_0_14px_rgba(54,198,213,.8)]" : "bg-muted-foreground/45"}`} />;
 }
 
-function SectionHeading({ eyebrow, title, href, linkText }: {
-  eyebrow?: string;
-  title: string;
-  href?: string;
-  linkText?: string;
+function Metric({
+  label,
+  value,
+  meta,
+  href,
+  alert = false,
+}: {
+  label: string;
+  value: string;
+  meta: string;
+  href: string;
+  alert?: boolean;
 }) {
   return (
-    <div className="flex items-end justify-between gap-3">
+    <Link
+      href={href}
+      className="group min-w-0 border-r border-white/8 px-4 py-4 last:border-r-0 hover:bg-white/[.025] sm:px-5"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[10px] font-semibold uppercase tracking-[.18em] text-muted-foreground">{label}</p>
+        <ArrowUpRight size={13} className="text-muted-foreground/50 transition-colors group-hover:text-primary" />
+      </div>
+      <p className={`mt-2 font-mono text-2xl font-semibold tracking-[-.04em] ${alert ? "text-amber-300" : "text-foreground"}`}>
+        {value}
+      </p>
+      <p className="mt-1 truncate text-xs text-muted-foreground">{meta}</p>
+    </Link>
+  );
+}
+
+function PanelTitle({
+  kicker,
+  title,
+  href,
+  action,
+}: {
+  kicker: string;
+  title: string;
+  href?: string;
+  action?: string;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-4">
       <div>
-        {eyebrow && <p className="mb-1 text-[10px] font-semibold uppercase tracking-[.16em] text-primary">{eyebrow}</p>}
-        <h2 className="text-base font-semibold tracking-tight text-foreground">{title}</h2>
+        <p className="text-[10px] font-semibold uppercase tracking-[.2em] text-primary">{kicker}</p>
+        <h2 className="mt-1 text-lg font-semibold tracking-[-.025em] text-foreground">{title}</h2>
       </div>
       {href && (
-        <Link href={href} data-testid={`link-${linkText?.toLowerCase().replaceAll(" ", "-") || "view-all"}`}
-          className="inline-flex items-center gap-1 whitespace-nowrap text-xs font-medium text-muted-foreground transition-colors hover:text-primary">
-          {linkText || "View all"} <ArrowUpRight size={13} />
+        <Link href={href} className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-primary">
+          {action || "Open"} <ArrowUpRight size={12} />
         </Link>
       )}
     </div>
   );
 }
 
-function LoadingLines({ count = 3 }: { count?: number }) {
-  return <div className="space-y-3 py-2" aria-label="Loading">
-    {Array.from({ length: count }, (_, index) => <div key={index} className="h-10 animate-pulse rounded-sm bg-muted/70" />)}
-  </div>;
-}
-
-function ValueRow({ label, amount, note, href }: { label: string; amount: number | null; note?: string; href: string }) {
-  return <Link href={href} data-testid={`link-finance-${label.toLowerCase().replaceAll(" ", "-")}`}
-    className="group flex items-center justify-between gap-4 border-t border-border/70 py-3 first:border-0">
-    <div className="min-w-0">
-      <p className="text-sm font-medium text-foreground">{label}</p>
-      {note && <p className="mt-0.5 text-xs text-muted-foreground">{note}</p>}
+function LoadingRows({ count = 3 }: { count?: number }) {
+  return (
+    <div className="divide-y divide-border/70">
+      {Array.from({ length: count }, (_, index) => (
+        <div key={index} className="py-4">
+          <div className="h-3 w-2/5 animate-pulse rounded bg-muted" />
+          <div className="mt-2 h-2.5 w-3/5 animate-pulse rounded bg-muted/70" />
+        </div>
+      ))}
     </div>
-    <span className="shrink-0 font-mono text-sm font-semibold tabular-nums text-foreground group-hover:text-primary">
-      {amount === null ? "—" : formatCurrency(amount)}
-    </span>
-  </Link>;
+  );
 }
 
 export default function Dashboard() {
   const companyQuery = useGetCompany();
   const summaryQuery = useGetDashboardSummary();
-  // The current route returns configuration and observed-activity fields; its
-  // generated schema is older, so keep this response aligned to the handler.
   const readinessQuery = useGetPilotReadiness<PilotReadiness>();
-  // Home and Scheduler share the same live job collection so saved schedule
-  // changes invalidate and appear consistently in both views.
-  const jobsQuery = useListJobs();
   const assistantsQuery = useListAssistants();
+  const callsQuery = useListCalls({ limit: 50 });
+  const jobsQuery = useListJobs();
   const invoicesQuery = useListInvoices();
   const quotesQuery = useListQuotes();
-  const callsQuery = useListCalls({ limit: 50 });
   const tasksQuery = useListTasks();
 
   const company = companyQuery.data;
   const summary = summaryQuery.data;
   const readiness = readinessQuery.data;
-  const jobs = jobsQuery.data ?? [];
-  const todayJobs = jobs.filter((job) => isToday(new Date(job.scheduledAt)) && job.status !== "cancelled")
-    .sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt));
   const assistants = assistantsQuery.data ?? [];
+  const calls = callsQuery.data ?? [];
+  const jobs = jobsQuery.data ?? [];
   const invoices = invoicesQuery.data ?? [];
   const quotes = quotesQuery.data ?? [];
-  const calls = callsQuery.data ?? [];
   const tasks = tasksQuery.data ?? [];
+
   const activePhoneAssistant = assistants.some((assistant) => assistant.active && assistant.type === "phone");
-  const attentionItems = useMemo(() => {
-    const missedCalls = calls
+  const phoneReady = readiness?.phoneConfigured === true && activePhoneAssistant;
+  const emailReady = readiness?.emailInboundConfigured === true && readiness?.emailOutboundConfigured === true;
+
+  const todayJobs = useMemo(
+    () =>
+      jobs
+        .filter((job) => isToday(new Date(job.scheduledAt)) && job.status !== "cancelled")
+        .sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt)),
+    [jobs],
+  );
+
+  const upcomingJobs = useMemo(
+    () =>
+      jobs
+        .filter((job) => new Date(job.scheduledAt) >= startOfDay(new Date()) && job.status !== "cancelled" && job.status !== "completed")
+        .sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt))
+        .slice(0, 6),
+    [jobs],
+  );
+
+  const overdueInvoices = useMemo(
+    () => invoices.filter((invoice) => invoice.status === "sent" && parseISO(invoice.dueDate) < startOfDay(new Date())),
+    [invoices],
+  );
+
+  const outstanding = invoices
+    .filter((invoice) => invoice.status === "sent")
+    .reduce((total, invoice) => total + invoice.total, 0);
+
+  const pendingTasks = tasks.filter((task) => task.status === "pending");
+  const highPriorityTasks = pendingTasks.filter((task) => task.priority === "high");
+  const sentQuotes = quotes.filter((quote) => quote.status === "reviewed" && Boolean(quote.sharedAt));
+  const acceptedQuotes = quotes.filter((quote) => quote.status === "accepted");
+
+  const attentionItems = useMemo<AttentionItem[]>(() => {
+    const items: AttentionItem[] = [];
+
+    calls
       .filter((call) => (call.status === "missed" || call.status === "unresolved") && call.reviewed !== true)
       .slice(0, 4)
-      .map((call) => ({
-        id: `call-${call.id}`,
-        href: `/calls/${call.id}`,
-        title: call.status === "missed" ? `Missed call · ${call.callerName || call.callerPhone}` : `Follow up · ${call.callerName || call.callerPhone}`,
-        detail: call.outcome || call.notes || "Enquiry needs a review",
-        kind: "call" as const,
-        date: new Date(call.createdAt),
-        badge: call.status === "missed" ? "Missed call" : "Unresolved",
-      }));
-    const waitingQuotes = quotes
-      .filter((quote) => quote.status === "reviewed" && Boolean(quote.sharedAt))
-      .slice(0, 4)
-      .map((quote) => ({
-        id: `quote-${quote.id}`,
-        href: "/quotes",
-        title: quote.title,
-        detail: `Sent ${format(new Date(quote.sharedAt as string), "d MMM")}`,
-        kind: "quote" as const,
-        date: new Date(quote.sharedAt as string),
-        badge: "Awaiting response",
-      }));
-    const overdueInvoices = invoices
-      .filter((invoice) => invoice.status === "sent" && parseISO(invoice.dueDate) < startOfDay(new Date()))
-      .slice(0, 4)
-      .map((invoice) => ({
+      .forEach((call) => {
+        items.push({
+          id: `call-${call.id}`,
+          href: `/calls/${call.id}`,
+          title: call.callerName || call.callerPhone,
+          detail: call.outcome || call.notes || "Enquiry needs review",
+          label: call.status === "missed" ? "Missed call" : "Unresolved",
+          tone: "warning",
+          icon: "call",
+        });
+      });
+
+    overdueInvoices.slice(0, 3).forEach((invoice) => {
+      items.push({
         id: `invoice-${invoice.id}`,
         href: "/invoices",
         title: `${invoice.invoiceNumber} · ${invoice.clientName || "Customer"}`,
         detail: `${formatCurrency(invoice.total)} · due ${format(parseISO(invoice.dueDate), "d MMM")}`,
-        kind: "invoice" as const,
-        date: parseISO(invoice.dueDate),
-        badge: "Overdue",
-      }));
-    const setupItems = [
-      ...(readiness && !activePhoneAssistant ? [{ id: "assistant", title: "Activate a phone assistant", detail: "No active phone assistant is configured." }] : []),
-      ...(readiness && !readiness.phoneConfigured ? [{ id: "phone", title: "Connect the phone line", detail: "Phone credentials or public callback URL are missing." }] : []),
-      ...(readiness && !readiness.emailInboundConfigured ? [{ id: "email-inbound", title: "Set up inbound email", detail: "Inbound email is not configured." }] : []),
-      ...(readiness && !readiness.emailOutboundConfigured ? [{ id: "email-outbound", title: "Set up outbound email", detail: "Outbound email is not configured." }] : []),
-      ...(readiness && !readiness.ownerEmailConfigured ? [{ id: "owner-email", title: "Add the business email", detail: "No business contact email is configured." }] : []),
-    ].slice(0, 3).map((item) => ({
-      id: `setup-${item.id}`,
-      href: "/business-setup",
-      title: item.title,
-      detail: item.detail,
-      kind: "setup" as const,
-      date: null,
-      badge: "Setup blocker",
-    }));
-    return [...missedCalls, ...waitingQuotes, ...overdueInvoices, ...setupItems];
-  }, [calls, quotes, invoices, readiness, activePhoneAssistant]);
+        label: "Overdue",
+        tone: "critical",
+        icon: "invoice",
+      });
+    });
 
-  const feed = useMemo(() => {
-    const jobItems: FeedItem[] = jobs
-      .filter((job) => job.status !== "cancelled" && job.status !== "completed")
-      .map((job) => ({
-        id: `job-${job.id}`,
-        href: `/jobs/${job.id}`,
-        title: job.title,
-        detail: `${job.contactName}${job.address ? ` · ${job.address}` : ""}`,
-        at: new Date(job.scheduledAt),
-        kind: "job",
-        state: job.status.replaceAll("_", " "),
-      }));
-    const todayStart = startOfDay(new Date());
-    const callItems: FeedItem[] = calls
-      .filter((call) => isToday(new Date(call.createdAt)))
-      .slice(0, 8)
-      .map((call) => ({
-        id: `call-${call.id}`,
-        href: `/calls/${call.id}`,
-        title: call.status === "missed" ? `Missed call · ${call.callerName || call.callerPhone}` : `Enquiry · ${call.callerName || call.callerPhone}`,
-        detail: call.outcome || call.notes || call.status,
-        at: new Date(call.createdAt),
-        kind: "call",
-        state: call.status,
-      }));
-    const taskItems: FeedItem[] = tasks
-      .filter((task) => task.status === "pending" && task.dueDate && new Date(task.dueDate) >= todayStart && isToday(new Date(task.dueDate)))
-      .map((task) => ({
-        id: `task-${task.id}`,
-        href: "/tasks",
-        title: task.title,
-        detail: `${task.priority} priority · due today`,
-        at: new Date(task.dueDate as string),
-        kind: "task",
-        state: "To do",
-      }));
-    return [...jobItems, ...callItems, ...taskItems]
-      .sort((a, b) => a.at.getTime() - b.at.getTime())
-      .slice(0, 12);
-  }, [jobs, calls, tasks]);
+    sentQuotes
+      .filter((quote) => quote.status !== "accepted")
+      .slice(0, 3)
+      .forEach((quote) => {
+        items.push({
+          id: `quote-${quote.id}`,
+          href: "/quotes",
+          title: quote.title,
+          detail: quote.sharedAt ? `Sent ${format(new Date(quote.sharedAt), "d MMM")}` : "Sent to customer",
+          label: "Awaiting reply",
+          tone: "neutral",
+          icon: "quote",
+        });
+      });
 
-  const sentQuotes = quotes.filter((quote) => quote.status === "reviewed" && Boolean(quote.sharedAt));
-  const acceptedQuotes = quotes.filter((quote) => quote.status === "accepted");
-  const openQuotes = quotes.filter((quote) => quote.status !== "accepted");
-  const paidThisMonth = summary?.invoiceStats?.paidThisMonth ?? null;
-  const outstanding = invoicesQuery.isLoading || invoicesQuery.isError
-    ? null
-    : invoices.filter((invoice) => invoice.status === "sent").reduce((total, invoice) => total + invoice.total, 0);
-  const hasPhoneConnection = readiness?.phoneConfigured === true;
-  const attentionSourceError = callsQuery.isError || quotesQuery.isError || invoicesQuery.isError || readinessQuery.isError || assistantsQuery.isError;
-  const setupBlockers = [
-    ...(readiness && !activePhoneAssistant ? ["Active phone assistant"] : []),
-    ...(readiness && !readiness.phoneConfigured ? ["Phone connection"] : []),
-    ...(readiness && !readiness.emailInboundConfigured ? ["Inbound email"] : []),
-    ...(readiness && !readiness.emailOutboundConfigured ? ["Outbound email"] : []),
-    ...(readiness && !readiness.ownerEmailConfigured ? ["Business email"] : []),
-  ];
+    if (!phoneReady) {
+      items.push({
+        id: "setup-phone",
+        href: "/business-setup",
+        title: activePhoneAssistant ? "Finish phone connection" : "Activate the AI receptionist",
+        detail: activePhoneAssistant ? "The assistant exists but the phone connection is incomplete." : "No active phone assistant is configured.",
+        label: "Setup",
+        tone: "warning",
+        icon: "setup",
+      });
+    }
+
+    if (!emailReady) {
+      items.push({
+        id: "setup-email",
+        href: "/business-setup",
+        title: "Finish email connection",
+        detail: "Inbound and outbound email are not both confirmed.",
+        label: "Setup",
+        tone: "neutral",
+        icon: "setup",
+      });
+    }
+
+    return items.slice(0, 8);
+  }, [calls, overdueInvoices, sentQuotes, activePhoneAssistant, phoneReady, emailReady]);
+
+  const anyError =
+    companyQuery.isError ||
+    summaryQuery.isError ||
+    readinessQuery.isError ||
+    assistantsQuery.isError ||
+    callsQuery.isError ||
+    jobsQuery.isError ||
+    invoicesQuery.isError ||
+    quotesQuery.isError ||
+    tasksQuery.isError;
+
+  const retryAll = () => {
+    void companyQuery.refetch();
+    void summaryQuery.refetch();
+    void readinessQuery.refetch();
+    void assistantsQuery.refetch();
+    void callsQuery.refetch();
+    void jobsQuery.refetch();
+    void invoicesQuery.refetch();
+    void quotesQuery.refetch();
+    void tasksQuery.refetch();
+  };
 
   return (
-    <main className="crew-dashboard min-h-[100dvh] bg-background px-4 pb-10 pt-5 sm:px-6 lg:px-8" data-testid="page-dashboard">
-      <div className="mx-auto max-w-[1440px]">
-        <header className="mb-6 flex flex-col gap-4 border-b border-border/80 pb-5 xl:flex-row xl:items-center xl:justify-between">
-          <div className="min-w-0">
-            <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-              <span className="font-semibold uppercase tracking-[.13em] text-primary">Operations</span>
-              <span className="text-border">/</span>
-              <span data-testid="text-workspace-name">{companyQuery.isLoading ? "Loading workspace…" : company?.name || "Business workspace"}</span>
-              <span className="hidden text-border sm:inline">/</span>
-              <span data-testid="text-dashboard-date">{dayFormatter.format(new Date())}</span>
+    <main className="crew-control-centre min-h-[100dvh] bg-background" data-testid="page-dashboard">
+      <div className="border-b border-white/8 bg-[radial-gradient(circle_at_85%_-20%,rgba(54,198,213,.12),transparent_32%)]">
+        <div className="mx-auto max-w-[1500px] px-4 pb-6 pt-5 sm:px-6 lg:px-8">
+          <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-mono text-[10px] font-semibold uppercase tracking-[.2em] text-primary">CREWON // CONTROL CENTRE</span>
+                <span className="text-border">/</span>
+                <span className="text-xs text-muted-foreground">{companyQuery.isLoading ? "Loading workspace…" : company?.name || "Business workspace"}</span>
+              </div>
+              <h1 className="mt-3 font-serif text-3xl font-semibold tracking-[-.055em] text-foreground sm:text-[2.3rem]">
+                Run the business from here.
+              </h1>
+              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
+                <span>{londonDate.format(new Date())}</span>
+                <span className="hidden h-3 w-px bg-border sm:block" />
+                <span className="inline-flex items-center gap-2">
+                  <StatusDot active={phoneReady} />
+                  {phoneReady ? "AI receptionist configured" : "AI receptionist needs attention"}
+                </span>
+                <span className="inline-flex items-center gap-2">
+                  <StatusDot active={emailReady} />
+                  {emailReady ? "Email connected" : "Email setup incomplete"}
+                </span>
+              </div>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-[1.75rem] font-semibold leading-tight tracking-[-.04em] text-foreground sm:text-3xl">Your working day</h1>
-              <span data-testid="status-receptionist" className={`inline-flex items-center gap-2 rounded-sm border px-2.5 py-1 text-[11px] font-medium ${
-                hasPhoneConnection && activePhoneAssistant ? "border-primary/35 bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground"
-              }`}>
-                <span className={`h-1.5 w-1.5 rounded-full ${hasPhoneConnection && activePhoneAssistant ? "bg-primary" : activePhoneAssistant ? "bg-amber-400" : "bg-muted-foreground/60"}`} />
-                {readinessQuery.isLoading || assistantsQuery.isLoading ? "Checking receptionist" : readinessQuery.isError || assistantsQuery.isError ? "Receptionist status unavailable" : activePhoneAssistant && hasPhoneConnection ? "Receptionist configured · live test unverified" : activePhoneAssistant ? "Receptionist active · phone setup incomplete" : "Receptionist not configured"}
-              </span>
-            </div>
-            <p className="mt-1.5 text-sm text-muted-foreground">Calls, work booked and money due — in one place.</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Link href="/jobs" data-testid="button-schedule-job" className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90">
-              <Plus size={16} /> Schedule a job
-            </Link>
-            <Link href="/calls" data-testid="button-review-enquiries" className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground transition-colors hover:border-primary/50">
-              <Phone size={15} /> Enquiries
-            </Link>
-            <Link href="/quotes" data-testid="button-new-quote" className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground transition-colors hover:border-primary/50">
-              <FileText size={15} /> New quote
-            </Link>
-            <Link href="/invoices" data-testid="button-new-invoice" className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground transition-colors hover:border-primary/50">
-              <ReceiptText size={15} /> New invoice
-            </Link>
-            <Link href="/email-inbox" data-testid="button-open-email" className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground transition-colors hover:border-primary/50">
-              <Mail size={15} /> Email inbox
-            </Link>
-          </div>
-        </header>
 
-        {(companyQuery.isError || summaryQuery.isError || jobsQuery.isError || callsQuery.isError || tasksQuery.isError || invoicesQuery.isError || quotesQuery.isError || readinessQuery.isError || assistantsQuery.isError) && (
-          <div className="mb-5 flex flex-wrap items-center gap-x-2 gap-y-1 border-l-2 border-amber-400 bg-card px-4 py-3 text-xs text-muted-foreground" data-testid="status-dashboard-partial-error">
-            <CircleAlert size={15} className="text-amber-400" />
-            Some operational data could not be loaded. Values below are shown only where the service returned them.
-            <button className="font-semibold text-primary hover:underline" onClick={() => {
-              void companyQuery.refetch(); void summaryQuery.refetch(); void jobsQuery.refetch(); void callsQuery.refetch();
-              void tasksQuery.refetch(); void invoicesQuery.refetch(); void quotesQuery.refetch(); void readinessQuery.refetch(); void assistantsQuery.refetch();
-            }} data-testid="button-retry-dashboard">Retry</button>
+            <div className="flex flex-wrap gap-2">
+              <Link href="/jobs" className="inline-flex min-h-11 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90">
+                <Plus size={16} /> New job
+              </Link>
+              <Link href="/quotes" className="inline-flex min-h-11 items-center gap-2 rounded-md border border-border bg-card/60 px-4 text-sm font-medium hover:border-primary/50">
+                <FileText size={15} /> Quote
+              </Link>
+              <Link href="/invoices" className="inline-flex min-h-11 items-center gap-2 rounded-md border border-border bg-card/60 px-4 text-sm font-medium hover:border-primary/50">
+                <ReceiptText size={15} /> Invoice
+              </Link>
+              <Link href="/calls" className="inline-flex min-h-11 items-center gap-2 rounded-md border border-border bg-card/60 px-4 text-sm font-medium hover:border-primary/50">
+                <Phone size={15} /> Enquiries
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mx-auto max-w-[1500px] px-4 pb-12 sm:px-6 lg:px-8">
+        <section className="-mt-px grid overflow-hidden border border-border bg-card/80 shadow-[0_18px_60px_rgba(0,0,0,.12)] sm:grid-cols-2 xl:grid-cols-4">
+          <Metric
+            label="Calls today"
+            value={summaryQuery.isLoading ? "—" : String(summary?.callsToday ?? 0)}
+            meta={summary?.missedCallsToday ? `${summary.missedCallsToday} missed` : "No missed calls recorded"}
+            href="/calls"
+            alert={Boolean(summary?.missedCallsToday)}
+          />
+          <Metric
+            label="Jobs today"
+            value={jobsQuery.isLoading ? "—" : String(todayJobs.length)}
+            meta={summary ? `${summary.jobsThisWeek} booked this week` : "Weekly total unavailable"}
+            href="/schedule"
+          />
+          <Metric
+            label="Cash outstanding"
+            value={invoicesQuery.isLoading ? "—" : formatCurrency(outstanding)}
+            meta={overdueInvoices.length ? `${overdueInvoices.length} overdue invoice${overdueInvoices.length === 1 ? "" : "s"}` : "Nothing overdue"}
+            href="/invoices"
+            alert={overdueInvoices.length > 0}
+          />
+          <Metric
+            label="Quote pipeline"
+            value={quotesQuery.isLoading ? "—" : String(sentQuotes.length)}
+            meta={`${acceptedQuotes.length} accepted · ${quotes.length} total`}
+            href="/quotes"
+          />
+        </section>
+
+        {anyError && (
+          <div className="mt-4 flex flex-wrap items-center gap-2 border border-amber-400/25 bg-amber-400/5 px-4 py-3 text-xs text-muted-foreground">
+            <CircleAlert size={15} className="text-amber-300" />
+            Some live data could not be loaded.
+            <button type="button" onClick={retryAll} className="font-semibold text-primary hover:underline">Retry now</button>
           </div>
         )}
 
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.48fr)_minmax(330px,.82fr)]">
-          <section className="min-w-0" aria-labelledby="attention-title">
-            <div className="mb-3 flex items-end justify-between gap-4">
-              <SectionHeading eyebrow="Priority queue" title="Needs your attention" href="/calls" linkText="Open work" />
-              {!callsQuery.isLoading && !quotesQuery.isLoading && !invoicesQuery.isLoading && !readinessQuery.isLoading && (
-                <span className="mb-0.5 font-mono text-xs text-muted-foreground" data-testid="text-attention-count">{attentionItems.length} items</span>
-              )}
-            </div>
-            <div className="overflow-hidden rounded-sm border border-border bg-card" data-testid="list-needs-attention">
-              {callsQuery.isLoading || quotesQuery.isLoading || invoicesQuery.isLoading || readinessQuery.isLoading ? <div className="p-4"><LoadingLines count={4} /></div>
-                : attentionItems.length === 0 && attentionSourceError ? (
-                  <div className="px-4 py-6 text-sm text-muted-foreground" data-testid="status-attention-unavailable">
-                    Attention status could not be fully checked. Some calls, quotes, invoices or setup data failed to load.
-                  </div>
+        <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(340px,.75fr)]">
+          <div className="space-y-6">
+            <section className="border border-border bg-card/65">
+              <div className="border-b border-border px-4 py-4 sm:px-5">
+                <PanelTitle kicker="01 / Action queue" title="Needs your attention" href="/tasks" action="Open tasks" />
+              </div>
+              <div data-testid="control-attention-list">
+                {callsQuery.isLoading || invoicesQuery.isLoading || quotesQuery.isLoading || readinessQuery.isLoading ? (
+                  <div className="px-5"><LoadingRows count={4} /></div>
                 ) : attentionItems.length === 0 ? (
-                  <div className="flex items-center gap-3 px-4 py-6" data-testid="status-attention-empty">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-sm bg-primary/10 text-primary"><Check size={17} /></div>
-                    <div><p className="text-sm font-medium">Nothing needs chasing right now</p><p className="mt-0.5 text-xs text-muted-foreground">New follow-ups and overdue work will appear here.</p></div>
-                  </div>
-                ) : attentionItems.map((item) => (
-                  <Link key={item.id} href={item.href} data-testid={`row-attention-${item.id}`}
-                    className="group grid grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-3 border-t border-border/70 px-4 py-3 first:border-0 hover:bg-muted/40">
-                    <div className={`flex h-7 w-7 items-center justify-center rounded-sm ${
-                      item.kind === "call" ? "bg-amber-400/10 text-amber-300" : item.kind === "invoice" ? "bg-destructive/10 text-destructive" : item.kind === "setup" ? "bg-amber-400/10 text-amber-300" : "bg-primary/10 text-primary"
-                    }`}>
-                      {item.kind === "call" ? <PhoneMissed size={14} /> : item.kind === "invoice" ? <ReceiptText size={14} /> : item.kind === "setup" ? <Settings2 size={14} /> : <FileText size={14} />}
+                  <div className="flex items-center gap-3 px-5 py-8">
+                    <div className="flex h-9 w-9 items-center justify-center border border-primary/30 bg-primary/8 text-primary">
+                      <Check size={16} />
                     </div>
-                    <span className="min-w-0">
-                      <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <span className="truncate text-sm font-medium text-foreground">{item.title}</span>
-                        <span className={`rounded-sm px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${
-                          item.badge === "Missed call" || item.badge === "Overdue" || item.badge === "Setup blocker" ? "bg-amber-400/10 text-amber-300" : "bg-muted text-muted-foreground"
-                        }`}>{item.badge}</span>
-                      </span>
-                      <span className="mt-0.5 block truncate text-xs text-muted-foreground">{item.detail}</span>
-                    </span>
-                    <ArrowRight size={15} className="text-muted-foreground/50 transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
-                  </Link>
-                ))}
-            </div>
-          </section>
+                    <div>
+                      <p className="text-sm font-semibold">Queue clear</p>
+                      <p className="mt-1 text-xs text-muted-foreground">No calls, invoices or setup items need chasing right now.</p>
+                    </div>
+                  </div>
+                ) : (
+                  attentionItems.map((item, index) => {
+                    const Icon = item.icon === "call" ? PhoneMissed : item.icon === "invoice" ? ReceiptText : item.icon === "quote" ? FileText : Settings2;
+                    return (
+                      <Link
+                        key={item.id}
+                        href={item.href}
+                        className="group grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-3 border-t border-border/70 px-4 py-3.5 first:border-t-0 hover:bg-white/[.025] sm:px-5"
+                      >
+                        <div className={`flex h-8 w-8 items-center justify-center border ${
+                          item.tone === "critical"
+                            ? "border-destructive/30 bg-destructive/8 text-destructive"
+                            : item.tone === "warning"
+                              ? "border-amber-400/30 bg-amber-400/8 text-amber-300"
+                              : "border-border bg-muted/40 text-primary"
+                        }`}>
+                          <Icon size={14} />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="truncate text-sm font-medium">{item.title}</span>
+                            <span className={`px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wide ${
+                              item.tone === "critical"
+                                ? "bg-destructive/10 text-destructive"
+                                : item.tone === "warning"
+                                  ? "bg-amber-400/10 text-amber-300"
+                                  : "bg-muted text-muted-foreground"
+                            }`}>{item.label}</span>
+                          </div>
+                          <p className="mt-0.5 truncate text-xs text-muted-foreground">{item.detail}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="hidden font-mono text-[10px] text-muted-foreground sm:inline">0{index + 1}</span>
+                          <ChevronRight size={15} className="text-muted-foreground/45 transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+                        </div>
+                      </Link>
+                    );
+                  })
+                )}
+              </div>
+            </section>
 
-          <section className="min-w-0 rounded-sm border border-border bg-card px-4 py-4 sm:px-5" aria-label="Financial summary">
-            <SectionHeading eyebrow="Cash & commitments" title="Money snapshot" href="/invoices" linkText="Invoices" />
-            <div className="mt-3 border-y border-border/70">
-              <ValueRow label="Quotes sent" amount={quotesQuery.isError ? null : sentQuotes.reduce((sum, quote) => sum + Number(quote.totalIncVat ?? quote.grandTotal ?? 0), 0)} note={quotesQuery.isLoading ? "Loading quote totals" : `${sentQuotes.length} awaiting response`} href="/quotes" />
-              <ValueRow label="Quotes accepted" amount={quotesQuery.isError ? null : acceptedQuotes.reduce((sum, quote) => sum + Number(quote.totalIncVat ?? quote.grandTotal ?? 0), 0)} note={quotesQuery.isLoading ? "Loading quote totals" : `${acceptedQuotes.length} accepted`} href="/quotes" />
-              <ValueRow label="Open quote pipeline" amount={quotesQuery.isError ? null : openQuotes.reduce((sum, quote) => sum + Number(quote.totalIncVat ?? quote.grandTotal ?? 0), 0)} note={quotesQuery.isLoading ? "Loading quote totals" : `${openQuotes.length} open, includes drafts`} href="/quotes" />
-              <ValueRow label="Invoices outstanding" amount={outstanding} note={invoicesQuery.isLoading ? "Loading invoice totals" : invoicesQuery.isError ? "Invoice data unavailable" : `${invoices.filter((invoice) => invoice.status === "sent").length} sent, unpaid; excludes drafts`} href="/invoices" />
-              <ValueRow label="Paid this month" amount={paidThisMonth} note={summaryQuery.isError ? "Summary unavailable" : "Current calendar month"} href="/invoices" />
-            </div>
-            <div className="mt-3 flex items-center justify-between gap-3">
-              <span className="text-xs text-muted-foreground">Work in progress</span>
-              <Link href="/jobs" className="inline-flex items-center gap-1 text-xs font-medium text-primary" data-testid="link-open-schedule">
-                {summaryQuery.isLoading ? "—" : summary?.upcomingJobsCount ?? "—"} upcoming jobs <ArrowUpRight size={12} />
+            <section className="border border-border bg-card/65">
+              <div className="border-b border-border px-4 py-4 sm:px-5">
+                <PanelTitle kicker="02 / Run sheet" title="Today on site" href="/schedule" action="Open scheduler" />
+              </div>
+              {jobsQuery.isLoading ? (
+                <div className="px-5"><LoadingRows count={3} /></div>
+              ) : todayJobs.length === 0 ? (
+                <div className="px-5 py-8">
+                  <p className="text-sm font-semibold">No jobs scheduled today</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Use the scheduler to add work or move jobs into today.</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-border/70">
+                  {todayJobs.map((job, index) => (
+                    <Link
+                      key={job.id}
+                      href={`/jobs/${job.id}`}
+                      className="group grid grid-cols-[58px_minmax(0,1fr)_auto] gap-4 px-4 py-4 hover:bg-white/[.025] sm:px-5"
+                    >
+                      <div>
+                        <p className="font-mono text-sm font-semibold text-primary">{format(new Date(job.scheduledAt), "HH:mm")}</p>
+                        <p className="mt-1 font-mono text-[9px] uppercase tracking-wide text-muted-foreground">Job {String(index + 1).padStart(2, "0")}</p>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <Wrench size={13} className="shrink-0 text-muted-foreground" />
+                          <p className="truncate text-sm font-semibold">{job.title}</p>
+                        </div>
+                        <p className="mt-1 truncate text-xs text-muted-foreground">{job.contactName}{job.address ? ` · ${job.address}` : ""}</p>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <span className="bg-muted px-1.5 py-0.5 font-mono text-[9px] uppercase text-muted-foreground">{job.status.replaceAll("_", " ")}</span>
+                          {job.estimatedDuration ? <span className="text-[10px] text-muted-foreground">{Math.round(job.estimatedDuration / 60 * 10) / 10}h allowed</span> : null}
+                          {job.assignedEngineer ? <span className="text-[10px] text-muted-foreground">{job.assignedEngineer}</span> : null}
+                        </div>
+                      </div>
+                      <ArrowRight size={15} className="mt-1 text-muted-foreground/40 group-hover:text-primary" />
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className="grid gap-4 md:grid-cols-3">
+              <Link href="/tasks" className="group border border-border bg-card/55 p-4 hover:border-primary/40">
+                <div className="flex items-center justify-between">
+                  <Clock3 size={16} className="text-primary" />
+                  <ArrowUpRight size={13} className="text-muted-foreground group-hover:text-primary" />
+                </div>
+                <p className="mt-5 font-mono text-2xl font-semibold">{pendingTasks.length}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Open tasks · {highPriorityTasks.length} high priority</p>
               </Link>
-            </div>
-          </section>
-        </div>
-
-        <section className="mt-7" aria-label="Today's jobs and operations map">
-          <div className="mb-3"><SectionHeading eyebrow="Dispatch" title="Today’s jobs & operations map" href="/schedule" linkText="Open scheduler" /></div>
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(310px,.75fr)]">
-            <div className="overflow-hidden border border-border bg-card" data-testid="list-todays-jobs">
-              {jobsQuery.isLoading ? <div className="p-4"><LoadingLines count={3} /></div> : jobsQuery.isError ? <p className="p-5 text-sm text-muted-foreground">Today’s jobs could not be loaded.</p> :
-                todayJobs.length === 0 ? <div className="px-4 py-7"><p className="text-sm font-medium">No jobs scheduled today</p><p className="mt-1 text-xs text-muted-foreground">New and rescheduled work will appear here automatically.</p><Link href="/jobs" className="mt-3 inline-flex text-xs font-medium text-primary">Create or schedule a job <ArrowUpRight size={12} className="ml-1" /></Link></div> :
-                <div className="divide-y divide-border">{todayJobs.map((job) => <Link key={job.id} href={`/jobs/${job.id}`} data-testid={`today-job-${job.id}`} className="grid gap-2 px-4 py-3 hover:bg-muted/30 sm:grid-cols-[54px_minmax(0,1fr)_auto] sm:items-center">
-                  <span className="font-mono text-xs tabular-nums text-primary">{format(new Date(job.scheduledAt), "HH:mm")}</span>
-                  <span className="min-w-0"><span className="block truncate text-sm font-medium">{job.title} · {job.contactName}</span><span className="mt-1 flex items-center gap-1 truncate text-xs text-muted-foreground"><MapPin size={12} />{job.address || "Site address not recorded"}</span></span>
-                   <span className="text-left text-[11px] capitalize text-muted-foreground sm:text-right">{job.status.replaceAll("_", " ")} · {job.assignedEngineer || "Unassigned"}</span>
-                </Link>)}</div>}
-            </div>
-            <OperationsMap jobs={jobs} />
-          </div>
-        </section>
-
-        <div className="mt-7 grid gap-6 xl:grid-cols-[minmax(0,1.48fr)_minmax(330px,.82fr)]">
-          <section className="min-w-0" aria-label="Today's operational timeline">
-            <div className="mb-3 flex items-end justify-between gap-4">
-              <SectionHeading eyebrow="The day ahead" title="Today" href="/jobs" linkText="Full schedule" />
-              {summary && <span className="mb-0.5 font-mono text-[11px] text-muted-foreground">{summary.callsToday} calls · {summary.jobsThisWeek} jobs this week</span>}
-            </div>
-            <div className="rounded-sm border border-border bg-card px-4 sm:px-5" data-testid="list-today-timeline">
-              {jobsQuery.isLoading || callsQuery.isLoading || tasksQuery.isLoading ? <LoadingLines count={4} />
-                : feed.length === 0 && (jobsQuery.isError || callsQuery.isError || tasksQuery.isError) ? (
-                  <div className="py-7 text-center text-sm text-muted-foreground" data-testid="status-timeline-unavailable">
-                    Activity could not be fully checked because one or more sources failed to load.
-                  </div>
-                ) : feed.length === 0 ? (
-                  <div className="py-7 text-center" data-testid="status-timeline-empty">
-                    <CalendarDays size={20} className="mx-auto mb-2 text-muted-foreground/60" />
-                    <p className="text-sm font-medium">No scheduled activity showing</p>
-                    <p className="mt-1 text-xs text-muted-foreground">Jobs, enquiries and due tasks will appear here.</p>
-                  </div>
-                ) : feed.map((item, index) => (
-                  <Link href={item.href} key={item.id} data-testid={`row-timeline-${item.id}`}
-                    className="group grid grid-cols-[58px_16px_minmax(0,1fr)_auto] items-start gap-3 border-t border-border/70 py-3 first:border-t-0">
-                    <span className="pt-0.5 text-right font-mono text-[10px] leading-4 text-muted-foreground">
-                      {dateLabel(item.at)}<br />{format(item.at, "HH:mm")}
-                    </span>
-                    <span className="relative flex h-full justify-center">
-                      {index < feed.length - 1 && <span className="absolute bottom-[-13px] top-2 w-px bg-border" />}
-                      <span className={`relative z-10 mt-1 h-2 w-2 rounded-full ring-4 ring-card ${
-                        item.kind === "job" ? "bg-primary" : item.kind === "call" ? "bg-amber-300" : "bg-muted-foreground"
-                      }`} />
-                    </span>
-                    <span className="min-w-0">
-                      <span className="flex items-center gap-1.5">
-                        {item.kind === "job" ? <Wrench size={12} className="shrink-0 text-primary" /> : item.kind === "call" ? <Phone size={12} className="shrink-0 text-amber-300" /> : <Check size={12} className="shrink-0 text-muted-foreground" />}
-                        <span className="truncate text-sm font-medium group-hover:text-primary">{item.title}</span>
-                      </span>
-                      <span className="mt-0.5 block truncate pl-[18px] text-xs text-muted-foreground">{item.detail}</span>
-                    </span>
-                    <span className="mt-0.5 max-w-[110px] truncate text-right text-[10px] capitalize text-muted-foreground">{item.state}</span>
-                  </Link>
-                ))}
-            </div>
-          </section>
-
-          <div className="space-y-5">
-            <section className="rounded-sm border border-border bg-card px-4 py-4 sm:px-5">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="mb-1 text-[10px] font-semibold uppercase tracking-[.16em] text-primary">AI Office</p>
-                  <h2 className="text-base font-semibold tracking-tight">Reception & response</h2>
+              <Link href="/jobs" className="group border border-border bg-card/55 p-4 hover:border-primary/40">
+                <div className="flex items-center justify-between">
+                  <CalendarDays size={16} className="text-primary" />
+                  <ArrowUpRight size={13} className="text-muted-foreground group-hover:text-primary" />
                 </div>
-                <Bot size={17} className="mt-1 text-primary" />
-              </div>
-              <div className="mt-3 flex items-center justify-between border-t border-border/70 py-3">
-                <span className="text-xs text-muted-foreground">Phone assistant</span>
-                <span className="text-xs font-medium">{assistantsQuery.isLoading ? "Checking…" : assistantsQuery.isError ? "Unavailable" : activePhoneAssistant ? "Active configuration" : "Not configured"}</span>
-              </div>
-              <div className="flex items-center justify-between border-t border-border/70 py-3">
-                <span className="text-xs text-muted-foreground">Pilot verification</span>
-                <span className={`text-xs font-medium ${readiness?.completedCalls ? "text-primary" : "text-amber-300"}`}>
-                  {readinessQuery.isLoading ? "Checking…" : readinessQuery.isError ? "Unavailable" : readiness?.completedCalls ? `${readiness.completedCalls} completed call record${readiness.completedCalls === 1 ? "" : "s"} · live test unverified` : "No completed call record"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between border-t border-border/70 py-3">
-                <span className="text-xs text-muted-foreground">Email</span>
-                <span className="text-right text-xs font-medium">
-                  {readinessQuery.isLoading ? "Checking…" : readinessQuery.isError ? "Unavailable" :
-                    `In ${readiness?.emailInboundConfigured ? "configured" : "not set"} · out ${readiness?.emailOutboundConfigured ? "configured" : "not set"} · ${readiness?.emailRepliesSent ?? 0} replies sent`}
-                </span>
-              </div>
-              <div className="flex items-center justify-between border-t border-border/70 py-3">
-                <span className="text-xs text-muted-foreground">Follow-up automation</span>
-                <span className="text-xs font-medium text-muted-foreground">Not verified by current status data</span>
-              </div>
-              <Link href="/assistants" data-testid="link-manage-ai-office" className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">Manage AI Office <ArrowUpRight size={12} /></Link>
-            </section>
-
-            <section className="rounded-sm border border-border bg-card px-4 py-4 sm:px-5" data-testid="panel-pilot-readiness">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="mb-1 text-[10px] font-semibold uppercase tracking-[.16em] text-muted-foreground">Pilot status</p>
-                  <h2 className="text-sm font-semibold">Readiness checks</h2>
+                <p className="mt-5 font-mono text-2xl font-semibold">{summary?.upcomingJobsCount ?? upcomingJobs.length}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Upcoming jobs in the live schedule</p>
+              </Link>
+              <Link href="/calls" className="group border border-border bg-card/55 p-4 hover:border-primary/40">
+                <div className="flex items-center justify-between">
+                  <Phone size={16} className="text-primary" />
+                  <ArrowUpRight size={13} className="text-muted-foreground group-hover:text-primary" />
                 </div>
-                <Link href="/business-setup" data-testid="link-business-setup" className="text-xs font-medium text-primary hover:underline">Setup <ArrowUpRight size={12} className="ml-1 inline" /></Link>
-              </div>
-              {readinessQuery.isLoading ? <div className="mt-3"><LoadingLines count={2} /></div>
-                : readinessQuery.isError ? <p className="mt-3 border-t border-border/70 pt-3 text-xs text-muted-foreground">Setup status is unavailable; configuration cannot be confirmed.</p>
-                : setupBlockers.length ? (
-                  <div className="mt-3 border-t border-border/70 pt-3">
-                    <p className="mb-2 text-xs text-muted-foreground">{setupBlockers.length} setup item{setupBlockers.length === 1 ? "" : "s"} reported by current configuration</p>
-                    <div className="space-y-2">
-                      {setupBlockers.slice(0, 3).map((item) => <p key={item} className="text-xs text-muted-foreground">
-                          <span className="font-medium text-foreground">{item}</span> needs setup
-                        </p>)}
-                    </div>
-                  </div>
-                ) : <p className="mt-3 border-t border-border/70 pt-3 text-xs text-muted-foreground">Phone and email configuration is present. Real-world service delivery has not been verified here.</p>}
+                <p className="mt-5 font-mono text-2xl font-semibold">{summary ? `${Math.round(summary.bookingRate)}%` : "—"}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Call-to-booking rate</p>
+              </Link>
             </section>
           </div>
-        </div>
 
-        <div className="mt-6 grid gap-3 sm:grid-cols-3">
-          <Link href="/email-inbox" data-testid="link-email-inbox" className="group flex items-center justify-between rounded-sm border border-border bg-card px-4 py-3 hover:border-primary/40">
-            <span className="flex items-center gap-3"><Mail size={16} className="text-primary" /><span><span className="block text-sm font-medium">Email inbox</span><span className="block text-xs text-muted-foreground">Review customer messages</span></span></span><ArrowUpRight size={14} className="text-muted-foreground group-hover:text-primary" />
-          </Link>
-          <Link href="/tasks" data-testid="link-task-list" className="group flex items-center justify-between rounded-sm border border-border bg-card px-4 py-3 hover:border-primary/40">
-            <span className="flex items-center gap-3"><Clock3 size={16} className="text-primary" /><span><span className="block text-sm font-medium">Tasks</span><span className="block text-xs text-muted-foreground">{tasksQuery.isLoading ? "Loading due work" : `${tasks.filter((task) => task.status === "pending").length} pending tasks`}</span></span></span><ArrowUpRight size={14} className="text-muted-foreground group-hover:text-primary" />
-          </Link>
-          <Link href="/business-setup" data-testid="link-business-settings" className="group flex items-center justify-between rounded-sm border border-border bg-card px-4 py-3 hover:border-primary/40">
-            <span className="flex items-center gap-3"><Settings2 size={16} className="text-primary" /><span><span className="block text-sm font-medium">Business setup</span><span className="block text-xs text-muted-foreground">Company profile & connections</span></span></span><ArrowUpRight size={14} className="text-muted-foreground group-hover:text-primary" />
-          </Link>
+          <aside className="space-y-6">
+            <section className="border border-primary/25 bg-[linear-gradient(180deg,rgba(54,198,213,.06),rgba(32,48,56,.55))]">
+              <div className="border-b border-primary/15 px-5 py-4">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="font-mono text-[10px] font-semibold uppercase tracking-[.2em] text-primary">AI Office</p>
+                    <h2 className="mt-1 text-lg font-semibold">Reception & response</h2>
+                  </div>
+                  <div className="flex h-9 w-9 items-center justify-center border border-primary/25 bg-primary/10 text-primary">
+                    <Bot size={17} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="divide-y divide-border/70 px-5">
+                <div className="flex items-center justify-between gap-4 py-4">
+                  <div>
+                    <p className="text-sm font-medium">Phone receptionist</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">Inbound calls & booking</p>
+                  </div>
+                  <span className="inline-flex items-center gap-2 text-xs font-medium">
+                    <StatusDot active={phoneReady} />
+                    {phoneReady ? "Configured" : "Needs setup"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-4 py-4">
+                  <div>
+                    <p className="text-sm font-medium">Email desk</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">Inbound + outbound</p>
+                  </div>
+                  <span className="inline-flex items-center gap-2 text-xs font-medium">
+                    <StatusDot active={emailReady} />
+                    {emailReady ? "Connected" : "Needs setup"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-4 py-4">
+                  <div>
+                    <p className="text-sm font-medium">Recorded activity</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">Completed call records</p>
+                  </div>
+                  <span className="font-mono text-sm font-semibold">{readinessQuery.isLoading ? "—" : readiness?.completedCalls ?? 0}</span>
+                </div>
+                <div className="flex items-center justify-between gap-4 py-4">
+                  <div>
+                    <p className="text-sm font-medium">Replies sent</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">Email responses</p>
+                  </div>
+                  <span className="font-mono text-sm font-semibold">{readinessQuery.isLoading ? "—" : readiness?.emailRepliesSent ?? 0}</span>
+                </div>
+              </div>
+
+              <div className="px-5 pb-5 pt-1">
+                <Link href="/assistants" className="flex min-h-10 items-center justify-between border border-primary/20 bg-primary/5 px-3 text-xs font-semibold text-primary hover:bg-primary/10">
+                  Open AI Office <ArrowRight size={13} />
+                </Link>
+              </div>
+            </section>
+
+            <section className="border border-border bg-card/65">
+              <div className="border-b border-border px-5 py-4">
+                <PanelTitle kicker="03 / Money" title="Cash position" href="/invoices" action="Invoices" />
+              </div>
+              <div className="px-5">
+                <div className="flex items-end justify-between gap-4 border-b border-border/70 py-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Outstanding</p>
+                    <p className="mt-1 font-mono text-xl font-semibold">{invoicesQuery.isLoading ? "—" : formatCurrency(outstanding)}</p>
+                  </div>
+                  <ReceiptText size={18} className="text-primary" />
+                </div>
+                <div className="flex items-end justify-between gap-4 border-b border-border/70 py-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Paid this month</p>
+                    <p className="mt-1 font-mono text-xl font-semibold">{summaryQuery.isLoading ? "—" : formatCurrency(summary?.invoiceStats?.paidThisMonth ?? 0)}</p>
+                  </div>
+                  <Check size={18} className="text-primary" />
+                </div>
+                <div className="flex items-end justify-between gap-4 py-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Overdue</p>
+                    <p className={`mt-1 font-mono text-xl font-semibold ${overdueInvoices.length ? "text-amber-300" : ""}`}>{overdueInvoices.length}</p>
+                  </div>
+                  <CircleAlert size={18} className={overdueInvoices.length ? "text-amber-300" : "text-muted-foreground"} />
+                </div>
+              </div>
+            </section>
+
+            <section className="border border-border bg-card/65">
+              <div className="border-b border-border px-5 py-4">
+                <PanelTitle kicker="04 / Next up" title="Forward schedule" href="/schedule" action="View all" />
+              </div>
+              {jobsQuery.isLoading ? (
+                <div className="px-5"><LoadingRows count={3} /></div>
+              ) : upcomingJobs.length === 0 ? (
+                <p className="px-5 py-6 text-xs text-muted-foreground">No upcoming work is currently scheduled.</p>
+              ) : (
+                <div className="divide-y divide-border/70 px-5">
+                  {upcomingJobs.slice(0, 4).map((job) => (
+                    <Link key={job.id} href={`/jobs/${job.id}`} className="group flex items-center gap-3 py-3.5">
+                      <div className="w-12 shrink-0">
+                        <p className="font-mono text-[10px] uppercase text-primary">{format(new Date(job.scheduledAt), "EEE")}</p>
+                        <p className="font-mono text-sm font-semibold">{format(new Date(job.scheduledAt), "d MMM")}</p>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">{job.title}</p>
+                        <p className="mt-0.5 truncate text-xs text-muted-foreground">{job.contactName}</p>
+                      </div>
+                      <ChevronRight size={14} className="text-muted-foreground/45 group-hover:text-primary" />
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className="grid grid-cols-2 gap-3">
+              <Link href="/email-inbox" className="group border border-border bg-card/55 p-4 hover:border-primary/40">
+                <Mail size={16} className="text-primary" />
+                <p className="mt-4 text-sm font-semibold">Inbox</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">Customer email</p>
+              </Link>
+              <Link href="/business-setup" className="group border border-border bg-card/55 p-4 hover:border-primary/40">
+                <ShieldCheck size={16} className="text-primary" />
+                <p className="mt-4 text-sm font-semibold">Setup</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">Connections & profile</p>
+              </Link>
+            </section>
+
+            <div className="border-l-2 border-primary/40 px-4 py-2">
+              <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+                <Sparkles size={13} className="text-primary" />
+                CREWON principle
+              </div>
+              <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                The dashboard should tell you what needs doing next — not make you hunt through software.
+              </p>
+            </div>
+          </aside>
         </div>
       </div>
     </main>
