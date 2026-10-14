@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import colors from "../constants/colors";
 
 const C = colors.dark;
 const API = process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` : "";
+const TOKEN_KEY = "crewon-mobile-auth-token";
 
 export function MobileAuthGate({ children }: { children: React.ReactNode }) {
   const [checking, setChecking] = useState(true);
@@ -16,9 +18,17 @@ export function MobileAuthGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let active = true;
     if (!API) { setError("The business API address is not configured."); setChecking(false); return; }
-    fetch(`${API}/api/auth/check`, { credentials: "include" })
-      .then(r => r.ok ? r.json() : Promise.reject(new Error("Cannot check sign-in")))
-      .then(r => { if (active) setAuthenticated(r.authenticated === true); })
+    AsyncStorage.getItem(TOKEN_KEY)
+      .then(async (token) => {
+        const response = await fetch(`${API}/api/auth/check`, {
+          credentials: "include",
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        if (!response.ok) throw new Error("Cannot check sign-in");
+        const result = await response.json() as { authenticated?: boolean };
+        if (result.authenticated !== true && token) await AsyncStorage.removeItem(TOKEN_KEY);
+        if (active) setAuthenticated(result.authenticated === true);
+      })
       .catch(() => { if (active) setError("Cannot check sign-in. Check your connection and retry."); })
       .finally(() => { if (active) setChecking(false); });
     return () => { active = false; };
@@ -30,8 +40,10 @@ export function MobileAuthGate({ children }: { children: React.ReactNode }) {
         method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password }),
       });
-      const result = await response.json();
+      const result = await response.json() as { error?: string; token?: string };
       if (!response.ok) throw new Error(result.error || "Sign-in failed");
+      if (!result.token) throw new Error("Sign-in succeeded but no mobile session was issued");
+      await AsyncStorage.setItem(TOKEN_KEY, result.token);
       await queryClient.invalidateQueries();
       setPassword(""); setAuthenticated(true);
     } catch (e) { setError(e instanceof Error ? e.message : "Cannot sign in"); }
