@@ -119,7 +119,7 @@ export default function DashboardScreen() {
               {getGreeting()} · FIELD
             </Text>
             <Image
-              source={require('../../assets/images/crewon-wordmark.png')}
+              source={require('../../assets/images/crewon-wordmark-dark-transparent.png')}
               accessibilityLabel="CREWON"
               resizeMode="contain"
               style={{ width: 164, height: 67 }}

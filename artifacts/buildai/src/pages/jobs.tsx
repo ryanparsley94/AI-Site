@@ -359,9 +359,13 @@ export default function Jobs() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isCreateOpen, setIsCreateOpen] = useState(() => new URLSearchParams(window.location.search).get("create") === "1");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
+  const closeCreate = () => {
+    setIsCreateOpen(false);
+    if (new URLSearchParams(window.location.search).has("create")) window.history.replaceState({}, "", window.location.pathname);
+  };
 
   const filteredJobs = jobs.filter(j =>
     j.title.toLowerCase().includes(search.toLowerCase()) ||
@@ -387,7 +391,7 @@ export default function Jobs() {
       }
     }, {
       onSuccess: () => {
-        setIsCreateOpen(false);
+        closeCreate();
         queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
         toast({ title: "Job scheduled successfully" });
       }
@@ -405,23 +409,23 @@ export default function Jobs() {
 
   return (
     <div className="flex-1 flex flex-col h-full bg-muted/30 overflow-hidden">
-      <div className="p-6 border-b bg-background flex-shrink-0">
+      <div className="shrink-0 border-b bg-background px-4 py-4 sm:p-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-secondary">Job Schedule</h1>
             <p className="text-muted-foreground text-sm">Manage dispatch and work orders.</p>
           </div>
 
-          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+          <Dialog open={isCreateOpen} onOpenChange={(open) => open ? setIsCreateOpen(true) : closeCreate()}>
             <DialogTrigger asChild>
-              <Button className="gap-2"><Plus size={16} /> New Job</Button>
+              <Button className="min-h-11 gap-2 px-4"><Plus size={16} /> New Job</Button>
             </DialogTrigger>
             <DialogContent className="max-w-xl">
               <DialogHeader>
                 <DialogTitle>Schedule New Job</DialogTitle>
               </DialogHeader>
               <form onSubmit={handleCreateJob} className="space-y-4 pt-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="title">Job Title</Label>
                     <Input id="title" name="title" required placeholder="e.g. Roof Inspection" />
@@ -446,11 +450,11 @@ export default function Jobs() {
                     <Label htmlFor="contactPhone">Phone</Label>
                     <Input id="contactPhone" name="contactPhone" required />
                   </div>
-                  <div className="col-span-2 space-y-2">
+                  <div className="space-y-2 sm:col-span-2">
                     <Label htmlFor="assignedEngineer">Assigned engineer</Label>
                     <Input id="assignedEngineer" name="assignedEngineer" placeholder="Engineer name" />
                   </div>
-                  <div className="col-span-2 space-y-2">
+                  <div className="space-y-2 sm:col-span-2">
                     <Label htmlFor="address">Address</Label>
                     <Input id="address" name="address" required />
                   </div>
@@ -462,13 +466,13 @@ export default function Jobs() {
                     <Label htmlFor="estimatedDuration">Est. Duration (minutes)</Label>
                     <Input id="estimatedDuration" name="estimatedDuration" type="number" defaultValue="60" />
                   </div>
-                  <div className="col-span-2 space-y-2">
+                  <div className="space-y-2 sm:col-span-2">
                     <Label htmlFor="estimatedValue">Estimated Value (£)</Label>
                     <Input id="estimatedValue" name="estimatedValue" type="number" defaultValue="0" />
                   </div>
                 </div>
                 <DialogFooter className="pt-4">
-                  <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
+                  <Button type="button" variant="outline" onClick={closeCreate}>Cancel</Button>
                   <Button type="submit" disabled={createJob.isPending}>
                     {createJob.isPending ? "Saving..." : "Schedule Job"}
                   </Button>
@@ -479,14 +483,14 @@ export default function Jobs() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto p-6">
+      <div className="min-h-0 flex-1 overflow-auto px-4 py-4 pb-32 sm:p-6">
         <div className="max-w-6xl mx-auto space-y-6">
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4">
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search jobs..."
-                className="pl-9 bg-white"
+                className="min-h-11 pl-9"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -496,12 +500,12 @@ export default function Jobs() {
           {isLoading ? (
             <div className="text-center py-12 text-muted-foreground">Loading schedule...</div>
           ) : (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3 lg:gap-6">
               {filteredJobs.map(job => {
                 const status = jobStatusConfig[job.status as keyof typeof jobStatusConfig] ?? jobStatusConfig.scheduled;
                 return (
-                  <Card key={job.id} className="flex flex-col">
-                    <CardHeader className="pb-3 border-b">
+                  <Card key={job.id} className="flex flex-col rounded-xl">
+                    <CardHeader className="border-b p-4 pb-3">
                       <div className="flex justify-between items-start mb-2">
                         <Badge variant="outline" className={`${status.color} border-0 rounded-md`}>
                           {status.label}
@@ -510,7 +514,7 @@ export default function Jobs() {
                           {format(new Date(job.scheduledAt), "MMM d")}
                         </span>
                       </div>
-                       <CardTitle className="text-lg leading-tight">
+                      <CardTitle className="text-lg leading-snug">
                          <Link href={`/jobs/${job.id}`} className="hover:text-primary transition-colors" data-testid={`link-job-detail-${job.id}`}>
                            {job.title}
                          </Link>
@@ -519,7 +523,7 @@ export default function Jobs() {
                         <MapPin size={14}/> {job.address}
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="pt-4 pb-2 flex-1 space-y-3">
+                    <CardContent className="flex-1 space-y-3 px-4 pb-3 pt-4">
                       <div className="grid grid-cols-2 gap-y-3 text-sm">
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <Clock size={16} className="text-primary"/>
@@ -541,18 +545,18 @@ export default function Jobs() {
                         </div>
                       </div>
 
-                      <div className="p-3 bg-muted/50 rounded-md border mt-2">
+                      <div className="mt-2 rounded-lg border bg-muted/50 p-3">
                         <p className="text-xs font-semibold text-secondary mb-1">Customer</p>
                         <p className="text-sm font-medium">{job.contactName}</p>
                         <p className="text-xs text-muted-foreground font-mono">{job.contactPhone}</p>
                       </div>
                     </CardContent>
-                    <CardFooter className="pt-3 border-t bg-muted/20 flex gap-2">
+                    <CardFooter className="flex gap-2 border-t bg-muted/20 p-4 pt-3">
                       <Select
                         value={job.status}
                         onValueChange={(val) => updateStatus(job.id, val as JobInputStatus)}
                       >
-                        <SelectTrigger className="h-8 text-xs bg-white flex-1">
+                        <SelectTrigger className="min-h-11 flex-1 text-sm">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -563,7 +567,7 @@ export default function Jobs() {
                           <SelectItem value="cancelled">Cancelled</SelectItem>
                         </SelectContent>
                       </Select>
-                      <Button size="sm" variant="outline" className="h-8 px-3" onClick={() => setEditingId(job.id)}>Edit</Button>
+                      <Button size="sm" variant="outline" className="min-h-11 px-4" onClick={() => setEditingId(job.id)}>Edit</Button>
                     </CardFooter>
                   </Card>
                 );

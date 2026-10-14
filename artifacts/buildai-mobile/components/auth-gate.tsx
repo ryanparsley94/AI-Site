@@ -42,7 +42,7 @@ export function MobileAuthGate({ children }: { children: React.ReactNode }) {
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: C.background, justifyContent: "center", padding: 24 }}>
       <View style={{ width: "100%", maxWidth: 380, alignSelf: "center", gap: 18 }}>
-        <Image source={require("../assets/images/crewon-wordmark.png")} resizeMode="contain" style={{ width: 220, height: 74, alignSelf: "center" }} accessibilityLabel="CREWON" />
+        <Image source={require("../assets/images/crewon-wordmark-dark-transparent.png")} resizeMode="contain" style={{ width: 220, height: 74, alignSelf: "center" }} accessibilityLabel="CREWON" />
         <Text style={{ color: C.primary, textAlign: "center", fontWeight: "700" }}>YOUR CREW. SWITCHED ON.</Text>
         <Text style={{ color: C.foreground, fontSize: 22, fontWeight: "700" }}>Sign in to your dashboard</Text>
         <Text style={{ color: C.mutedForeground }}>Use your existing dashboard password. Customer data stays private until you sign in.</Text>

@@ -319,11 +319,11 @@ router.post("/business-setup/apply", async (req, res): Promise<void> => {
 
       await client.query(
         `UPDATE companies
-            SET name=COALESCE($2,name),
-                phone=CASE WHEN $3::text IS NOT NULL THEN $3 ELSE phone END,
-                email=COALESCE($4,email),
-                address=COALESCE($5,address),
-                website=$6,
+            SET name=CASE WHEN NULLIF(BTRIM(name),'') IS NULL THEN COALESCE($2,name) ELSE name END,
+                phone=CASE WHEN NULLIF(BTRIM(phone),'') IS NULL THEN COALESCE($3,phone) ELSE phone END,
+                email=CASE WHEN NULLIF(BTRIM(email),'') IS NULL THEN COALESCE($4,email) ELSE email END,
+                address=CASE WHEN NULLIF(BTRIM(address),'') IS NULL THEN COALESCE($5,address) ELSE address END,
+                website=CASE WHEN NULLIF(BTRIM(website),'') IS NULL THEN $6 ELSE website END,
                 timezone=COALESCE(NULLIF(timezone,''),'Europe/London'),
                 updated_at=now()
           WHERE id=$1`,
@@ -362,7 +362,7 @@ router.post("/business-setup/apply", async (req, res): Promise<void> => {
         );
       } else if (preview.receptionistGreeting) {
         await client.query(
-          "UPDATE assistants SET greeting=$2,updated_at=now() WHERE id=$1 AND company_id=$3",
+          "UPDATE assistants SET greeting=$2,updated_at=now() WHERE id=$1 AND company_id=$3 AND NULLIF(BTRIM(greeting),'') IS NULL",
           [assistant.rows[0].id, preview.receptionistGreeting, company.id],
         );
       }
@@ -400,6 +400,7 @@ router.post("/business-setup/apply", async (req, res): Promise<void> => {
       }
 
       let inserted = 0;
+      let preservedExisting = 0;
       for (const item of knowledge.slice(0, 80)) {
         const existing = await client.query<{ id: number }>(
           `SELECT id
@@ -412,12 +413,8 @@ router.post("/business-setup/apply", async (req, res): Promise<void> => {
         );
 
         if (existing.rows[0]) {
-          await client.query(
-            `UPDATE assistant_training
-                SET answer=$2
-              WHERE id=$1 AND assistant_id=$3`,
-            [existing.rows[0].id, item.answer, assistantId],
-          );
+          // Website imports may add facts but must never replace owner-edited knowledge.
+          preservedExisting += 1;
         } else {
           await client.query(
             `INSERT INTO assistant_training(assistant_id,category,question,answer)
@@ -434,6 +431,8 @@ router.post("/business-setup/apply", async (req, res): Promise<void> => {
         companyId: company.id,
         assistantId,
         knowledgeAdded: inserted,
+        existingCompanyValuesPreserved: true,
+        existingKnowledgePreserved: preservedExisting,
         knowledgeReviewed: knowledge.length,
         website: preview.website,
       });
