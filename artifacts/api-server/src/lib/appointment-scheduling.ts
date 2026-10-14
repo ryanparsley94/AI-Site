@@ -99,12 +99,6 @@ function timeMinutes(value: string): number {
   return hour <= 23 && minute <= 59 ? hour * 60 + minute : -1;
 }
 
-function weekdayFor(date: Date, timeZone: string): number {
-  const name = new Intl.DateTimeFormat("en-GB", { timeZone, weekday: "short" })
-    .format(date).slice(0, 3).toLowerCase();
-  return ({ sun: 7, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 } as Record<string, number>)[name] ?? 0;
-}
-
 async function bookingHours(companyId: number): Promise<BookingHours[]> {
   const result = await pool.query<BookingHours>(
     `SELECT day_of_week,open_time::text,close_time::text,bookable
