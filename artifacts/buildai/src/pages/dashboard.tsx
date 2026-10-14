@@ -273,19 +273,19 @@ export default function Dashboard() {
             <p className="mt-1.5 text-sm text-muted-foreground">Calls, work booked and money due — in one place.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Link href="/jobs" data-testid="button-schedule-job" className="inline-flex h-10 items-center gap-2 rounded-sm bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90">
+            <Link href="/jobs" data-testid="button-schedule-job" className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90">
               <Plus size={16} /> Schedule a job
             </Link>
-            <Link href="/calls" data-testid="button-review-enquiries" className="inline-flex h-10 items-center gap-2 rounded-sm border border-border bg-card px-3 text-sm font-medium text-foreground transition-colors hover:border-primary/50">
+            <Link href="/calls" data-testid="button-review-enquiries" className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground transition-colors hover:border-primary/50">
               <Phone size={15} /> Enquiries
             </Link>
-            <Link href="/quotes" data-testid="button-new-quote" className="inline-flex h-10 items-center gap-2 rounded-sm border border-border bg-card px-3 text-sm font-medium text-foreground transition-colors hover:border-primary/50">
+            <Link href="/quotes" data-testid="button-new-quote" className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground transition-colors hover:border-primary/50">
               <FileText size={15} /> New quote
             </Link>
-            <Link href="/invoices" data-testid="button-new-invoice" className="inline-flex h-10 items-center gap-2 rounded-sm border border-border bg-card px-3 text-sm font-medium text-foreground transition-colors hover:border-primary/50">
+            <Link href="/invoices" data-testid="button-new-invoice" className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground transition-colors hover:border-primary/50">
               <ReceiptText size={15} /> New invoice
             </Link>
-            <Link href="/email-inbox" data-testid="button-open-email" className="inline-flex h-10 items-center gap-2 rounded-sm border border-border bg-card px-3 text-sm font-medium text-foreground transition-colors hover:border-primary/50">
+            <Link href="/email-inbox" data-testid="button-open-email" className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground transition-colors hover:border-primary/50">
               <Mail size={15} /> Email inbox
             </Link>
           </div>

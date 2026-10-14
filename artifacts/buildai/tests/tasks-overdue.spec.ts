@@ -110,4 +110,45 @@ test.describe("task list carry-forward", () => {
     await page.goto("/tasks");
     await expect(page.getByText("Overdue · from yesterday", { exact: true })).toBeVisible();
   });
+
+  test("groups existing actionable task records once and keeps invoice-task completion separate", async ({ page }) => {
+    tasks = [
+      task(11, "2026-10-07", "high"),
+      task(12, "2026-10-09"),
+      task(13, null),
+      task(14, "2026-10-06", "medium"),
+    ].map((item, index) => ({
+      ...item,
+      title: [
+        "Review quote with customer",
+        "Prepare invoice breakdown",
+        "Call customer re job #91",
+        "Arrange EICR certificate",
+      ][index],
+    }));
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/tasks");
+
+    await expect(page.getByTestId("task-section-quotes")).toContainText("1 pending · 1 overdue");
+    await expect(page.getByTestId("task-section-invoices")).toContainText("1 pending");
+    await expect(page.getByTestId("task-section-certificates")).toContainText("1 pending · 1 overdue");
+    await expect(page.getByTestId("task-section-todo")).toContainText("1 pending");
+    expect(await page.locator('[data-testid^="task-row-"]').count()).toBe(4);
+    await expect(page.getByTestId("task-row-12")).toHaveAttribute("data-testid", "task-row-12");
+    await expect(page.getByTestId("task-row-12").getByRole("link", { name: "Open invoices area" })).toHaveAttribute("href", "/invoices");
+    await expect(page.getByTestId("task-row-13").getByRole("link", { name: "Open job 91" })).toHaveAttribute("href", "/jobs/91");
+
+    await page.getByTestId("task-row-12").getByTitle("Mark complete", { exact: true }).click();
+    await expect(page.getByTestId("task-section-invoices")).toContainText("0 pending");
+    expect(tasks.find((item) => item.id === 12)?.status).toBe("completed");
+  });
+
+  test("shows all four honest empty sections when there are no task records", async ({ page }) => {
+    tasks = [];
+    await page.goto("/tasks");
+    for (const section of ["quotes", "invoices", "certificates", "todo"]) {
+      await expect(page.getByTestId(`task-section-${section}`)).toContainText("0 pending");
+      await expect(page.getByTestId(`task-section-${section}`)).toContainText("No pending");
+    }
+  });
 });

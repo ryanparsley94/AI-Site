@@ -325,7 +325,7 @@ export default function BusinessSetup() {
                   {applied ? "Business setup is applied" : "Ready to apply reviewed details"}
                 </p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Applying updates the company profile and the live receptionist knowledge used on future calls.
+                  Applying fills blank company fields and adds new receptionist knowledge. Existing company details, greeting and matching training answers are preserved.
                 </p>
               </div>
               <Button onClick={() => void apply()} disabled={applying || applied} className="gap-2 shrink-0">

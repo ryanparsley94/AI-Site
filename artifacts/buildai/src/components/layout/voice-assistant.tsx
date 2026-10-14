@@ -296,7 +296,7 @@ export default function VoiceAssistant() {
   const label = phase === "listening" ? "Listening. Release to send." : phase === "processing" ? "Working on it" : phase === "starting" ? "Starting microphone" : "Hold to speak";
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-3 print:hidden">
+    <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] right-3 z-40 flex flex-col items-end gap-3 print:hidden sm:right-4 md:bottom-4 md:z-50">
       {open && (
         <div
           ref={panelRef}

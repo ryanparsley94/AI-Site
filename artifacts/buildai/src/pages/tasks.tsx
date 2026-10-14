@@ -23,7 +23,13 @@ import {
   ChevronUp,
   Loader2,
   ClipboardList,
+  FileText,
+  Receipt,
+  ShieldCheck,
+  ListTodo,
+  ArrowUpRight,
 } from "lucide-react";
+import { Link } from "wouter";
 import { cn } from "@/lib/utils";
 import { overdueDays, sortTasks, taskDueDate } from "@/lib/task-dates";
 import { useLocalDay } from "@/hooks/use-local-day";
@@ -33,6 +39,29 @@ const PRIORITY_COLORS: Record<TaskPriority, string> = {
   medium: "bg-amber-100 text-amber-700 border-amber-200",
   low: "bg-blue-100 text-blue-700 border-blue-200",
 };
+
+const TASK_SECTIONS = [
+  { id: "quotes", label: "Quotes", icon: FileText, path: "/quotes", color: "border-cyan-500/35 bg-cyan-500/5 text-cyan-800 dark:text-cyan-200", dot: "bg-cyan-500" },
+  { id: "invoices", label: "Invoices", icon: Receipt, path: "/invoices", color: "border-blue-500/35 bg-blue-500/5 text-blue-800 dark:text-blue-200", dot: "bg-blue-500" },
+  { id: "certificates", label: "Certificates", icon: ShieldCheck, path: "/certificates", color: "border-amber-500/35 bg-amber-500/5 text-amber-900 dark:text-amber-200", dot: "bg-amber-500" },
+  { id: "todo", label: "To-do List", icon: ListTodo, path: "/tasks", color: "border-slate-500/30 bg-slate-500/5 text-foreground", dot: "bg-slate-500" },
+] as const;
+
+type TaskSectionId = typeof TASK_SECTIONS[number]["id"];
+
+function taskSection(task: Task): TaskSectionId {
+  const title = task.title.toLowerCase();
+  if (/\bquote\b|\bquotation\b/.test(title)) return "quotes";
+  if (/\binvoice\b|\binvoicing\b/.test(title)) return "invoices";
+  if (/\bcertificate\b|\beicr\b|\bminor works cert\b|\bcompletion cert\b/.test(title)) return "certificates";
+  return "todo";
+}
+
+function groupedTasks(tasks: Task[]) {
+  return Object.fromEntries(
+    TASK_SECTIONS.map((section) => [section.id, tasks.filter((task) => taskSection(task) === section.id)]),
+  ) as Record<TaskSectionId, Task[]>;
+}
 
 export default function Tasks() {
   const queryClient = useQueryClient();
@@ -54,6 +83,8 @@ export default function Tasks() {
   const completedTasks = sortTasks(
     tasks.filter((t) => t.status === "completed" || t.status === "dismissed"), today
   );
+  const pendingBySection = groupedTasks(pendingTasks);
+  const completedBySection = groupedTasks(completedTasks);
 
   const handleAdd = async () => {
     const title = newTitle.trim();
@@ -120,9 +151,9 @@ export default function Tasks() {
   };
 
   return (
-    <div className="p-6 max-w-2xl mx-auto space-y-6">
+    <div className="mx-auto max-w-2xl space-y-5 px-4 py-5 pb-32 sm:space-y-6 sm:p-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <ClipboardList className="text-primary" size={24} />
           <div>
@@ -136,7 +167,7 @@ export default function Tasks() {
         <Button
           onClick={handleGenerate}
           disabled={generateTasks.isPending}
-          className="gap-2"
+          className="min-h-11 gap-2 px-3"
         >
           {generateTasks.isPending ? (
             <Loader2 size={16} className="animate-spin" />
@@ -146,6 +177,9 @@ export default function Tasks() {
           {generateTasks.isPending ? "Generating…" : "AI Generate Tasks"}
         </Button>
       </div>
+      <p className="text-xs text-muted-foreground">
+        Tasks are grouped by what their wording refers to; general actions stay in To-do List. Completing an invoice task does not mark its invoice paid.
+      </p>
 
       {/* Add task input */}
       <div className="flex gap-2">
@@ -154,13 +188,13 @@ export default function Tasks() {
           value={newTitle}
           onChange={(e) => setNewTitle(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-          className="flex-1"
+          className="min-h-11 flex-1"
         />
         <Button
           variant="outline"
           onClick={handleAdd}
           disabled={!newTitle.trim() || createTask.isPending}
-          className="gap-1"
+          className="min-h-11 gap-1 px-4"
         >
           <Plus size={16} />
           Add
@@ -192,20 +226,41 @@ export default function Tasks() {
         </p>
       )}
 
-      {/* Pending tasks */}
-      {!isLoading && pendingTasks.length > 0 && (
-        <div className="space-y-2">
-          {pendingTasks.map((task) => (
-            <TaskRow
-              key={task.id}
-              task={task}
-              today={today}
-              onToggle={handleToggle}
-              onDismiss={handleDismiss}
-              onDelete={handleDelete}
-              onCyclePriority={handleCyclePriority}
-            />
-          ))}
+      {/* Pending tasks stay as task records; invoice payment state never changes task completion. */}
+      {!isLoading && (
+        <div className="grid gap-4 md:grid-cols-2">
+          {TASK_SECTIONS.map((section) => {
+            const Icon = section.icon;
+            const sectionTasks = pendingBySection[section.id];
+            const sectionOverdue = sectionTasks.filter((task) => overdueDays(task, today) > 0).length;
+            return (
+              <section key={section.id} data-testid={`task-section-${section.id}`} className={cn("min-w-0 rounded-xl border p-4 sm:p-5", section.color)}>
+                <header className="mb-3 flex items-center justify-between gap-3 border-b border-current/10 pb-3">
+                  <h2 className="flex min-w-0 items-center gap-2 text-sm font-semibold">
+                    <span aria-hidden="true" className={cn("h-2.5 w-2.5 shrink-0 rounded-full", section.dot)} />
+                    <Icon size={17} aria-hidden="true" />
+                    {section.label}
+                  </h2>
+                  <span className="shrink-0 rounded-full bg-background/70 px-2 py-0.5 text-xs font-semibold tabular-nums" aria-label={`${sectionTasks.length} pending, ${sectionOverdue} overdue`}>
+                    {sectionTasks.length} pending{sectionOverdue ? ` · ${sectionOverdue} overdue` : ""}
+                  </span>
+                </header>
+                {sectionTasks.length ? (
+                  <div className="space-y-2">
+                    {sectionTasks.map((task) => (
+                      <TaskRow key={task.id} task={task} today={today} openPath={section.path}
+                        onToggle={handleToggle} onDismiss={handleDismiss} onDelete={handleDelete}
+                        onCyclePriority={handleCyclePriority} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-dashed border-current/20 bg-background/35 px-3 py-5 text-sm text-muted-foreground">
+                    No pending {section.label.toLowerCase()} tasks.
+                  </div>
+                )}
+              </section>
+            );
+          })}
         </div>
       )}
 
@@ -221,18 +276,21 @@ export default function Tasks() {
           </button>
 
           {showCompleted && (
-            <div className="space-y-2 opacity-60">
-              {completedTasks.map((task) => (
-                <TaskRow
-                  key={task.id}
-                  task={task}
-                  today={today}
-                  onToggle={handleToggle}
-                  onDismiss={handleDismiss}
-                  onDelete={handleDelete}
-                  onCyclePriority={handleCyclePriority}
-                />
-              ))}
+            <div className="grid gap-4 pt-3 md:grid-cols-2">
+              {TASK_SECTIONS.map((section) => {
+                const Icon = section.icon;
+                const sectionTasks = completedBySection[section.id];
+                return (
+                  <section key={section.id} className="min-w-0 rounded-xl border bg-card p-3 opacity-70 sm:p-4">
+                    <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground"><Icon size={16} />{section.label} · {sectionTasks.length}</h3>
+                    {sectionTasks.length ? <div className="space-y-2">{sectionTasks.map((task) => (
+                      <TaskRow key={task.id} task={task} today={today} openPath={section.path}
+                        onToggle={handleToggle} onDismiss={handleDismiss} onDelete={handleDelete}
+                        onCyclePriority={handleCyclePriority} />
+                    ))}</div> : <p className="text-sm text-muted-foreground">No completed tasks in this section.</p>}
+                  </section>
+                );
+              })}
             </div>
           )}
         </div>
@@ -248,18 +306,20 @@ interface TaskRowProps {
   onDismiss: (t: Task) => void;
   onDelete: (t: Task) => void;
   onCyclePriority: (t: Task) => void;
+  openPath: string;
 }
 
-function TaskRow({ task, today, onToggle, onDismiss, onDelete, onCyclePriority }: TaskRowProps) {
+function TaskRow({ task, today, openPath, onToggle, onDismiss, onDelete, onCyclePriority }: TaskRowProps) {
   const isDone = task.status !== "pending";
   const daysOverdue = overdueDays(task, today);
   const dueDate = taskDueDate(task);
+  const jobMatch = task.title.match(/\bjob\s+#?(\d+)\b/i);
 
   return (
     <div
       data-testid={`task-row-${task.id}`}
       className={cn(
-        "flex items-center gap-3 p-3 rounded-lg border bg-card transition-colors group",
+        "flex min-h-[64px] flex-wrap items-center gap-2 sm:gap-3 p-3 sm:p-4 rounded-xl border bg-card transition-colors group",
         daysOverdue > 0 && "border-amber-300 bg-amber-50/50",
         isDone && "bg-muted/30"
       )}
@@ -267,8 +327,9 @@ function TaskRow({ task, today, onToggle, onDismiss, onDelete, onCyclePriority }
       {/* Check button */}
       <button
         onClick={() => onToggle(task)}
-        className="shrink-0 text-muted-foreground hover:text-primary transition-colors"
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-primary transition-colors"
         title={isDone ? "Mark pending" : "Mark complete"}
+        aria-label={`${isDone ? "Mark pending" : "Mark complete"}: ${task.title}`}
       >
         {isDone ? (
           <CheckCircle2 size={20} className="text-primary" />
@@ -280,11 +341,21 @@ function TaskRow({ task, today, onToggle, onDismiss, onDelete, onCyclePriority }
       {/* Title */}
       <div
         className={cn(
-          "flex-1 text-sm leading-snug",
+          "min-w-0 flex-1 text-sm leading-snug sm:text-[15px]",
           isDone && "line-through text-muted-foreground"
         )}
       >
         <span>{task.title}</span>
+        {taskSection(task) !== "todo" && (
+          <Link href={openPath} className="ml-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline" aria-label={`Open ${taskSection(task)} area`}>
+            Open {TASK_SECTIONS.find((section) => section.id === taskSection(task))?.label} list <ArrowUpRight size={12} />
+          </Link>
+        )}
+        {jobMatch && (
+          <Link href={`/jobs/${jobMatch[1]}`} className="ml-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline" aria-label={`Open job ${jobMatch[1]}`}>
+            Open job #{jobMatch[1]} <ArrowUpRight size={12} />
+          </Link>
+        )}
         {daysOverdue > 0 && (
           <div className="mt-1">
             <Badge variant="outline" className="text-amber-800 bg-amber-100 border-amber-300">
@@ -304,7 +375,7 @@ function TaskRow({ task, today, onToggle, onDismiss, onDelete, onCyclePriority }
 
       {/* Due date */}
       {dueDate && (
-        <span className="hidden sm:block text-xs text-muted-foreground shrink-0">
+        <span className="text-xs text-muted-foreground shrink-0">
           {new Date(`${dueDate}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
         </span>
       )}
@@ -313,8 +384,9 @@ function TaskRow({ task, today, onToggle, onDismiss, onDelete, onCyclePriority }
       <button
         onClick={() => onCyclePriority(task)}
         title="Click to change priority"
+        aria-label={`Change priority for ${task.title}; current priority ${task.priority}`}
         className={cn(
-          "hidden sm:inline-flex text-xs px-2 py-0.5 rounded-full border font-medium shrink-0 transition-opacity",
+          "hidden min-h-10 sm:inline-flex text-xs px-3 py-1 rounded-full border font-medium shrink-0 transition-opacity",
           PRIORITY_COLORS[task.priority],
           isDone && "opacity-50"
         )}
@@ -323,11 +395,11 @@ function TaskRow({ task, today, onToggle, onDismiss, onDelete, onCyclePriority }
       </button>
 
       {/* Action buttons — visible on hover */}
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+      <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
         {!isDone && (
           <button
             onClick={() => onDismiss(task)}
-            className="text-xs text-muted-foreground hover:text-foreground px-1.5 py-1 rounded transition-colors"
+            className="min-h-10 px-3 text-xs text-muted-foreground hover:text-foreground rounded-lg transition-colors"
             title="Dismiss"
           >
             Dismiss
@@ -335,8 +407,9 @@ function TaskRow({ task, today, onToggle, onDismiss, onDelete, onCyclePriority }
         )}
         <button
           onClick={() => onDelete(task)}
-          className="text-muted-foreground hover:text-destructive p-1 rounded transition-colors"
+          className="flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
           title="Delete"
+          aria-label={`Delete task: ${task.title}`}
         >
           <Trash2 size={14} />
         </button>

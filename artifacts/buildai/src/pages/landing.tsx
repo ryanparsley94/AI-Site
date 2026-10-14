@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { PhoneCall, CalendarDays, Bot, ArrowRight, CheckCircle2, Star, MapPin, Zap, Play, ChevronDown, Send } from "lucide-react";
+import { PhoneCall, CalendarDays, Bot, ArrowRight, CheckCircle2, Star, MapPin, Zap, Play, ChevronDown, Send, Menu, X } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { CallDemoModal } from "@/components/call-demo-modal";
 
@@ -46,6 +46,17 @@ export default function Landing() {
   const [demoOpen, setDemoOpen] = useState(false);
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  function handleMobileNavClick(e: React.MouseEvent<HTMLAnchorElement>) {
+    setMobileNavOpen(false);
+    const hash = e.currentTarget.hash;
+    const section = document.getElementById(hash.slice(1));
+    if (!section) return;
+    e.preventDefault();
+    window.history.pushState(null, "", hash);
+    section.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   // Support question form
   const [supportName, setSupportName] = useState("");
@@ -76,9 +87,9 @@ export default function Landing() {
   return (
     <div className="min-h-screen bg-[#0D171C] text-white flex flex-col font-sans">
       {/* Navbar */}
-      <header className="px-6 py-4 flex items-center justify-between sticky top-0 z-50 bg-[#0D171C]/90 backdrop-blur-md border-b border-white/10">
+      <header className="px-4 sm:px-6 py-4 flex items-center justify-between gap-3 sticky top-0 z-50 bg-[#0D171C]/90 backdrop-blur-md border-b border-white/10">
         <div className="flex items-center gap-2.5 font-bold text-xl">
-          <BrandLogo className="h-11 w-auto" />
+          <BrandLogo className="h-6 min-[360px]:h-8 sm:h-11 w-auto" />
         </div>
         <nav className="hidden md:flex gap-8 text-sm font-medium text-white/60">
           <a href="#features" className="hover:text-white transition-colors">Features</a>
@@ -86,14 +97,44 @@ export default function Landing() {
           <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
           <a href="#faq" className="hover:text-white transition-colors">FAQ</a>
         </nav>
-        <div className="flex items-center gap-4">
-          <Link href="/dashboard" className="text-sm font-medium text-white/70 hover:text-white transition-colors">
+        <div className="flex items-center gap-2 md:gap-4">
+          <Link href="/dashboard" className="hidden md:inline text-sm font-medium text-white/70 hover:text-white transition-colors">
             Login
           </Link>
           <Link href="/dashboard">
             <Button className="font-bold bg-[#36C6D5] hover:bg-[#2fb3c1] text-[#0D171C] border-0">Get Started</Button>
           </Link>
+          <button
+            type="button"
+            className="md:hidden flex h-11 w-11 items-center justify-center rounded-md text-white/80 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#36C6D5]"
+            aria-label={mobileNavOpen ? "Close navigation menu" : "Open navigation menu"}
+            aria-expanded={mobileNavOpen}
+            aria-controls="mobile-navigation"
+            onClick={() => setMobileNavOpen(!mobileNavOpen)}
+            onKeyDown={(e) => { if (e.key === "Escape") setMobileNavOpen(false); }}
+          >
+            {mobileNavOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
         </div>
+        {mobileNavOpen && (
+          <nav
+            id="mobile-navigation"
+            aria-label="Mobile navigation"
+            className="md:hidden absolute top-full inset-x-0 border-b border-white/10 bg-[#0D171C] px-4 py-2 text-sm font-medium text-white/80 shadow-lg"
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                setMobileNavOpen(false);
+                document.querySelector<HTMLButtonElement>('[aria-controls="mobile-navigation"]')?.focus();
+              }
+            }}
+          >
+            <a href="#features" onClick={handleMobileNavClick} className="block rounded-md px-3 py-3 hover:bg-white/10 hover:text-white">Features</a>
+            <a href="#how-it-works" onClick={handleMobileNavClick} className="block rounded-md px-3 py-3 hover:bg-white/10 hover:text-white">How it Works</a>
+            <a href="#pricing" onClick={handleMobileNavClick} className="block rounded-md px-3 py-3 hover:bg-white/10 hover:text-white">Pricing</a>
+            <a href="#faq" onClick={handleMobileNavClick} className="block rounded-md px-3 py-3 hover:bg-white/10 hover:text-white">FAQ</a>
+            <Link href="/dashboard" className="block rounded-md px-3 py-3 hover:bg-white/10 hover:text-white">Login</Link>
+          </nav>
+        )}
       </header>
 
       <main className="flex-1">
@@ -432,7 +473,7 @@ export default function Landing() {
         </section>
 
         {/* FAQ */}
-        <section id="faq" className="py-24 bg-[#203038] border-t border-white/10">
+        <section id="faq" className="scroll-mt-24 py-24 bg-[#203038] border-t border-white/10">
           <div className="max-w-3xl mx-auto px-6">
             <div className="text-center mb-14">
               <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Frequently asked questions</h2>
