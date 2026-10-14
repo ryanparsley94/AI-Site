@@ -1,7 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { BrandLogo } from "@/components/brand-logo";
 import { cn } from "@/lib/utils";
-import { getListTasksQueryKey, useListMarketingDrafts, useListTasks, useUnreviewedWidgetCount } from "@workspace/api-client-react";
+import { getListMarketingDraftsQueryKey, getListTasksQueryKey, useListMarketingDrafts, useListTasks, useUnreviewedWidgetCount } from "@workspace/api-client-react";
 import {
   LayoutDashboard,
   Phone,
@@ -79,7 +79,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   });
   const pendingTaskCount = tasks.filter((task) => task.status === "pending").length;
   const { data: marketingDrafts = [] } = useListMarketingDrafts(undefined, {
-    query: { refetchInterval: 15_000, refetchOnWindowFocus: true },
+    query: { queryKey: getListMarketingDraftsQueryKey(), refetchInterval: 15_000, refetchOnWindowFocus: true },
   });
   const pendingMarketingCount = marketingDrafts.filter((draft) => draft.status === "pending").length;
 
