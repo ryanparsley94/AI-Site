@@ -18,6 +18,7 @@ import {
   AssistantUpdatePersonality,
   AssistantInputType,
   useListMarketingDrafts,
+  getListMarketingDraftsQueryKey,
   useApproveMarketingDraft,
   useDismissMarketingDraft,
   useUpdateMarketingDraft,
@@ -1529,7 +1530,7 @@ function MarketingDraftCard({ draft }: { draft: MarketingDraft }) {
 
 function MarketingQueueSection() {
   const [filter, setFilter] = useState<"pending" | "sent" | "all">("pending");
-  const { data: allDrafts = [], isLoading, isError } = useListMarketingDrafts(undefined, { query: { refetchInterval: 15000 } });
+  const { data: allDrafts = [], isLoading, isError } = useListMarketingDrafts(undefined, { query: { queryKey: getListMarketingDraftsQueryKey(), refetchInterval: 15000 } });
   const drafts = allDrafts.filter(d => filter === "all" || (filter === "sent"
     ? ["queued", "sent", "delivered"].includes(d.deliveryStatus ?? "")
     : d.status !== "dismissed" && !["queued", "sent", "delivered"].includes(d.deliveryStatus ?? "")));
