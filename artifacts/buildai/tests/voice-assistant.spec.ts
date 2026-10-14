@@ -8,6 +8,7 @@ test.beforeEach(async ({ page }) => {
       businessName: "Parsley Electrical",
       bots: [{ id: 7, name: "Oliver", defaultVoice: "marin" }],
       voices: ["alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse", "marin", "cedar"].map(id => ({ id, label: id[0].toUpperCase() + id.slice(1) })),
+      displayNames: ["Ash", "James", "Sophie", "Emma", "Oliver", "Charlotte"],
       languagePreference: "British English · UK pronunciation (guided by instructions; voice accent can vary)",
     } });
     await route.fulfill({ json: path === "/api/auth/check" ? { authenticated: true } : path === "/api/company" ? { name: "Test contractor" } : path.includes("count") ? { count: 0 } : [] });
@@ -90,8 +91,9 @@ test("embedded browser demo explains microphone denial and offers standalone ope
     return route.fulfill({ json: { clientSecret: "test-only", demoId: "test-demo", receptionistName: "Oliver", assistantId: 7, voice: "marin" } });
   });
   await page.goto("/");
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("button", { name: "Hear a Demo Call" }).click();
-  await page.getByRole("button", { name: /Talk live in your browser/ }).click();
+  await page.getByRole("button", { name: /Talk in your browser/ }).click();
   await page.getByTestId("input-business-website").fill("https://www.parsleyelectrical.co.uk");
   await page.getByTestId("button-preview-website").click();
   await page.getByRole("checkbox").check();
@@ -122,7 +124,7 @@ test("quota sample failure shows one clear diagnostic and makes no automatic ret
   });
   await page.goto("/");
   await page.getByRole("button", { name: "Hear a Demo Call" }).click();
-  await page.getByRole("button", { name: "Hear a sample conversation" }).click();
+  await page.getByRole("button", { name: "Hear a sample" }).click();
   await expect(page.getByTestId("status-live-demo-error")).toContainText("quota or billing limit");
   await expect(page.getByText(/insufficient_quota.*billing_hard_limit_reached.*req-safe-test/)).toBeVisible();
   await expect(page.getByText("No automatic retry was made")).toBeVisible();
@@ -144,19 +146,19 @@ test("generated demo sample is reused by audio replay and never falls back to br
     (window.speechSynthesis as any).speak = () => { (window as any).__speechCalls++; };
   });
   await page.getByRole("button", { name: "Hear a Demo Call" }).click();
-  await page.getByRole("button", { name: "Hear a sample conversation" }).click();
+  await page.getByRole("button", { name: "Hear a sample" }).click();
   const audio = page.locator('audio[aria-label="Play generated sample conversation"]');
   await expect(audio).toBeVisible();
   await expect(audio).toHaveAttribute("src", /^blob:/);
   expect(sampleRequests).toBe(1);
   await page.getByRole("button", { name: "Demo choices" }).click();
-  await page.getByRole("button", { name: "Hear a sample conversation" }).click();
+  await page.getByRole("button", { name: "Hear a sample" }).click();
   expect(sampleRequests).toBe(1);
   browserSpeech = await page.evaluate(() => (window as any).__speechCalls as number);
   expect(browserSpeech).toBe(0);
 });
 
-test("voice preview and instant callback carry the selected bot and supported Realtime voice", async ({ page }) => {
+test("voice preview and instant callback carry the selected receptionist, bot and supported Realtime voice", async ({ page }) => {
   let previewUrl = "";
   let callbackBody: Record<string, unknown> | null = null;
   await page.route("**/api/public-demo/sample-audio?**", async route => {
@@ -165,20 +167,25 @@ test("voice preview and instant callback carry the selected bot and supported Re
   });
   await page.route("**/api/public-demo/phone-call", async route => {
     callbackBody = route.request().postDataJSON();
-    await route.fulfill({ status: 202, json: { demoId: "test-demo", status: "queued", message: "Call requested for Oliver using OpenAI Realtime voice cedar.", assistantId: 7, assistantName: "Oliver", voice: "cedar" } });
+    await route.fulfill({ status: 202, json: { demoId: "test-demo", status: "queued", message: "Call requested for Sophie using OpenAI Realtime voice cedar.", assistantId: 7, assistantName: "Sophie", receptionistName: "Sophie", voice: "cedar" } });
   });
   await page.goto("/");
   await page.getByRole("button", { name: "Hear a Demo Call" }).click();
+  await page.getByLabel("Demo receptionist name").selectOption("Sophie");
   await page.getByLabel("OpenAI Realtime voice").selectOption("cedar");
   await page.getByRole("button", { name: "Preview selected voice" }).click();
-  await expect(page.locator('audio[aria-label="Voice preview for cedar"]')).toBeVisible();
+  await expect(page.locator('audio[aria-label="Voice preview for Sophie, OpenAI voice cedar"]')).toBeVisible();
   expect(new URL(previewUrl).searchParams.get("assistantId")).toBe("7");
   expect(new URL(previewUrl).searchParams.get("voice")).toBe("cedar");
-  await page.getByRole("button", { name: "Receive an instant phone demo" }).click();
+  expect(new URL(previewUrl).searchParams.get("receptionistName")).toBe("Sophie");
+  await page.getByRole("button", { name: "Get a demo call" }).click();
   await page.getByLabel("Your phone number (international format)").fill("+447700900123");
   await page.getByRole("checkbox").check();
   await page.getByRole("button", { name: "Call me now" }).click();
-  await expect.poll(() => callbackBody).toMatchObject({ assistantId: 7, voice: "cedar", consent: true });
+  await expect.poll(() => callbackBody).toMatchObject({ assistantId: 7, voice: "cedar", receptionistName: "Sophie", consent: true });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.setViewportSize({ width: 1440, height: 960 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
 test("release before permission resolves stops tracks and does not submit", async ({ page }) => {

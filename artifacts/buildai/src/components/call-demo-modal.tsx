@@ -24,7 +24,12 @@ type CallStatus = "idle" | "connecting" | "live" | "ending" | "error";
 type DemoMode = "choose" | "sample" | "browser" | "phone";
 type SampleFailure = { category: string | null; type: string | null; code: string | null; requestId: string | null };
 type DemoBot = { id: number; name: string; defaultVoice: string };
-type DemoOptions = { bots: DemoBot[]; voices: { id: string; label: string }[]; languagePreference: string };
+type DemoOptions = {
+  bots: DemoBot[];
+  voices: { id: string; label: string; description?: string }[];
+  displayNames: string[];
+  languagePreference: string;
+};
 
 const RECEPTIONIST_NAME = "Receptionist";
 function apiPath(path: string) {
@@ -93,6 +98,7 @@ export function CallDemoModal({
   const [demoOptions, setDemoOptions] = useState<DemoOptions | null>(null);
   const [selectedAssistantId, setSelectedAssistantId] = useState("");
   const [selectedVoice, setSelectedVoice] = useState("marin");
+  const [selectedDisplayName, setSelectedDisplayName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [phoneConsent, setPhoneConsent] = useState(false);
   const [phoneDemoId, setPhoneDemoId] = useState("");
@@ -113,6 +119,7 @@ export function CallDemoModal({
   const [micReady, setMicReady] = useState(false);
   const [audioPlaybackBlocked, setAudioPlaybackBlocked] = useState(false);
   const [embeddedContext, setEmbeddedContext] = useState(false);
+  const [callDuration, setCallDuration] = useState(0);
 
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -122,6 +129,7 @@ export function CallDemoModal({
   const demoIdRef = useRef<string | null>(null);
   const receptionistNameRef = useRef(RECEPTIONIST_NAME);
   const itemIndexesRef = useRef<Record<string, number>>({});
+  const callStartedAtRef = useRef<number | null>(null);
 
   useEffect(() => {
     try { setEmbeddedContext(window.self !== window.top); }
@@ -139,6 +147,7 @@ export function CallDemoModal({
         if (bot) {
           setSelectedAssistantId(String(bot.id));
           setSelectedVoice(bot.defaultVoice);
+          setSelectedDisplayName(bot.name);
         }
       })
       .catch((caught) => setError(caught instanceof Error ? caught.message : "Demo voice choices are unavailable."));
@@ -151,7 +160,7 @@ export function CallDemoModal({
     setSampleRequestMade(false);
     setSampleFailure(null);
     setVoicePreviewUrl("");
-  }, [selectedAssistantId, selectedVoice]);
+  }, [selectedAssistantId, selectedVoice, selectedDisplayName]);
 
   const closeConnection = useCallback(() => {
     channelRef.current?.close();
@@ -199,10 +208,13 @@ export function CallDemoModal({
     setDemoOptions(null);
     setSelectedAssistantId("");
     setSelectedVoice("marin");
+    setSelectedDisplayName("");
     setPhoneNumber("");
     setPhoneConsent(false);
     setPhoneDemoId("");
     setPhoneStatus("");
+    setCallDuration(0);
+    callStartedAtRef.current = null;
   }, [closeConnection]);
 
   useEffect(() => {
@@ -234,7 +246,8 @@ export function CallDemoModal({
       const result = await postJson<PreviewResponse>("/api/public-demo/website-preview", { url: website.trim() });
       if (!result.preview || typeof result.preview !== "object") throw new Error("We couldn't read a business profile from that website.");
       setProfile(result.preview);
-      const savedReceptionist = demoOptions?.bots.find((bot) => String(bot.id) === selectedAssistantId)?.name ||
+      const savedReceptionist = selectedDisplayName ||
+        demoOptions?.bots.find((bot) => String(bot.id) === selectedAssistantId)?.name ||
         readable(result.preview.receptionistName) || RECEPTIONIST_NAME;
       setReceptionistName(savedReceptionist);
       receptionistNameRef.current = savedReceptionist;
@@ -253,7 +266,7 @@ export function CallDemoModal({
     setError("");
     setSampleFailure(null);
     try {
-      const response = await fetch(apiPath(`/api/public-demo/sample-audio?assistantId=${encodeURIComponent(selectedAssistantId)}&voice=${encodeURIComponent(selectedVoice)}`));
+      const response = await fetch(apiPath(`/api/public-demo/sample-audio?assistantId=${encodeURIComponent(selectedAssistantId)}&voice=${encodeURIComponent(selectedVoice)}&receptionistName=${encodeURIComponent(selectedDisplayName)}`));
       if (!response.ok) {
         const result = await response.json().catch(() => ({})) as { error?: string; category?: string | null; type?: string | null; code?: string | null; requestId?: string | null };
         setSampleFailure({
@@ -291,7 +304,7 @@ export function CallDemoModal({
     setVoicePreviewLoading(true);
     setError("");
     try {
-      const response = await fetch(apiPath(`/api/public-demo/sample-audio?assistantId=${encodeURIComponent(selectedAssistantId)}&voice=${encodeURIComponent(selectedVoice)}`));
+      const response = await fetch(apiPath(`/api/public-demo/sample-audio?assistantId=${encodeURIComponent(selectedAssistantId)}&voice=${encodeURIComponent(selectedVoice)}&receptionistName=${encodeURIComponent(selectedDisplayName)}`));
       if (!response.ok) {
         const body = await response.json().catch(() => ({})) as { error?: string };
         throw new Error(body.error || `Voice preview returned ${response.status}.`);
@@ -311,11 +324,11 @@ export function CallDemoModal({
     setError("");
     setPhoneStatus("Requesting a live call…");
     try {
-      const result = await postJson<{ demoId: string; status: string; message: string; assistantId: number; voice: string }>(
+      const result = await postJson<{ demoId: string; status: string; message: string; assistantId: number; voice: string; receptionistName: string }>(
         "/api/public-demo/phone-call",
-        { phone: phoneNumber.trim(), consent: phoneConsent, assistantId: Number(selectedAssistantId), voice: selectedVoice },
+        { phone: phoneNumber.trim(), consent: phoneConsent, assistantId: Number(selectedAssistantId), voice: selectedVoice, receptionistName: selectedDisplayName },
       );
-      if (result.assistantId !== Number(selectedAssistantId) || result.voice !== selectedVoice) {
+      if (result.assistantId !== Number(selectedAssistantId) || result.voice !== selectedVoice || result.receptionistName !== selectedDisplayName) {
         throw new Error("The phone demo did not confirm the selected receptionist and voice. No call status was reported.");
       }
       setPhoneDemoId(result.demoId);
@@ -344,6 +357,15 @@ export function CallDemoModal({
     return () => window.clearInterval(timer);
   }, [phoneDemoId, open]);
 
+  useEffect(() => {
+    if (callStatus !== "live") return;
+    callStartedAtRef.current ??= Date.now();
+    const tick = () => setCallDuration(Math.floor((Date.now() - (callStartedAtRef.current ?? Date.now())) / 1000));
+    tick();
+    const timer = window.setInterval(tick, 1000);
+    return () => window.clearInterval(timer);
+  }, [callStatus]);
+
   async function startCall() {
     if (!profile || callStatus === "connecting" || callStatus === "live") return;
     if (!livePilotConsent) {
@@ -352,9 +374,13 @@ export function CallDemoModal({
     }
     setError("");
     setCallStatus("connecting");
+    setCallDuration(0);
+    callStartedAtRef.current = null;
     transcriptRef.current = [];
     setTranscript([]);
     itemIndexesRef.current = {};
+    receptionistNameRef.current = selectedDisplayName || RECEPTIONIST_NAME;
+    setReceptionistName(selectedDisplayName || RECEPTIONIST_NAME);
     let stream: MediaStream | null = null;
     try {
       if (!window.isSecureContext) {
@@ -383,7 +409,14 @@ export function CallDemoModal({
       peer.onconnectionstatechange = () => {
         if (peer.connectionState === "failed" || peer.connectionState === "disconnected") {
           setCallStatus("error");
-          setError("The live audio connection ended unexpectedly. Your microphone has been closed.");
+          setError("The live audio connection ended unexpectedly. Your microphone has been closed. Check your connection, then restart the demo.");
+          closeConnection();
+        }
+      };
+      peer.oniceconnectionstatechange = () => {
+        if (peer.iceConnectionState === "failed") {
+          setCallStatus("error");
+          setError("The audio network connection failed. Check Wi-Fi or mobile data, then restart the demo.");
           closeConnection();
         }
       };
@@ -394,8 +427,8 @@ export function CallDemoModal({
         let event: Record<string, unknown>;
         try { event = JSON.parse(message.data) as Record<string, unknown>; } catch { return; }
         if (event.type === "error") {
-          const eventError = event.error as { message?: string } | undefined;
-          setError(eventError?.message || "The live receptionist couldn't respond. Please try again.");
+          const eventError = event.error as { code?: string } | undefined;
+          setError(`The live receptionist had a Realtime service error${eventError?.code ? ` (${eventError.code})` : ""}. You can ask again; if audio stays silent, end and restart the demo.`);
           return;
         }
         const itemId = typeof event.item_id === "string" ? event.item_id : undefined;
@@ -444,6 +477,19 @@ export function CallDemoModal({
           }
         }
       };
+      channel.onclose = () => {
+        setCallStatus((current) => {
+          if (current === "live" || current === "connecting") {
+            setError("The live conversation channel closed. Restart the demo if you would like to continue.");
+            return "error";
+          }
+          return current;
+        });
+      };
+      channel.onerror = () => {
+        setCallStatus("error");
+        setError("The live conversation channel hit a connection error. Check your connection and restart the demo.");
+      };
       channel.onopen = () => {
         channel.send(JSON.stringify({
           type: "response.create",
@@ -475,14 +521,14 @@ export function CallDemoModal({
         "/api/public-demo/realtime-session",
         {
           profile,
-          receptionistName,
           assistantId: Number(selectedAssistantId),
           voice: selectedVoice,
+          receptionistName: selectedDisplayName,
           consent: livePilotConsent,
           websiteFacts: profile,
         },
       );
-      if (answer.assistantId !== Number(selectedAssistantId) || answer.voice !== selectedVoice) {
+      if (answer.assistantId !== Number(selectedAssistantId) || answer.voice !== selectedVoice || answer.receptionistName !== selectedDisplayName) {
         throw new Error("The live session did not confirm the selected receptionist and voice.");
       }
       if (!answer.clientSecret || !answer.demoId) throw new Error("The live demo service returned an incomplete session.");
@@ -499,12 +545,14 @@ export function CallDemoModal({
         body: sdp,
       });
       if (!realtimeResponse.ok) {
-        throw new Error("OpenAI Realtime could not connect. Please retry the demo.");
+        const requestId = realtimeResponse.headers.get("x-request-id");
+        const body = await realtimeResponse.json().catch(() => null) as { error?: { code?: string } } | null;
+        const code = body?.error?.code;
+        throw new Error(`OpenAI Realtime audio negotiation failed (HTTP ${realtimeResponse.status}${code ? `, ${code}` : ""}${requestId ? `, reference ${requestId}` : ""}). Check voice/model access and retry; this does not indicate that your API key is invalid.`);
       }
       const sdpAnswer = await realtimeResponse.text();
       if (!sdpAnswer) throw new Error("OpenAI Realtime returned an empty audio connection.");
       await peer.setRemoteDescription({ type: "answer", sdp: sdpAnswer });
-      setCallStatus("live");
     } catch (caught) {
       stream?.getTracks().forEach((track) => track.stop());
       closeConnection();
@@ -625,30 +673,42 @@ export function CallDemoModal({
                 <p className="text-[10px] font-bold uppercase tracking-[.14em] text-[#36C6D5]">Receptionist and voice</p>
                 {!demoOptions ? <p className="mt-2 text-xs text-white/55">Loading available Parsley demo bots and voices…</p> : (
                   <>
-                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <div className="mt-3 grid gap-3 sm:grid-cols-3">
                       <label className="block text-xs font-semibold text-white/65">
-                        Demo bot
+                        Saved demo bot
                         <select aria-label="Demo bot" value={selectedAssistantId} onChange={(event) => {
                           const bot = demoOptions.bots.find((item) => String(item.id) === event.target.value);
                           setSelectedAssistantId(event.target.value);
-                          if (bot) setSelectedVoice(bot.defaultVoice);
+                          if (bot) {
+                            setSelectedVoice(bot.defaultVoice);
+                            setSelectedDisplayName(bot.name);
+                          }
                         }} className="mt-1.5 h-10 w-full rounded-lg border border-white/15 bg-[#0b1418] px-2.5 text-sm text-white">
                           {demoOptions.bots.map((bot) => <option key={bot.id} value={bot.id}>{bot.name} · Parsley Electrical</option>)}
                         </select>
                       </label>
                       <label className="block text-xs font-semibold text-white/65">
-                        OpenAI Realtime voice
+                        Demo receptionist name
+                        <select aria-label="Demo receptionist name" value={selectedDisplayName} onChange={(event) => setSelectedDisplayName(event.target.value)} className="mt-1.5 h-10 w-full rounded-lg border border-white/15 bg-[#0b1418] px-2.5 text-sm text-white">
+                          {[...new Set([demoOptions.bots.find((bot) => String(bot.id) === selectedAssistantId)?.name, ...(demoOptions.displayNames ?? [])].filter((name): name is string => Boolean(name)))].map((name) => <option key={name} value={name}>{name}</option>)}
+                        </select>
+                      </label>
+                      <label className="block text-xs font-semibold text-white/65">
+                        OpenAI voice
                         <select aria-label="OpenAI Realtime voice" value={selectedVoice} onChange={(event) => setSelectedVoice(event.target.value)} className="mt-1.5 h-10 w-full rounded-lg border border-white/15 bg-[#0b1418] px-2.5 text-sm text-white">
                           {demoOptions.voices.map((voice) => <option key={voice.id} value={voice.id}>{voice.label}</option>)}
                         </select>
                       </label>
                     </div>
-                    <p className="mt-2 text-[11px] leading-relaxed text-white/45">{demoOptions.languagePreference}. Accent is guided by the agent instructions; an OpenAI voice does not guarantee a particular accent.</p>
+                    <p className="mt-2 text-[11px] leading-relaxed text-white/45">
+                      {demoOptions.languagePreference}. <strong className="font-semibold text-white/65">{demoOptions.voices.find((voice) => voice.id === selectedVoice)?.description}</strong>
+                      {" "}The demo receptionist name and audio voice are separate choices. These demo choices affect only this session and callback; the saved active business bot controls later direct inbound calls.
+                    </p>
                     <div className="mt-3 flex flex-wrap items-center gap-3">
                       <Button type="button" variant="outline" onClick={() => void previewSelectedVoice()} disabled={!selectedAssistantId || voicePreviewLoading} className="h-9 border-[#36C6D5]/40 text-xs text-[#8be2e9]">
                         {voicePreviewLoading ? <><LoaderCircle size={14} className="mr-2 animate-spin" /> Preparing preview</> : <><AudioLines size={14} className="mr-2" /> Preview selected voice</>}
                       </Button>
-                      {voicePreviewUrl && <audio controls preload="none" src={voicePreviewUrl} aria-label={`Voice preview for ${selectedVoice}`} className="h-9 max-w-full" />}
+                      {voicePreviewUrl && <audio controls preload="none" src={voicePreviewUrl} aria-label={`Voice preview for ${selectedDisplayName}, OpenAI voice ${selectedVoice}`} className="h-9 max-w-full" />}
                     </div>
                   </>
                 )}
@@ -660,17 +720,17 @@ export function CallDemoModal({
                 <p className="text-xs font-semibold uppercase tracking-[.14em] text-[#36C6D5]">Choose a demo</p>
                 <h2 id="demo-mode-heading" className="mt-1 text-xl font-bold">Three ways to try CREWON</h2>
                 <div className="mt-4 grid gap-3">
-                  <button type="button" disabled={!demoOptions} onClick={() => { setDemoMode("sample"); if (!sampleRequestMade) void playSample(); }} className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[.03] p-4 text-left hover:border-[#36C6D5]/50 disabled:opacity-50">
-                    <Headphones className="mt-0.5 text-[#36C6D5]" size={19} />
-                    <span><strong className="block text-sm">Hear a sample conversation</strong><span className="mt-1 block text-xs text-white/50">A generated, dramatized audio preview—not a real customer recording.</span></span>
-                  </button>
                   <button type="button" disabled={!demoOptions} onClick={() => { setDemoMode("browser"); setStage("profile"); }} className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[.03] p-4 text-left hover:border-[#36C6D5]/50 disabled:opacity-50">
                     <Mic className="mt-0.5 text-[#36C6D5]" size={19} />
-                    <span><strong className="block text-sm">Talk live in your browser</strong><span className="mt-1 block text-xs text-white/50">OpenAI Realtime voice, website/business grounding and call capture.</span></span>
+                    <span><strong className="block text-sm">Talk in your browser</strong><span className="mt-1 block text-xs text-white/50">Interactive two-way OpenAI Realtime conversation. Speech transcript appears live when available.</span></span>
+                  </button>
+                  <button type="button" disabled={!demoOptions} onClick={() => { setDemoMode("sample"); if (!sampleRequestMade) void playSample(); }} className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[.03] p-4 text-left hover:border-[#36C6D5]/50 disabled:opacity-50">
+                    <Headphones className="mt-0.5 text-[#36C6D5]" size={19} />
+                    <span><strong className="block text-sm">Hear a sample</strong><span className="mt-1 block text-xs text-white/50">A generated, dramatized audio example—not a live conversation or real customer recording.</span></span>
                   </button>
                   <button type="button" disabled={!demoOptions} onClick={() => setDemoMode("phone")} className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[.03] p-4 text-left hover:border-[#36C6D5]/50 disabled:opacity-50">
                     <Phone className="mt-0.5 text-[#36C6D5]" size={19} />
-                    <span><strong className="block text-sm">Receive an instant phone demo</strong><span className="mt-1 block text-xs text-white/50">A real Twilio call using the active Parsley Electrical bot and its saved OpenAI voice.</span></span>
+                    <span><strong className="block text-sm">Get a demo call</strong><span className="mt-1 block text-xs text-white/50">A consented Twilio callback using the demo bot name and selected OpenAI voice.</span></span>
                   </button>
                 </div>
               </section>
@@ -702,7 +762,7 @@ export function CallDemoModal({
               <section aria-labelledby="phone-demo-heading">
                 <button type="button" onClick={() => { setDemoMode("choose"); setPhoneDemoId(""); setPhoneStatus(""); }} className="mb-4 inline-flex items-center gap-1.5 text-xs font-semibold text-white/45 hover:text-white"><ArrowLeft size={14} /> Demo choices</button>
                 <h2 id="phone-demo-heading" className="text-xl font-bold">Get a live demonstration call</h2>
-                <p className="mt-1 text-sm text-white/55">We’ll call using {demoOptions?.bots.find((bot) => String(bot.id) === selectedAssistantId)?.name || "the selected Parsley bot"} with the selected Realtime voice and saved business knowledge. Accent preference: British English and UK pronunciation, guided by instructions. No call is placed until you consent.</p>
+                <p className="mt-1 text-sm text-white/55">We’ll call as {selectedDisplayName || "the selected receptionist"} using the selected Parsley bot’s business knowledge and the separate OpenAI voice choice. UK pronunciation is guided by instructions but cannot be guaranteed by every voice. No call is placed until you consent.</p>
                 <form onSubmit={requestPhoneDemo} className="mt-4 space-y-4">
                   <label className="block text-xs font-semibold text-white/60" htmlFor="demo-phone">Your phone number (international format)</label>
                   <input id="demo-phone" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} placeholder="+44…" type="tel" autoComplete="tel" className="h-11 w-full rounded-lg border border-white/15 bg-[#0b1418] px-3 text-sm text-white" required disabled={!!phoneDemoId} />
@@ -832,18 +892,19 @@ export function CallDemoModal({
                   {availableSlots.length > 0 && <ul className="mt-2 space-y-1 text-xs text-[#8be2e9]">{availableSlots.map((slot) => <li key={slot.iso}>{slot.label}</li>)}</ul>}
                 </div>
 
-                {transcript.length > 0 && (
-                  <div className="mb-4 max-h-48 space-y-3 overflow-y-auto rounded-xl border border-white/8 bg-white/[.025] p-3" aria-label="Live transcript" data-testid="list-live-transcript">
-                    {transcript.map((line, index) => (
-                      <div key={`${line.role}-${index}`} className="flex gap-2 text-sm">
-                        <span className={`w-[76px] shrink-0 text-[10px] font-bold uppercase tracking-wide ${line.role === "caller" ? "text-white/40" : "text-[#71d4de]"}`}>
-                          {line.role === "caller" ? "You" : receptionistName}
-                        </span>
-                        <p className="min-w-0 whitespace-pre-wrap leading-relaxed text-white/75">{line.text}</p>
-                      </div>
-                    ))}
+                <div className="mb-4 max-h-64 space-y-2 overflow-y-auto rounded-xl border border-white/8 bg-white/[.025] p-3" aria-label="Live transcript" aria-live="polite" data-testid="list-live-transcript">
+                  {transcript.length === 0 ? (
+                    <p className="py-2 text-center text-xs text-white/45">Transcript will appear here as speech is recognized. No speech has been transcribed yet.</p>
+                  ) : transcript.map((line, index) => (
+                    <div key={`${line.role}-${index}`} className={`max-w-[92%] rounded-xl px-3 py-2 text-sm leading-relaxed ${line.role === "caller" ? "ml-auto bg-[#203038] text-white" : "mr-auto border border-[#36C6D5]/15 bg-[#36C6D5]/[.07] text-white/90"}`}>
+                      <span className={`mb-1 block text-[10px] font-bold uppercase tracking-wide ${line.role === "caller" ? "text-white/50" : "text-[#71d4de]"}`}>
+                        {line.role === "caller" ? "You" : receptionistName}
+                      </span>
+                      <p className="whitespace-pre-wrap">{line.text}</p>
+                    </div>
+                  ))}
                   </div>
-                )}
+                <p className="mb-3 text-center text-[10px] text-white/35">Transcript is based on speech-recognition events and may be incomplete. The recorded sample has no interactive transcript.</p>
 
                 <audio ref={audioRef} autoPlay playsInline className="sr-only" aria-label="Receptionist audio" />
                 <div className="flex flex-col items-center gap-3">
@@ -857,16 +918,19 @@ export function CallDemoModal({
                       <Mic size={17} /> Start live call
                     </Button>
                   ) : callStatus === "connecting" ? (
-                    <Button type="button" disabled className="h-12 w-full gap-2 rounded-xl bg-[#36C6D5]/70 font-bold text-[#0D171C] sm:w-auto sm:min-w-56" data-testid="status-connecting-call">
-                      <LoaderCircle size={17} className="animate-spin" /> Connecting securely…
-                    </Button>
+                    <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                      <Button type="button" disabled className="h-12 w-full gap-2 rounded-xl bg-[#36C6D5]/70 font-bold text-[#0D171C] sm:min-w-56" data-testid="status-connecting-call">
+                        <LoaderCircle size={17} className="animate-spin" /> Connecting securely…
+                      </Button>
+                      <Button type="button" variant="outline" onClick={() => { closeConnection(); setCallStatus("idle"); setError("Connection cancelled. Your microphone is off."); }} className="h-12 border-white/20 text-white/70">Cancel</Button>
+                    </div>
                   ) : (
                     <Button type="button" onClick={finishCall} disabled={callStatus !== "live"} className="h-12 w-full gap-2 rounded-xl bg-rose-500 font-bold text-white hover:bg-rose-400 sm:w-auto sm:min-w-56" data-testid="button-end-live-call">
                       <Phone size={16} className="rotate-[135deg]" /> End call & capture enquiry
                     </Button>
                   )}
                   <p className="flex items-center gap-1.5 text-[11px] text-white/40">
-                    {micReady ? <><span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Microphone on · tap end call to close</> : <><MicOff size={12} /> Microphone off</>}
+                    {micReady ? <><span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Microphone on · {Math.floor(callDuration / 60)}:{String(callDuration % 60).padStart(2, "0")} · no automatic time cutoff · tap end call to close</> : <><MicOff size={12} /> Microphone off</>}
                   </p>
                 </div>
               </section>
