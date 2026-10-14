@@ -23,8 +23,6 @@ import BusinessSetup from '@/pages/business-setup';
 import Schedule from '@/pages/schedule';
 import Sales from '@/pages/sales';
 import PublicQuotePage from '@/pages/public-quote';
-import { useRoute } from 'wouter';
-import VoiceAssistant from '@/components/layout/voice-assistant';
 import { VoiceProvider } from '@/lib/voice-context';
 
 const queryClient = new QueryClient({
@@ -116,17 +114,12 @@ function Router() {
   );
 }
 
-function Shell() {
-  const [isPublic] = useRoute('/quote/accept/:token');
-  return (<><Router />{!isPublic && <VoiceAssistant />}</>);
-}
-
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
         <VoiceProvider>
-          <Shell />
+          <Router />
         </VoiceProvider>
       </WouterRouter>
       <Toaster />
