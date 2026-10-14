@@ -446,7 +446,6 @@ function PhoneFormFields({
   template: TradeTemplate | null;
   onTemplateSelect: (t: TradeTemplate) => void;
 }) {
-  const [previewVoice, setPreviewVoice] = useState(defaults?.realtimeVoice || "marin");
   const [previewing, setPreviewing] = useState(false);
   const { toast } = useToast();
   const playRealtimePreview = async () => {
@@ -499,25 +498,25 @@ function PhoneFormFields({
             <Input name="businessName" placeholder="Parsley Electrical" defaultValue={defaults?.businessName} />
           </div>
           <div className="space-y-2">
-            <Label>OpenAI Realtime voice</Label>
+            <Label>Receptionist voice</Label>
             <select
               name="realtimeVoice"
-              value={previewVoice}
-              onChange={e => setPreviewVoice(e.target.value)}
+              value={voice}
+              onChange={e => onVoiceChange(e.target.value as AssistantInputVoice)}
               className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
             >
-              <option value="marin">Marin · warm, natural</option>
-              <option value="cedar">Cedar · clear, grounded</option>
-              <option value="coral">Coral · expressive</option>
-              <option value="sage">Sage · composed</option>
-              <option value="alloy">Alloy · balanced</option>
-              <option value="ash">Ash · direct</option>
-              <option value="ballad">Ballad · gentle</option>
-              <option value="echo">Echo · bright</option>
-              <option value="shimmer">Shimmer · light</option>
-              <option value="verse">Verse · animated</option>
+              <option value="marin">Marin · recommended · warm and natural</option>
+              <option value="cedar">Cedar · recommended · clear and grounded</option>
+              <option value="coral">Coral · friendly and expressive</option>
+              <option value="sage">Sage · calm and professional</option>
+              <option value="alloy">Alloy · neutral and balanced</option>
+              <option value="ash">Ash · direct and clear</option>
+              <option value="ballad">Ballad · warm and gentle</option>
+              <option value="echo">Echo · steady and confident</option>
+              <option value="shimmer">Shimmer · bright and reassuring</option>
+              <option value="verse">Verse · conversational and expressive</option>
             </select>
-            <p className="text-xs text-muted-foreground">This is the single voice selection used by OpenAI Realtime on Twilio calls. A browser preview is not a completed phone-call test.</p>
+            <p className="text-xs text-muted-foreground">One voice setting controls the browser preview and the live OpenAI Realtime phone call. The receptionist is instructed to speak in natural British English.</p>
           </div>
           <div className="flex items-end">
             <Button type="button" variant="outline" disabled={previewing} onClick={playRealtimePreview} className="w-full gap-2">
@@ -536,14 +535,6 @@ function PhoneFormFields({
             />
             <p className="text-xs text-muted-foreground">The selected Realtime voice and style apply to every call to this bot.</p>
           </div>
-        </div>
-
-        <div className="space-y-2">
-          <Label className="flex items-center gap-2">
-            <Volume2 size={14} /> Voice Profile
-            <span className="text-xs text-muted-foreground font-normal ml-1">— tap ▶ to preview</span>
-          </Label>
-          <VoicePicker value={voice} onChange={onVoiceChange} />
         </div>
 
         <div className="space-y-2">
@@ -972,10 +963,13 @@ function AssistantEditDialog({
   const updateAssistant = useUpdateAssistant();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [voice, setVoice] = useState<AssistantInputVoice>("alloy");
+  const [voice, setVoice] = useState<AssistantInputVoice>("marin");
 
-  if (assistant && voice !== assistant.voice && !updateAssistant.isPending) {
-    setVoice(assistant.voice as AssistantInputVoice);
+  const savedPhoneVoice = assistant?.type === "phone"
+    ? (assistant.realtimeVoice ?? assistant.voice)
+    : assistant?.voice;
+  if (assistant && savedPhoneVoice && voice !== savedPhoneVoice && !updateAssistant.isPending) {
+    setVoice(savedPhoneVoice as AssistantInputVoice);
   }
 
   const handleUpdate = (e: React.FormEvent<HTMLFormElement>) => {
@@ -1190,7 +1184,7 @@ function CreateDialog({
 
   const [step, setStep] = useState<"type" | "form">("type");
   const [selectedType, setSelectedType] = useState<AssistantInputType>("phone");
-  const [voice, setVoice] = useState<AssistantInputVoice>("alloy");
+  const [voice, setVoice] = useState<AssistantInputVoice>("marin");
   const [template, setTemplate] = useState<TradeTemplate | null>(null);
   const [formKey, setFormKey] = useState(0);
 
