@@ -58,18 +58,18 @@ export function issueSessionIfValid(
   password: string,
   req: Request,
   res: Response
-): boolean {
+): string | null {
   const secret = getSecret();
-  if (!secret) return false;
+  if (!secret) return null;
 
   // Constant-time comparison against SESSION_SECRET
   try {
     const a = Buffer.from(password);
     const b = Buffer.from(secret);
-    if (a.length !== b.length) return false;
-    if (!timingSafeEqual(a, b)) return false;
+    if (a.length !== b.length) return null;
+    if (!timingSafeEqual(a, b)) return null;
   } catch {
-    return false;
+    return null;
   }
 
   // Issue a nonce-based signed token (so each session is unique)
@@ -82,16 +82,38 @@ export function issueSessionIfValid(
     maxAge: MAX_AGE_MS,
     path: "/api",
   });
-  return true;
+
+  // Expo runs on a different origin from the API, so browser-style cookies
+  // are not reliable there. Return a separately scoped, expiring bearer token
+  // for the mobile client; the web dashboard simply ignores it.
+  return sign(`mobile:${Date.now()}:${randomBytes(16).toString("hex")}`, secret);
 }
 
-/** Check whether the current request carries a valid admin session cookie. */
+function hasValidMobileBearer(req: Request, secret: string): boolean {
+  const header = req.get("authorization");
+  if (!header?.startsWith("Bearer ")) return false;
+  const token = header.slice(7).trim();
+  if (!token || !verify(token, secret)) return false;
+
+  const dotIdx = token.lastIndexOf(".");
+  if (dotIdx < 1) return false;
+  const payload = token.slice(0, dotIdx);
+  const match = /^mobile:(\d+):[a-f0-9]{32}$/.exec(payload);
+  if (!match) return false;
+
+  const issuedAt = Number(match[1]);
+  return Number.isFinite(issuedAt) && issuedAt <= Date.now() && Date.now() - issuedAt <= MAX_AGE_MS;
+}
+
+/** Check whether the current request carries a valid web cookie or mobile bearer session. */
 export function hasValidSession(req: Request): boolean {
   const secret = getSecret();
   if (!secret) return false;
+
   const cookie = req.cookies?.[COOKIE_NAME] as string | undefined;
-  if (!cookie) return false;
-  return verify(cookie, secret);
+  if (cookie && verify(cookie, secret)) return true;
+
+  return hasValidMobileBearer(req, secret);
 }
 
 /** Middleware: require a valid admin session cookie; returns 401 otherwise. */
