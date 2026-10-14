@@ -197,3 +197,25 @@
     @apply font-sans antialiased bg-background text-foreground;
   }
 }
+
+
+/* CREWON Control Centre — restrained technical texture, not a generic card dashboard */
+.crew-control-centre {
+  background-image:
+    linear-gradient(rgba(54, 198, 213, 0.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(54, 198, 213, 0.018) 1px, transparent 1px),
+    radial-gradient(circle at 78% 8%, rgba(54, 198, 213, 0.055), transparent 26%);
+  background-size: 42px 42px, 42px 42px, auto;
+  background-position: -1px -1px, -1px -1px, center;
+}
+
+.crew-control-centre h1,
+.crew-control-centre h2 {
+  text-wrap: balance;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crew-control-centre * {
+    scroll-behavior: auto !important;
+  }
+}
