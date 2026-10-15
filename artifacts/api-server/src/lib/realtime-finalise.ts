@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 import { pool } from "@workspace/db";
 import { logger } from "./logger";
+import { recordVoiceDiagnostic } from "./voice-diagnostics";
 
 export type PhoneTranscriptEntry = {
   speaker: "caller" | "assistant";
@@ -191,6 +192,13 @@ async function notifyOwner(
           WHERE call_sid=$1`,
         [callSid],
       );
+      await recordVoiceDiagnostic({
+        callSid,
+        companyId,
+        eventType: "notification_result",
+        summary: "Owner notification was not configured.",
+        details: { channel: "email", result: "unconfigured" },
+      });
       return;
     }
 
@@ -215,6 +223,13 @@ async function notifyOwner(
         WHERE call_sid=$1`,
       [callSid, result.error ? "failed" : "sent"],
     );
+    await recordVoiceDiagnostic({
+      callSid,
+      companyId,
+      eventType: "notification_result",
+      summary: result.error ? "Owner email notification failed." : "Owner email notification was sent.",
+      details: { channel: "email", result: result.error ? "failed" : "sent" },
+    });
   } catch (error) {
     logger.error({ err: error, callSid }, "Realtime owner notification failed");
     await pool
@@ -225,6 +240,13 @@ async function notifyOwner(
         [callSid],
       )
       .catch(() => undefined);
+    await recordVoiceDiagnostic({
+      callSid,
+      companyId,
+      eventType: "notification_result",
+      summary: "Owner email notification failed.",
+      details: { channel: "email", result: "failed" },
+    });
   }
 }
 
@@ -254,6 +276,13 @@ async function confirmCaller(
         WHERE call_sid=$1`,
       [callSid],
     );
+    await recordVoiceDiagnostic({
+      callSid,
+      companyId,
+      eventType: "notification_result",
+      summary: "Caller SMS confirmation was not configured.",
+      details: { channel: "sms", result: "unconfigured" },
+    });
     return;
   }
 
@@ -287,6 +316,13 @@ async function confirmCaller(
         WHERE call_sid=$1`,
       [callSid, response.ok ? "sent" : "failed"],
     );
+    await recordVoiceDiagnostic({
+      callSid,
+      companyId,
+      eventType: "notification_result",
+      summary: response.ok ? "Caller SMS confirmation was sent." : "Caller SMS confirmation failed.",
+      details: { channel: "sms", result: response.ok ? "sent" : "failed" },
+    });
   } catch (error) {
     logger.error({ err: error, callSid }, "Realtime caller confirmation failed");
     await pool
@@ -297,6 +333,13 @@ async function confirmCaller(
         [callSid],
       )
       .catch(() => undefined);
+    await recordVoiceDiagnostic({
+      callSid,
+      companyId,
+      eventType: "notification_result",
+      summary: "Caller SMS confirmation failed.",
+      details: { channel: "sms", result: "failed" },
+    });
   }
 }
 
@@ -321,6 +364,8 @@ export async function finaliseRealtimeEnquiry(input: FinaliseInput): Promise<voi
 
   const client = await pool.connect();
   let shouldNotify = false;
+  let contactId: number | null = null;
+  let linkedJobId: number | null = null;
   try {
     await client.query("BEGIN");
     const locked = await client.query<{ completed: boolean }>(
@@ -332,7 +377,6 @@ export async function finaliseRealtimeEnquiry(input: FinaliseInput): Promise<voi
       return;
     }
 
-    let contactId: number | null = null;
     if (primaryPhone) {
       await client.query(
         "SELECT pg_advisory_xact_lock(hashtext($1))",
@@ -393,6 +437,7 @@ export async function finaliseRealtimeEnquiry(input: FinaliseInput): Promise<voi
       [input.callId, input.companyId],
     );
     const hasBookedJob = linkedCall.rows[0]?.job_id != null;
+    linkedJobId = linkedCall.rows[0]?.job_id ?? null;
 
     await client.query(
       `UPDATE calls
@@ -461,6 +506,14 @@ export async function finaliseRealtimeEnquiry(input: FinaliseInput): Promise<voi
 
     await client.query("COMMIT");
     shouldNotify = true;
+    await recordVoiceDiagnostic({
+      callSid: input.callSid,
+      callId: input.callId,
+      companyId: input.companyId,
+      eventType: "contact_job_linkage",
+      summary: "Call contact and booking linkage was finalized.",
+      details: { contactId, jobId: linkedJobId, booked: hasBookedJob },
+    });
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;

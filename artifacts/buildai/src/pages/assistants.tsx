@@ -1610,12 +1610,51 @@ export default function Assistants() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [voiceSetup, setVoiceSetup] = useState<{ openAiApiKey: boolean; twilioAuthToken: boolean; voicePublicBaseUrl: boolean } | null>(null);
+  const [telephonyCheck, setTelephonyCheck] = useState<{
+    configuredNumber: string | null;
+    accountAuthentication: string;
+    openAiAuthentication: string;
+    numberExists: boolean;
+    voiceCapable: boolean;
+    voiceWebhookMatches: boolean;
+    statusCallbackMatches: boolean;
+    mapping: string;
+    liveInboundReady: boolean;
+    blockers: string[];
+  } | null>(null);
+  const [checkingTelephony, setCheckingTelephony] = useState(false);
+  const [telephonyCheckError, setTelephonyCheckError] = useState<string | null>(null);
   useEffect(() => {
     const base = import.meta.env.BASE_URL.replace(/\/$/, "");
     fetch(`${base}/api/assistants/realtime-status`).then(r => r.ok ? r.json() : null)
       .then(data => setVoiceSetup(data))
       .catch(() => setVoiceSetup(null));
   }, []);
+  const checkTelephony = async () => {
+    setCheckingTelephony(true);
+    setTelephonyCheckError(null);
+    try {
+      const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+      const response = await fetch(`${base}/api/telephony/readiness`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setTelephonyCheckError(response.status === 401
+          ? "Sign in as the CREWON admin to run the provider check."
+          : "The telephony check could not complete.");
+        return;
+      }
+      setTelephonyCheck(data);
+    } catch {
+      setTelephonyCheckError("The telephony check could not reach the API.");
+    } finally {
+      setCheckingTelephony(false);
+    }
+  };
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -1672,6 +1711,38 @@ export default function Assistants() {
               <li>{voiceSetup?.voicePublicBaseUrl ? "Ready" : "Needed"} · Set <code className="rounded bg-muted px-1">VOICE_PUBLIC_BASE_URL</code> to this app’s public HTTPS base URL.</li>
             </ul>
             <p className="mt-2 text-muted-foreground">Secret values stay server-side and are never shown. Configure the Twilio number’s voice webhook to POST to <code>/api/voice/incoming</code>.</p>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <Button type="button" size="sm" variant="outline" disabled={checkingTelephony} onClick={checkTelephony}>
+                {checkingTelephony ? <Loader2 size={14} className="mr-2 animate-spin" /> : <PhoneCall size={14} className="mr-2" />}
+                Verify and link number
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Checks Twilio’s live account. It links a number only when Twilio confirms it and the Parsley phone assistant is unambiguous; conflicting mappings are never overwritten.
+              </p>
+            </div>
+            {telephonyCheckError && <p role="alert" className="mt-3 text-sm text-destructive">{telephonyCheckError}</p>}
+            {telephonyCheck && (
+              <div className="mt-4 rounded-md border bg-background/70 p-3 text-sm" aria-live="polite" data-testid="telephony-readiness-result">
+                <p className={cn("font-semibold", telephonyCheck.liveInboundReady ? "text-emerald-600" : "text-amber-600")}>
+                  {telephonyCheck.liveInboundReady ? "Ready for an inbound call test" : "Inbound call test is not ready"}
+                  {telephonyCheck.configuredNumber ? ` · ${telephonyCheck.configuredNumber}` : ""}
+                </p>
+                <ul className="mt-2 grid gap-1 text-muted-foreground sm:grid-cols-2">
+                  <li>Twilio account: {telephonyCheck.accountAuthentication}</li>
+                  <li>OpenAI account: {telephonyCheck.openAiAuthentication}</li>
+                  <li>Number: {telephonyCheck.numberExists ? "found" : "not verified"}</li>
+                  <li>Voice-capable: {telephonyCheck.voiceCapable ? "yes" : "no"}</li>
+                  <li>Inbound webhook: {telephonyCheck.voiceWebhookMatches ? "correct" : "not verified"}</li>
+                  <li>Status callback: {telephonyCheck.statusCallbackMatches ? "correct" : "not verified"}</li>
+                  <li>Parsley mapping: {telephonyCheck.mapping.replaceAll("_", " ")}</li>
+                </ul>
+                {telephonyCheck.blockers.length > 0 && (
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-amber-700">
+                    {telephonyCheck.blockers.map((blocker, index) => <li key={`${index}-${blocker}`}>{blocker}</li>)}
+                  </ul>
+                )}
+              </div>
+            )}
           </div>
           {isLoading ? (
             <div className="text-center py-20 text-muted-foreground">Loading assistants…</div>

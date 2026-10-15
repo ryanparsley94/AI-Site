@@ -5,6 +5,7 @@ import { convertToWav, speechToText } from "@workspace/integrations-openai-ai-se
 import { VoiceCommandBody, VoiceCommandResponse, VoiceTranscribeBody } from "@workspace/api-zod";
 import { adminOnly } from "../lib/adminAuth";
 import { intentSchema, executeVoiceAction } from "../lib/voice-actions";
+import { recordVoiceDiagnostic } from "../lib/voice-diagnostics";
 
 const router = Router();
 // Single-tenant command serialisation: two voice commands cannot race a send or quote append.
@@ -329,6 +330,14 @@ export async function notifyOwner(sid: string): Promise<void> {
     const key = process.env.RESEND_API_KEY;
     if (!recipient || !from || !key) {
       await pool.query("UPDATE voice_call_sessions SET notification_status='unconfigured',updated_at=now() WHERE call_sid=$1", [sid]);
+      await recordVoiceDiagnostic({
+        callSid: sid,
+        callId: session.call_id,
+        companyId: session.company_id,
+        eventType: "notification_result",
+        summary: "Owner email notification was not configured.",
+        details: { channel: "email", result: "unconfigured" },
+      });
       return;
     }
     const urgent = /urgent|danger|sparking|fire|shock|burning|no power/i.test(session.answers.urgency ?? "");
@@ -340,9 +349,23 @@ export async function notifyOwner(sid: string): Promise<void> {
     }, { idempotencyKey: `crewon-voice-${sid}` });
     const status = result.error ? "failed" : "sent";
     await pool.query("UPDATE voice_call_sessions SET notification_status=$2,updated_at=now() WHERE call_sid=$1", [sid, status]);
+    await recordVoiceDiagnostic({
+      callSid: sid,
+      callId: session.call_id,
+      companyId: session.company_id,
+      eventType: "notification_result",
+      summary: status === "sent" ? "Owner email notification was sent." : "Owner email notification failed.",
+      details: { channel: "email", result: status },
+    });
   } catch (error) {
     logger.error({ err: error, sid }, "Voice enquiry notification failed");
     await pool.query("UPDATE voice_call_sessions SET notification_status='failed',updated_at=now() WHERE call_sid=$1", [sid]);
+    await recordVoiceDiagnostic({
+      callSid: sid,
+      eventType: "notification_result",
+      summary: "Owner email notification failed.",
+      details: { channel: "email", result: "failed" },
+    });
   }
 }
 
@@ -359,6 +382,14 @@ async function confirmToCaller(sid: string): Promise<void> {
   // The verified inbound caller number is safer than a speech-recognised number.
   if (!account || !from || !token || !/^\+\d{8,15}$/.test(session.caller_phone)) {
     await pool.query("UPDATE voice_call_sessions SET customer_confirmation_status='unconfigured' WHERE call_sid=$1", [sid]);
+    await recordVoiceDiagnostic({
+      callSid: sid,
+      callId: session.call_id,
+      companyId: session.company_id,
+      eventType: "notification_result",
+      summary: "Caller SMS confirmation was not configured.",
+      details: { channel: "sms", result: "unconfigured" },
+    });
     return;
   }
   try {
@@ -379,21 +410,41 @@ async function confirmToCaller(sid: string): Promise<void> {
       },
       body,
     });
-    await pool.query("UPDATE voice_call_sessions SET customer_confirmation_status=$2 WHERE call_sid=$1", [sid, response.ok ? "sent" : "failed"]);
+    const status = response.ok ? "sent" : "failed";
+    await pool.query("UPDATE voice_call_sessions SET customer_confirmation_status=$2 WHERE call_sid=$1", [sid, status]);
+    await recordVoiceDiagnostic({
+      callSid: sid,
+      callId: session.call_id,
+      companyId: session.company_id,
+      eventType: "notification_result",
+      summary: status === "sent" ? "Caller SMS confirmation was sent." : "Caller SMS confirmation failed.",
+      details: { channel: "sms", result: status },
+    });
   } catch (error) {
     logger.error({ err: error, sid }, "Caller confirmation failed");
     await pool.query("UPDATE voice_call_sessions SET customer_confirmation_status='failed' WHERE call_sid=$1", [sid]);
+    await recordVoiceDiagnostic({
+      callSid: sid,
+      callId: session.call_id,
+      companyId: session.company_id,
+      eventType: "notification_result",
+      summary: "Caller SMS confirmation failed.",
+      details: { channel: "sms", result: "failed" },
+    });
   }
 }
 
 async function finish(sid: string): Promise<void> {
   const client = await pool.connect();
   let shouldNotify = false;
+  let diagnosticSession: Session | null = null;
+  let linkedContactId: number | null = null;
   try {
     await client.query("BEGIN");
     const result = await client.query<Session>("SELECT * FROM voice_call_sessions WHERE call_sid=$1 FOR UPDATE", [sid]);
     const session = result.rows[0];
     if (!session || session.completed) { await client.query("COMMIT"); return; }
+    diagnosticSession = session;
     const a = session.answers;
     const phone = callbackNumber(a, session.caller_phone);
     // Serialise matching so two calls from the same number cannot create two contacts.
@@ -408,6 +459,7 @@ async function finish(sid: string): Promise<void> {
         [a.name || "Unknown caller", phone, a.address || null, "Captured by CREWON phone receptionist", session.company_id],
       );
     }
+    linkedContactId = contact.rows[0].id;
     const urgent = /urgent|danger|sparking|fire|shock|burning|no power/i.test(a.urgency ?? "");
     const transcript = questions.flatMap(([field, question], index) => a[field] ? [
       { speaker: "assistant", text: question, timestamp: index * 2 },
@@ -420,8 +472,40 @@ async function finish(sid: string): Promise<void> {
     await client.query("UPDATE voice_call_sessions SET completed=true,updated_at=now() WHERE call_sid=$1", [sid]);
     await client.query("COMMIT");
     shouldNotify = true;
+    await recordVoiceDiagnostic({
+      callSid: sid,
+      callId: session.call_id,
+      companyId: session.company_id,
+      eventType: "transcript_saved",
+      summary: "Fallback receptionist transcript was persisted.",
+      details: { transcriptEntries: transcript.length },
+    });
+    await recordVoiceDiagnostic({
+      callSid: sid,
+      callId: session.call_id,
+      companyId: session.company_id,
+      eventType: "contact_job_linkage",
+      summary: "Fallback receptionist enquiry was linked to a contact.",
+      details: { contactId: linkedContactId, jobId: null, booked: false },
+    });
+    await recordVoiceDiagnostic({
+      callSid: sid,
+      callId: session.call_id,
+      companyId: session.company_id,
+      eventType: "finalisation_succeeded",
+      summary: "Fallback receptionist call finalisation completed.",
+      details: { transcriptEntries: transcript.length },
+    });
   } catch (error) {
     await client.query("ROLLBACK");
+    await recordVoiceDiagnostic({
+      callSid: sid,
+      callId: diagnosticSession?.call_id,
+      companyId: diagnosticSession?.company_id,
+      eventType: "finalisation_failed",
+      summary: "Fallback receptionist call finalisation failed.",
+      details: { stage: "call_finalisation", errorType: error instanceof Error ? error.name.slice(0, 40) : "unknown" },
+    });
     throw error;
   } finally {
     client.release();
@@ -440,6 +524,14 @@ phoneRouter.post("/voice/incoming", async (req, res): Promise<void> => {
 
   try {
     const session = await ensureSession(sid, String(req.body.From ?? ""), String(req.body.To ?? ""));
+    await recordVoiceDiagnostic({
+      callSid: sid,
+      callId: session.call_id,
+      companyId: session.company_id,
+      eventType: "call_received",
+      summary: "Inbound call received and linked to a CREWON assistant.",
+      details: { mode: "incoming_webhook" },
+    });
     if (session.completed) { twiml(res, "<Say>Thank you. Goodbye.</Say><Hangup/>"); return; }
 
     const realtimeUrl = realtimePhoneStreamUrl();
@@ -483,6 +575,12 @@ phoneRouter.post("/voice/incoming", async (req, res): Promise<void> => {
       ),
     );
   } catch (error) {
+    await recordVoiceDiagnostic({
+      callSid: sid,
+      eventType: "technical_error",
+      summary: "Inbound call setup failed.",
+      details: { stage: "incoming_webhook", errorType: error instanceof Error ? error.name.slice(0, 40) : "unknown" },
+    });
     logger.error({ err: error }, "Voice incoming failed");
     res.status(500).end();
   }

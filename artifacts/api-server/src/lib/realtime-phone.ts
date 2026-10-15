@@ -5,6 +5,7 @@ import { logger } from "./logger";
 import { validTwilioWebSocketRequest } from "./voice-security";
 import { finaliseRealtimeEnquiry } from "./realtime-finalise";
 import { getVoicePublicBaseUrl } from "./voice-config";
+import { recordVoiceDiagnostic } from "./voice-diagnostics";
 import {
   getAvailableAppointmentSlots,
   bookRealtimeAppointment,
@@ -277,7 +278,17 @@ export function attachRealtimePhone(server: HttpServer): void {
             [callId, snapshot],
           );
         })
-        .catch((err) => logger.error({ err, callId }, "Realtime transcript persistence failed"));
+        .catch(async (err) => {
+          logger.error({ err, callId }, "Realtime transcript persistence failed");
+          await recordVoiceDiagnostic({
+            callSid,
+            callId,
+            companyId,
+            eventType: "transcript_persist_failed",
+            summary: "Realtime transcript could not be persisted.",
+            details: { stage: "incremental_transcript_write" },
+          });
+        });
     };
 
     const addTranscript = (speaker: TranscriptEntry["speaker"], text: unknown) => {
@@ -367,6 +378,14 @@ export function attachRealtimePhone(server: HttpServer): void {
         }
 
         if (name === "book_appointment") {
+          await recordVoiceDiagnostic({
+            callSid,
+            callId,
+            companyId,
+            eventType: "booking_attempt",
+            summary: "Receptionist attempted to book an appointment.",
+            details: {},
+          });
           const result = await bookRealtimeAppointment({
             companyId,
             callId,
@@ -379,6 +398,14 @@ export function attachRealtimePhone(server: HttpServer): void {
           });
 
           if (result.ok) {
+            await recordVoiceDiagnostic({
+              callSid,
+              callId,
+              companyId,
+              eventType: "booking_result",
+              summary: "Appointment booking succeeded.",
+              details: { result: "booked", jobId: result.jobId },
+            });
             returnToolResult(toolCallId, {
               status: "booked",
               job_id: result.jobId,
@@ -388,6 +415,14 @@ export function attachRealtimePhone(server: HttpServer): void {
                 "The appointment is now booked in CREWON. Confirm this exact time to the caller.",
             });
           } else {
+            await recordVoiceDiagnostic({
+              callSid,
+              callId,
+              companyId,
+              eventType: "booking_result",
+              summary: "Appointment booking was not completed.",
+              details: { result: result.reason },
+            });
             returnToolResult(toolCallId, {
               status: "error",
               reason: result.reason,
@@ -402,6 +437,14 @@ export function attachRealtimePhone(server: HttpServer): void {
           message: "That action is not available.",
         });
       } catch (error) {
+        await recordVoiceDiagnostic({
+          callSid,
+          callId,
+          companyId,
+          eventType: "technical_error",
+          summary: "Realtime receptionist scheduling tool failed.",
+          details: { stage: "booking_tool", errorType: error instanceof Error ? error.name.slice(0, 40) : "unknown" },
+        });
         logger.error(
           { err: error, callId, callSid, tool: name },
           "Realtime receptionist tool failed",
@@ -433,8 +476,40 @@ export function attachRealtimePhone(server: HttpServer): void {
             transcript,
             durationSeconds,
           });
+          void recordVoiceDiagnostic({
+            callSid,
+            callId,
+            companyId,
+            eventType: "transcript_saved",
+            summary: "Final call transcript was persisted.",
+            details: { transcriptEntries: transcript.length },
+          });
+          await recordVoiceDiagnostic({
+            callSid,
+            callId,
+            companyId,
+            eventType: "finalisation_succeeded",
+            summary: "Realtime call finalisation completed.",
+            details: { durationSeconds, transcriptEntries: transcript.length },
+          });
         }
       } catch (err) {
+        await recordVoiceDiagnostic({
+          callSid,
+          callId,
+          companyId,
+          eventType: "finalisation_failed",
+          summary: "Realtime call finalisation failed.",
+          details: { stage: "call_finalisation", errorType: err instanceof Error ? err.name.slice(0, 40) : "unknown" },
+        });
+        await recordVoiceDiagnostic({
+          callSid,
+          callId,
+          companyId,
+          eventType: "technical_error",
+          summary: "Realtime call finalisation failed.",
+          details: { stage: "call_finalisation" },
+        });
         logger.error({ err, callId, callSid }, "Realtime call finalisation failed");
       }
       if (isOpen(openai)) openai.close(1000, "Twilio call ended");
@@ -548,6 +623,14 @@ export function attachRealtimePhone(server: HttpServer): void {
 
         if (event.type === "session.updated") {
           openaiReady = true;
+          void recordVoiceDiagnostic({
+            callSid,
+            callId,
+            companyId,
+            eventType: "realtime_session_started",
+            summary: "OpenAI Realtime session is ready for the call.",
+            details: { voice: ctx.voice },
+          });
           logger.info({ callId, callSid, assistantId, voice: selectedVoice ?? "saved-default" }, "Realtime receptionist session ready");
           for (const audio of pendingAudio.splice(0)) {
             sendToOpenAI({ type: "input_audio_buffer.append", audio });
@@ -638,6 +721,14 @@ export function attachRealtimePhone(server: HttpServer): void {
         }
 
         if (event.type === "error") {
+          void recordVoiceDiagnostic({
+            callSid,
+            callId,
+            companyId,
+            eventType: "technical_error",
+            summary: "OpenAI Realtime reported an error.",
+            details: { stage: "openai_event", providerCode: typeof event.error?.code === "string" ? event.error.code.slice(0, 50) : "unknown" },
+          });
           logger.warn(
             {
               callId,
@@ -681,6 +772,14 @@ export function attachRealtimePhone(server: HttpServer): void {
       });
 
       openai.on("error", (err) => {
+        void recordVoiceDiagnostic({
+          callSid,
+          callId,
+          companyId,
+          eventType: "technical_error",
+          summary: "OpenAI Realtime connection failed.",
+          details: { stage: "openai_websocket", errorType: err.name.slice(0, 40) },
+        });
         logger.error({ err, callId, callSid }, "OpenAI Realtime websocket error");
       });
     };
@@ -713,6 +812,14 @@ export function attachRealtimePhone(server: HttpServer): void {
         try {
           await startOpenAI();
         } catch (err) {
+          await recordVoiceDiagnostic({
+            callSid,
+            callId,
+            companyId,
+            eventType: "technical_error",
+            summary: "Could not start OpenAI Realtime for the call.",
+            details: { stage: "realtime_start", errorType: err instanceof Error ? err.name.slice(0, 40) : "unknown" },
+          });
           logger.error({ err, callId, callSid }, "Could not start realtime receptionist");
           if (twilio.readyState === WebSocket.OPEN) {
             twilio.close(1011, "Realtime receptionist unavailable");
@@ -748,6 +855,14 @@ export function attachRealtimePhone(server: HttpServer): void {
     });
 
     twilio.on("error", (err) => {
+      void recordVoiceDiagnostic({
+        callSid,
+        callId,
+        companyId,
+        eventType: "technical_error",
+        summary: "Twilio media stream failed.",
+        details: { stage: "twilio_websocket", errorType: err.name.slice(0, 40) },
+      });
       logger.error({ err, callId, callSid }, "Twilio media websocket error");
       void finalise();
     });

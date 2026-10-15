@@ -106,6 +106,18 @@ const MIGRATIONS = [
   `CREATE INDEX IF NOT EXISTS calls_company_idx ON calls(company_id)`,
   `CREATE INDEX IF NOT EXISTS contacts_company_phone_idx ON contacts(company_id,phone)`,
   `CREATE INDEX IF NOT EXISTS voice_call_sessions_company_idx ON voice_call_sessions(company_id)`,
+  `CREATE TABLE IF NOT EXISTS voice_call_diagnostics (
+     id bigserial PRIMARY KEY,
+     call_sid text NOT NULL,
+     call_id integer,
+     company_id integer,
+     event_type text NOT NULL,
+     summary text NOT NULL,
+     details jsonb NOT NULL DEFAULT '{}'::jsonb,
+     occurred_at timestamptz NOT NULL DEFAULT now()
+   )`,
+  `CREATE INDEX IF NOT EXISTS voice_call_diagnostics_call_time_idx
+     ON voice_call_diagnostics(call_sid, occurred_at)`,
   // Preserve the current Parsley pilot rows when the new ownership columns appear.
   `UPDATE assistants SET company_id=(SELECT id FROM companies ORDER BY id LIMIT 1)
      WHERE company_id IS NULL AND EXISTS (SELECT 1 FROM companies)`,

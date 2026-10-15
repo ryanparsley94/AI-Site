@@ -25,6 +25,7 @@ import businessSetupRouter from "./business-setup";
 import voiceRouter, { phoneRouter } from "./voice";
 import { adminOnly } from "../lib/adminAuth";
 import publicDemoRouter from "./public-demo";
+import telephonyRouter from "./telephony";
 
 const router: IRouter = Router();
 
@@ -67,6 +68,7 @@ router.use(pilotRouter);
 router.use(importsRouter);
 router.use(billingRouter);
 router.use(businessSetupRouter);
+router.use(telephonyRouter);
 router.use(voiceRouter);
 
 export default router;

@@ -117,6 +117,22 @@ router.get("/calls/:id/voice-delivery", async (req, res): Promise<void> => {
   res.json({ owner: result.rows[0].notification_status, caller: result.rows[0].customer_confirmation_status, retryable: result.rows[0].retryable });
 });
 
+router.get("/calls/:id/diagnostics", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) { res.status(400).json({ error: "Invalid id" }); return; }
+  const rows = await pool.query(
+    `SELECT d.event_type AS "eventType",d.summary,d.details,
+            d.occurred_at AS "occurredAt"
+       FROM voice_call_diagnostics d
+       JOIN calls c ON c.id=d.call_id
+      WHERE c.id=$1
+      ORDER BY d.occurred_at,d.id`,
+    [id],
+  );
+  res.setHeader("Cache-Control", "no-store");
+  res.json(rows.rows);
+});
+
 router.post("/calls/:id/retry-notification", async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id < 1) { res.status(400).json({ error: "Invalid id" }); return; }
