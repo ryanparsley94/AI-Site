@@ -9,6 +9,46 @@ export const TWILIO_UK_NEURAL_VOICES = [
 
 export type TwilioUkNeuralVoice = (typeof TWILIO_UK_NEURAL_VOICES)[number];
 
+export function buildOpeningGreeting(
+  businessName: string | null | undefined,
+  savedGreeting: string | null | undefined,
+  agentName?: string | null,
+): string {
+  const business = businessName?.trim().replace(/\s+(?:limited|ltd\.?)$/i, "").trim() || "Parsley Electrical";
+  const greeting = savedGreeting?.replace(/\s+/g, " ").trim();
+  const agentIntro = agentName?.trim() ? ` This is ${agentName.trim()}.` : "";
+  if (!greeting) return `Hello, you've reached ${business}.${agentIntro} How can I help?`;
+  if (greeting.toLocaleLowerCase("en-GB").includes(business.toLocaleLowerCase("en-GB"))) return greeting;
+  const body = greeting
+    .replace(/^(?:hello|hi(?: there)?|good morning|good afternoon|thanks for calling)[,\s—-]*/i, "")
+    .replace(/^(?:you(?:'ve| have) reached (?:our|the) [^.!?]+[.!?]\s*)/i, "")
+    .trim();
+  return `Hello, you've reached ${business}.${agentIntro} ${body || "How can I help?"}`;
+}
+
+export function createOpeningResponseGate(): () => boolean {
+  let started = false;
+  return () => {
+    if (started) return false;
+    started = true;
+    return true;
+  };
+}
+
+export function isGreetingKnowledgeCategory(category: string): boolean {
+  return ["greeting", "receptionistgreeting", "welcome"].includes(category.toLowerCase().replace(/[_\s-]+/g, ""));
+}
+
+export function stripWebsiteGreetingFields(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stripWebsiteGreetingFields);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([key]) => !["greeting", "receptionistgreeting"].includes(key.toLowerCase().replace(/[^a-z]/g, "")))
+      .map(([key, child]) => [key, stripWebsiteGreetingFields(child)]),
+  );
+}
+
 export function resolveTwilioUkNeuralVoice(value: string | null | undefined): TwilioUkNeuralVoice {
   return TWILIO_UK_NEURAL_VOICES.includes(value as TwilioUkNeuralVoice)
     ? value as TwilioUkNeuralVoice
@@ -38,12 +78,6 @@ function spokenBusinessName(value: string | null | undefined): string {
   return name.replace(/\s+(?:limited|ltd\.?)$/i, "").trim() || "Parsley Electrical";
 }
 
-function greetingBody(value: string | null | undefined): string {
-  const withoutSalutation = (value ?? "").trim().replace(/^(?:hello|hi(?: there)?|good morning|good afternoon|thanks for calling)[,\s—-]*/i, "");
-  const withoutDuplicateIdentity = withoutSalutation.replace(/^(?:you(?:'ve| have) reached (?:our|the) [^.!?]+[.!?]\s*)/i, "").trim();
-  return withoutDuplicateIdentity || "How can I help?";
-}
-
 export function buildIncomingVoiceResponse(
   step: number,
   question: string | undefined,
@@ -57,10 +91,10 @@ export function buildIncomingVoiceResponse(
   const voiceId = resolveTwilioUkNeuralVoice(settings.voiceId);
   const businessName = spokenBusinessName(settings.businessName);
   const agentName = settings.agentName?.trim();
-  const configuredGreeting = greetingBody(settings.greeting);
-  const identity = `Hello, you've reached ${businessName}.${agentName ? ` This is ${agentName}.` : ""}`;
   const greeting = step === 0
-    ? buildSpeech(`${identity} ${configuredGreeting || "How can I help?"}`, voiceId)
+    ? buildSpeech(`${buildOpeningGreeting(businessName, settings.greeting, agentName)} ${question ?? ""}`.trim(), voiceId)
     : "";
-  return step === 0 ? `${greeting}${buildListeningGather(step)}` : buildVoiceQuestion(step, question, "", voiceId);
+  return step === 0
+    ? `${greeting}<Gather input="speech" language="en-GB" speechTimeout="auto" timeout="6" actionOnEmptyResult="true" method="POST" action="/api/voice/answer?step=${step}"></Gather>`
+    : buildVoiceQuestion(step, question, "", voiceId);
 }

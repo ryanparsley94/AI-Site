@@ -133,6 +133,8 @@ import { pool } from "@workspace/db";
 import { logger } from "../lib/logger";
 import { validTwilioRequest } from "../lib/voice-security";
 import { realtimePhoneStreamUrl } from "../lib/realtime-phone";
+import { buildIncomingVoiceResponse } from "../lib/voice-twiml";
+import { buildOpeningGreeting } from "../lib/voice-twiml";
 
 /** The first pilot uses a controlled interview so a failed AI request cannot lose a caller's message. */
 const questions = [
@@ -159,7 +161,16 @@ type Session = {
   completed: boolean;
   notification_status: string;
   customer_confirmation_status: string;
+  opening_greeting_started: boolean;
 };
+
+async function claimCallOpening(callSid: string): Promise<boolean> {
+  const result = await pool.query(
+    "UPDATE voice_call_sessions SET opening_greeting_started=true WHERE call_sid=$1 AND opening_greeting_started=false RETURNING call_sid",
+    [callSid],
+  );
+  return result.rows.length === 1;
+}
 
 export const phoneRouter = PhoneRouter();
 
@@ -568,12 +579,22 @@ phoneRouter.post("/voice/incoming", async (req, res): Promise<void> => {
     );
     twiml(
       res,
-      ask(
-        session.step,
-        session.step === 0
-          ? "Thank you for calling. Our live conversational assistant is unavailable, but I can take a message for the team. Please answer a few short questions, starting with your full name. "
-          : "",
-      ),
+      session.step === 0 && await claimCallOpening(sid)
+        ? await (async () => {
+            const greeting = await pool.query<{ business_name: string; agent_name: string | null; saved_greeting: string | null; voice_id: string | null }>(
+              `SELECT c.name AS business_name,a.name AS agent_name,a.greeting AS saved_greeting,a.twilio_voice AS voice_id
+                 FROM companies c LEFT JOIN assistants a ON a.id=$2 AND a.company_id=c.id
+                WHERE c.id=$1 LIMIT 1`,
+              [session.company_id, session.assistant_id],
+            );
+            return buildIncomingVoiceResponse(0, questions[0][1], {
+              businessName: greeting.rows[0]?.business_name,
+              greeting: greeting.rows[0]?.saved_greeting,
+              voiceId: greeting.rows[0]?.voice_id,
+              agentName: greeting.rows[0]?.agent_name,
+            });
+          })()
+        : ask(session.step),
     );
   } catch (error) {
     await recordVoiceDiagnostic({

@@ -127,6 +127,8 @@ export function CallDemoModal({
   const transcriptRef = useRef<TranscriptItem[]>([]);
   const demoIdRef = useRef<string | null>(null);
   const receptionistNameRef = useRef(RECEPTIONIST_NAME);
+  const openingGreetingRef = useRef("");
+  const openingGreetingSentRef = useRef(false);
   const itemIndexesRef = useRef<Record<string, number>>({});
   const callStartedAtRef = useRef<number | null>(null);
 
@@ -488,10 +490,12 @@ export function CallDemoModal({
         setError("The live conversation channel hit a connection error. Check your connection and restart the demo.");
       };
       channel.onopen = () => {
+        if (openingGreetingSentRef.current) return;
+        openingGreetingSentRef.current = true;
         channel.send(JSON.stringify({
           type: "response.create",
           response: {
-              instructions: `Greet the caller now as ${receptionistNameRef.current} from ${businessName}. Be warm, brief and natural; ask how you can help.`,
+              instructions: `Say exactly this saved receptionist greeting once, then listen: "${openingGreetingRef.current}". Do not add another greeting.`,
           },
         }));
       };
@@ -514,7 +518,7 @@ export function CallDemoModal({
           peer.addEventListener("icegatheringstatechange", onGatheringComplete);
         });
       }
-      const answer = await postJson<{ clientSecret: string; demoId: string; receptionistName: string; assistantId: number; voice: string; model: string }>(
+      const answer = await postJson<{ clientSecret: string; demoId: string; receptionistName: string; assistantId: number; voice: string; businessName: string; openingGreeting: string; model: string }>(
         "/api/public-demo/realtime-session",
         {
           profile,
@@ -527,9 +531,11 @@ export function CallDemoModal({
       if (answer.assistantId !== Number(selectedAssistantId) || answer.voice !== selectedVoice || answer.receptionistName !== selectedDisplayName) {
         throw new Error("The live session did not confirm the selected receptionist and voice.");
       }
-      if (!answer.clientSecret || !answer.demoId) throw new Error("The live demo service returned an incomplete session.");
+      if (!answer.clientSecret || !answer.demoId || !answer.openingGreeting) throw new Error("The live demo service returned an incomplete session.");
       demoIdRef.current = answer.demoId;
       receptionistNameRef.current = answer.receptionistName;
+      openingGreetingRef.current = answer.openingGreeting;
+      openingGreetingSentRef.current = false;
       setReceptionistName(answer.receptionistName);
       const sdp = peer.localDescription?.sdp ?? offer.sdp;
       const realtimeResponse = await fetch(`https://api.openai.com/v1/realtime/calls?model=${encodeURIComponent(answer.model)}`, {

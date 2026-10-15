@@ -75,10 +75,12 @@ const MIGRATIONS = [
     completed boolean NOT NULL DEFAULT false,
     notification_status text NOT NULL DEFAULT 'pending',
     customer_confirmation_status text NOT NULL DEFAULT 'pending',
+    opening_greeting_started boolean NOT NULL DEFAULT false,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now()
   )`,
   `ALTER TABLE voice_call_sessions ADD COLUMN IF NOT EXISTS customer_confirmation_status text NOT NULL DEFAULT 'pending'`,
+  `ALTER TABLE voice_call_sessions ADD COLUMN IF NOT EXISTS opening_greeting_started boolean NOT NULL DEFAULT false`,
   // 008: Multi-company phone routing and additive tenant ownership.
   // Columns stay nullable while legacy data is backfilled; strict tenant auth is
   // a separate release gate before unrelated companies can be onboarded.

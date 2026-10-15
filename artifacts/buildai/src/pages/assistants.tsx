@@ -453,7 +453,7 @@ function PhoneFormFields({
       const response = await fetch(`${base}/api/assistants/voice-preview`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assistantId, text: "Hello, you've reached Parsley Electrical. How can I help?" }),
+        body: JSON.stringify({ assistantId, voice, text: "Hello, you've reached Parsley Electrical. How can I help?" }),
       });
       if (!response.ok) {
         const result = await response.json().catch(() => ({}));
@@ -499,20 +499,25 @@ function PhoneFormFields({
               name="realtimeVoice"
               value={voice}
               onChange={e => onVoiceChange(e.target.value as AssistantInputVoice)}
-              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              className="min-h-12 w-full touch-manipulation rounded-md border border-input bg-background px-3 text-base"
             >
               {RECEPTIONIST_VOICE_PERSONAS.map((persona) => (
                 <option key={persona.id} value={persona.id}>{persona.label}</option>
               ))}
             </select>
-            <p className="text-xs text-muted-foreground">{selectedPersona.description} Regional cues guide delivery where supported; a specific accent is not guaranteed. Save a changed voice before previewing.</p>
+            <p className="text-xs text-muted-foreground">{selectedPersona.description} Regional cues guide delivery where supported; a specific accent is not guaranteed.</p>
           </div>
           <div className="flex items-end">
-            <Button type="button" variant="outline" disabled={previewing || !assistantId || voice !== defaults?.realtimeVoice} onClick={playRealtimePreview} className="w-full gap-2">
+            <Button type="button" variant="outline" disabled={previewing || !assistantId} onClick={playRealtimePreview} className="min-h-12 w-full gap-2">
               {previewing ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
-              {!assistantId ? "Save receptionist to preview" : voice !== defaults?.realtimeVoice ? "Save voice to preview" : "Preview saved voice"}
+              {!assistantId ? "Save receptionist to preview" : voice !== defaults?.realtimeVoice ? "Preview unsaved choice" : "Preview saved voice"}
             </Button>
           </div>
+          {assistantId && voice !== defaults?.realtimeVoice && (
+            <p className="text-xs text-amber-700 sm:col-span-2" role="status">
+              Unsaved preview only. Save Changes to use {selectedPersona.label} for inbound calls. This browser sample uses a separate speech service from live Realtime calls.
+            </p>
+          )}
           <div className="space-y-2 sm:col-span-2">
             <Label>Receptionist speaking style</Label>
             <Textarea
@@ -957,9 +962,13 @@ function AssistantEditDialog({
   const savedPhoneVoice = assistant?.type === "phone"
     ? (assistant.realtimeVoice ?? assistant.voice)
     : assistant?.voice;
-  if (assistant && savedPhoneVoice && voice !== savedPhoneVoice && !updateAssistant.isPending) {
-    setVoice(savedPhoneVoice as AssistantInputVoice);
-  }
+  useEffect(() => {
+    if (open && assistant) {
+      setVoice((assistant.type === "phone"
+        ? (assistant.realtimeVoice ?? assistant.voice)
+        : assistant.voice) as AssistantInputVoice);
+    }
+  }, [open, assistant?.id]);
 
   const handleUpdate = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -982,8 +991,9 @@ function AssistantEditDialog({
         instructions: fd.get("instructions") as string || undefined,
       },
     }, {
-      onSuccess: () => {
+      onSuccess: (updatedAssistant) => {
         onOpenChange(false);
+        queryClient.setQueryData(["/api/assistants", id], updatedAssistant);
         queryClient.invalidateQueries({ queryKey: ["/api/assistants"] });
         toast({ title: "Assistant updated" });
       },

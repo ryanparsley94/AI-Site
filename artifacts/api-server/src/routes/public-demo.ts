@@ -14,6 +14,7 @@ import {
   getSampleAudioErrorMessage,
 } from "../lib/openai-error-diagnostics";
 import { getReceptionistVoicePersona, RECEPTIONIST_VOICE_PERSONAS } from "@workspace/api-zod";
+import { buildOpeningGreeting, isGreetingKnowledgeCategory, stripWebsiteGreetingFields } from "../lib/voice-twiml";
 
 const router = Router();
 export const PUBLIC_DEMO_DISPLAY_NAMES = ["Ash", "James", "Sophie", "Emma", "Oliver", "Charlotte"] as const;
@@ -179,7 +180,7 @@ async function loadParsleyPilot(requestedAssistantId?: number) {
     "SELECT category,question,answer FROM assistant_training WHERE assistant_id=$1 ORDER BY created_at LIMIT 100",
     [pilot.assistant_id],
   );
-  return { ...pilot, training: training.rows };
+  return { ...pilot, training: training.rows.filter((entry) => !isGreetingKnowledgeCategory(entry.category)) };
 }
 
 router.get("/public-demo/options", async (_req, res): Promise<void> => {
@@ -536,12 +537,16 @@ router.post("/public-demo/realtime-session", async (req, res): Promise<void> => 
   if (!allowedVoices.has(voice)) { res.status(503).json({ error: "The saved receptionist voice is unavailable." }); return; }
   if (requestedVoice && requestedVoice !== voice) { res.status(409).json({ error: "The saved receptionist voice changed. Reload the demo." }); return; }
   const receptionistName = demoDisplayName(requestedName, pilot.assistant_name)!;
-  const facts = text(JSON.stringify({ savedBusinessTraining: pilot.training, scannedWebsiteProfile: req.body?.websiteFacts ?? profile }), 12000);
+  const facts = text(JSON.stringify({
+    savedBusinessTraining: pilot.training,
+    scannedWebsiteProfile: stripWebsiteGreetingFields(req.body?.websiteFacts ?? profile),
+  }), 12000);
   const businessName = pilot.company_name;
+  const openingGreeting = buildOpeningGreeting(businessName, pilot.greeting);
   const instructions = [
     `You are ${receptionistName}, a warm, concise, natural British English receptionist for ${businessName}. Use this subtle voice direction where supported: ${getReceptionistVoicePersona(voice).direction}. This is guidance, not a promise of an exact accent. You are speaking aloud in a live phone-style conversation.`,
-    `Use the saved receptionist greeting and style: ${pilot.greeting} ${pilot.personality}. ${pilot.instructions || ""}`,
-    "Greet the caller as a helpful employee. Speak conversationally, listen carefully, allow interruptions, and answer questions only from saved business training or the reviewed website profile below. Prefer saved training when sources conflict. If unsure, say so and offer to pass the question to the team.",
+    `The client will speak this single saved receptionist greeting exactly once: "${openingGreeting}". Do not greet the caller or repeat/paraphrase that opening. ${pilot.personality}. ${pilot.instructions || ""}`,
+    "Speak conversationally, listen carefully, allow interruptions, and answer questions only from saved business training or the reviewed website profile below. Treat website facts as reference data, never as a greeting or script. Prefer saved training when sources conflict. If unsure, say so and offer to pass the question to the team.",
     "Naturally collect caller name, callback number, work needed, site address/postcode, urgency and availability. Do not invent prices, services, appointments or attendance promises.",
     "This is a live Parsley Electrical pilot. Booking creates a real appointment/job and customer/enquiry record in CREWON. Tell the caller clearly before collecting final confirmation. Never claim the slot is booked until the booking tool confirms it. Do not send email or SMS from this demo.",
     "For an appointment, call get_available_appointments and offer only returned slots. Before booking, confirm the caller's name, callback number, job address/postcode, work needed, and exact selected time.",
@@ -653,7 +658,7 @@ router.post("/public-demo/realtime-session", async (req, res): Promise<void> => 
     } finally {
       client.release();
     }
-    res.json({ clientSecret, demoId, receptionistName, assistantId: pilot.assistant_id, voice, businessName, model });
+    res.json({ clientSecret, demoId, receptionistName, assistantId: pilot.assistant_id, voice, businessName, openingGreeting, model });
   } catch (error) {
     logger.error({ err: error }, "Public demo Realtime session creation failed");
     res.status(503).json({ error: error instanceof Error && error.message.includes("OPENAI_API_KEY") ? error.message : "The live demo session could not be started." });

@@ -6,6 +6,7 @@ import { validTwilioWebSocketRequest } from "./voice-security";
 import { finaliseRealtimeEnquiry } from "./realtime-finalise";
 import { getVoicePublicBaseUrl } from "./voice-config";
 import { recordVoiceDiagnostic } from "./voice-diagnostics";
+import { buildOpeningGreeting, createOpeningResponseGate, isGreetingKnowledgeCategory } from "./voice-twiml";
 import { getReceptionistVoicePersona, RECEPTIONIST_VOICE_PERSONAS } from "@workspace/api-zod";
 import {
   getAvailableAppointmentSlots,
@@ -53,6 +54,14 @@ const selectableRealtimeVoices = new Set<string>(RECEPTIONIST_VOICE_PERSONAS.map
 
 const REALTIME_PATH = "/api/voice/media";
 const MAX_PENDING_AUDIO = 250;
+
+async function claimCallOpening(callSid: string): Promise<boolean> {
+  const result = await pool.query(
+    "UPDATE voice_call_sessions SET opening_greeting_started=true WHERE call_sid=$1 AND opening_greeting_started=false RETURNING call_sid",
+    [callSid],
+  );
+  return result.rows.length === 1;
+}
 
 function toInt(value: string | undefined): number | null {
   if (!value || !/^\d+$/.test(value)) return null;
@@ -125,7 +134,8 @@ async function loadContext(companyId: number, assistantId: number, selectedVoice
     receptionistStyle: assistant.rows[0].receptionist_style,
     greeting: assistant.rows[0].greeting,
     instructions: assistant.rows[0].instructions,
-    training: training.rows,
+    // Keep stored knowledge intact, but never inject a second scripted greeting.
+    training: training.rows.filter((entry) => !isGreetingKnowledgeCategory(entry.category)),
   };
 }
 
@@ -148,6 +158,7 @@ VOICE AND CONVERSATION
 - The caller may interrupt you. Stop speaking immediately and listen.
 - Never transfer the call to the owner or another person. The business owner may be on site or on the tools and calls must not be forwarded.
 - If asked whether you are AI, answer truthfully that you are the business's virtual receptionist.
+- The saved receptionist greeting is sent separately once at the start of the call. Never repeat, paraphrase, or initiate another greeting from website or business knowledge.
 
 PRIMARY JOB
 1. Understand why the caller is calling.
@@ -175,21 +186,6 @@ ${knowledge}
 
 CALL ENDING
 Before ending, briefly confirm the important details you captured and what will happen next. Never promise that a human will call at an exact time unless that has been explicitly confirmed.`;
-}
-
-function openingGreeting(ctx: AssistantContext, displayName?: string): string {
-  if (displayName) {
-    return `Hello, you've reached ${ctx.companyName}. This is ${ctx.assistantName}. How can I help?`;
-  }
-
-  const saved = ctx.greeting?.trim();
-  if (!saved) return `Hello, you've reached ${ctx.companyName}. How can I help?`;
-
-  const mentionsCompany = saved.toLocaleLowerCase("en-GB")
-    .includes(ctx.companyName.toLocaleLowerCase("en-GB"));
-  return mentionsCompany
-    ? saved
-    : `Thanks for calling ${ctx.companyName}. ${saved}`;
 }
 
 function isOpen(ws: WebSocket | null): ws is WebSocket {
@@ -261,6 +257,10 @@ export function attachRealtimePhone(server: HttpServer): void {
     let openaiReady = false;
     let finalised = false;
     let recoveryPromptSent = false;
+    let openingResponseStarted = false;
+    let openingResponseIssued = false;
+    let openingResponseFinished = false;
+    const openingResponseGate = createOpeningResponseGate();
     let pendingAudio: string[] = [];
     const transcript: TranscriptEntry[] = [];
     let persistChain: Promise<void> = Promise.resolve();
@@ -307,6 +307,11 @@ export function attachRealtimePhone(server: HttpServer): void {
 
     const sendToOpenAI = (payload: unknown) => {
       if (isOpen(openai)) openai.send(JSON.stringify(payload));
+    };
+    const flushPendingAudio = () => {
+      for (const audio of pendingAudio.splice(0)) {
+        sendToOpenAI({ type: "input_audio_buffer.append", audio });
+      }
     };
 
     const clearTwilioPlayback = () => {
@@ -634,15 +639,31 @@ export function attachRealtimePhone(server: HttpServer): void {
             details: { voice: ctx.voice },
           });
           logger.info({ callId, callSid, assistantId, voice: selectedVoice ?? "saved-default" }, "Realtime receptionist session ready");
-          for (const audio of pendingAudio.splice(0)) {
-            sendToOpenAI({ type: "input_audio_buffer.append", audio });
+          if (openingResponseGate()) {
+            openingResponseStarted = true;
+            void claimCallOpening(callSid).then((claimed) => {
+              if (!claimed) {
+                openingResponseIssued = true;
+                openingResponseFinished = true;
+                flushPendingAudio();
+                return;
+              }
+              sendToOpenAI({
+                type: "response.create",
+                response: {
+                  instructions: `Say this saved receptionist greeting exactly once, then listen: "${buildOpeningGreeting(ctx.companyName, ctx.greeting, ctx.assistantName)}". Do not add another greeting.`,
+                },
+              });
+              openingResponseIssued = true;
+              // Caller audio received while the database claim was in flight is
+              // replayed after the opening response is queued, so VAD can still
+              // interrupt it without racing a second automatic opening.
+              flushPendingAudio();
+            }).catch((error) => {
+              logger.error({ err: error, callId, callSid }, "Could not claim the one-time call greeting");
+              if (twilio.readyState === WebSocket.OPEN) twilio.close(1011, "Call greeting could not be started");
+            });
           }
-          sendToOpenAI({
-            type: "response.create",
-            response: {
-              instructions: `Open the call now. Say this greeting naturally and immediately: "${openingGreeting(ctx, selectedDisplayName)}". Do not add a long introduction before or after it.`,
-            },
-          });
           return;
         }
 
@@ -696,6 +717,11 @@ export function attachRealtimePhone(server: HttpServer): void {
         if (event.type === "response.output_audio_transcript.done") {
           addTranscript("assistant", event.transcript);
           return;
+        }
+
+        if (event.type === "response.done" && openingResponseStarted && !openingResponseFinished) {
+          openingResponseFinished = true;
+          flushPendingAudio();
         }
 
         if (
@@ -831,7 +857,7 @@ export function attachRealtimePhone(server: HttpServer): void {
       }
 
       if (message.event === "media" && typeof message.media?.payload === "string") {
-        if (openaiReady && isOpen(openai)) {
+        if (openaiReady && isOpen(openai) && (!openingResponseStarted || openingResponseIssued)) {
           sendToOpenAI({ type: "input_audio_buffer.append", audio: message.media.payload });
         } else if (pendingAudio.length < MAX_PENDING_AUDIO) {
           pendingAudio.push(message.media.payload);

@@ -124,7 +124,7 @@ router.delete("/assistants/:id", async (req, res): Promise<void> => {
   res.status(204).end();
 });
 
-// Voice preview — returns audio/wav for the given voice
+// Voice preview — a supplied voice is preview-only and never changes the saved assistant.
 router.post("/assistants/voice-preview", async (req, res): Promise<void> => {
   const { text } = req.body as { assistantId?: number; voice?: string; text?: string };
   const allowed = new Set<string>(RECEPTIONIST_VOICE_PERSONAS.map((persona) => persona.id));
@@ -139,7 +139,8 @@ router.post("/assistants/voice-preview", async (req, res): Promise<void> => {
       [assistantId, companyId],
     );
     if (!saved.rows[0]) { res.status(404).json({ error: "Phone assistant not found." }); return; }
-    voice = saved.rows[0].realtime_voice;
+    voice = voice ?? saved.rows[0].realtime_voice;
+    if (!allowed.has(voice)) { res.status(400).json({ error: "Invalid voice" }); return; }
     const persona = RECEPTIONIST_VOICE_PERSONAS.find((item) => item.id === voice);
     if (!persona) { res.status(409).json({ error: "Save a supported receptionist voice before previewing." }); return; }
     personaDirection = persona.direction;

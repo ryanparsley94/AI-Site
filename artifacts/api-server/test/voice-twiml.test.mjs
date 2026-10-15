@@ -68,3 +68,23 @@ test("follow-up questions do not repeat the initial greeting", () => {
   assert.doesNotMatch(followUp, /Hello, you&apos;ve reached|This is Olivia/);
   assert.match(followUp, /voice="Polly\.Amy-Neural" language="en-GB"/);
 });
+
+test("website-imported greeting is spoken once as the saved opening", () => {
+  const fromWebsite = buildIncomingVoiceResponse(0, "Please tell me your full name.", {
+    businessName: "Parsley Electrical",
+    greeting: "Hi there, you've reached Parsley Electrical. How can I help?",
+  });
+  assert.equal((fromWebsite.match(/<Say\b/g) ?? []).length, 1);
+  assert.equal((fromWebsite.match(/you&apos;ve reached Parsley Electrical/g) ?? []).length, 1);
+  assert.match(fromWebsite, /Please tell me your full name/);
+});
+
+test("missing website greeting uses one business-naming fallback opening", () => {
+  const withoutWebsiteGreeting = buildIncomingVoiceResponse(0, "Please tell me your full name.", {
+    businessName: "Parsley Electrical",
+    greeting: null,
+  });
+  assert.equal((withoutWebsiteGreeting.match(/<Say\b/g) ?? []).length, 1);
+  assert.equal((withoutWebsiteGreeting.match(/Hello, you&apos;ve reached Parsley Electrical/g) ?? []).length, 1);
+  assert.match(withoutWebsiteGreeting, /Please tell me your full name/);
+});

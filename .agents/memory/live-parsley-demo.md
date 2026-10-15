@@ -20,3 +20,9 @@ For the active receptionist Edward, Cedar is the default male persona. Do not re
 **Why:** The owner explicitly wants Edward to sound like a calm, mature, warm, clear male British receptionist, and does not want Marin retained for him.
 
 **How to apply:** Keep Cedar first/default in receptionist settings, use its persona direction in preview and live instructions, and preserve the one-time legacy-data conversion when evolving voice configuration.
+
+The saved receptionist greeting is the sole call-opening source and must be spoken once per call, including retries and fallback paths. Website learning may populate that saved greeting when blank, but must not also expose it as callable script or discard useful non-greeting facts.
+
+**Why:** Ryan reported callers hearing a website-derived greeting followed by the saved receptionist greeting; the website profile is reference data, not a second opening.
+
+**How to apply:** Keep imported greeting text only as the saved opening, filter greeting-only knowledge from call context, and atomically guard the opening across Realtime readiness events and Twilio fallback retries.

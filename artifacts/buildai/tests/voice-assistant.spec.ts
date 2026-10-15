@@ -90,7 +90,16 @@ test("embedded browser demo explains microphone denial and offers standalone ope
   }));
   await page.route("**/api/public-demo/realtime-session", route => {
     realtimeStarts++;
-    return route.fulfill({ json: { clientSecret: "test-only", demoId: "test-demo", receptionistName: "Edward", assistantId: 7, voice: "cedar" } });
+    return route.fulfill({
+      json: {
+        clientSecret: "test-only",
+        demoId: "test-demo",
+        receptionistName: "Edward",
+        assistantId: 7,
+        voice: "cedar",
+        openingGreeting: "Hello, you've reached Parsley Electrical. How can I help?",
+      },
+    });
   });
   await page.goto("/");
   await page.setViewportSize({ width: 390, height: 844 });
@@ -200,6 +209,77 @@ test("phone assistant offers exactly six curated voices and requires saving befo
   await expect(select.locator("option").evaluateAll(options => options.map(option => option.textContent))).resolves.toEqual(["Edward", "Arthur", "George", "Charlotte", "Sophie", "Amelia"]);
   await expect(select).toHaveValue("cedar");
   await expect(page.getByRole("button", { name: "Save receptionist to preview" })).toBeDisabled();
+});
+
+test.describe("mobile receptionist voice editing", () => {
+test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+
+test("editing a phone assistant keeps an unsaved voice, previews it, and saves it", async ({ page }) => {
+  let persistedVoice = "cedar";
+  let previewRequest: Record<string, unknown> | null = null;
+  let saveRequest: Record<string, unknown> | null = null;
+  const assistant = () => ({
+    id: 7,
+    name: "Edward",
+    type: "phone",
+    voice: persistedVoice,
+    realtimeVoice: persistedVoice,
+    personality: "professional",
+    greeting: "Hello, thanks for calling.",
+    instructions: "",
+    active: true,
+    callsHandled: 0,
+    jobsBooked: 0,
+    twilioPhoneNumber: null,
+    businessName: "Parsley Electrical",
+    twilioVoice: "Polly.Amy-Neural",
+    receptionistStyle: "Warm and professional.",
+    createdAt: "2026-01-01T00:00:00.000Z",
+  });
+
+  await page.route("**/api/assistants", async route => {
+    if (route.request().method() === "GET") return route.fulfill({ json: [assistant()] });
+    return route.fallback();
+  });
+  await page.route("**/api/assistants/7", async route => {
+    if (route.request().method() === "GET") return route.fulfill({ json: assistant() });
+    if (route.request().method() === "PATCH") {
+      saveRequest = route.request().postDataJSON();
+      persistedVoice = String(saveRequest.realtimeVoice);
+      return route.fulfill({ json: { ...assistant(), ...saveRequest } });
+    }
+    return route.fallback();
+  });
+  await page.route("**/api/assistants/voice-preview", async route => {
+    previewRequest = route.request().postDataJSON();
+    return route.fulfill({ status: 200, contentType: "audio/mpeg", body: Buffer.from("test-audio") });
+  });
+
+  await page.goto("/assistants");
+  await page.getByRole("button", { name: "Edit" }).click();
+
+  const voicePicker = page.locator('select[name="realtimeVoice"]');
+  const pickerBox = await voicePicker.boundingBox();
+  expect(pickerBox).not.toBeNull();
+  expect(pickerBox!.width).toBeGreaterThanOrEqual(280);
+  expect(pickerBox!.height).toBeGreaterThanOrEqual(44);
+  await voicePicker.tap();
+  await voicePicker.selectOption("ash");
+  await expect(voicePicker).toHaveValue("ash");
+  await expect(page.getByRole("status")).toContainText("Unsaved preview only");
+  await expect(page.getByRole("button", { name: "Preview unsaved choice" })).toBeEnabled();
+
+  await page.getByRole("button", { name: "Preview unsaved choice" }).click();
+  await expect.poll(() => previewRequest).toMatchObject({ assistantId: 7, voice: "ash" });
+  expect(persistedVoice).toBe("cedar");
+
+  await page.getByRole("button", { name: "Save Changes" }).click();
+  await expect.poll(() => saveRequest).toMatchObject({ voice: "ash", realtimeVoice: "ash" });
+  expect(persistedVoice).toBe("ash");
+
+  await page.getByRole("button", { name: "Edit" }).click();
+  await expect(page.locator('select[name="realtimeVoice"]')).toHaveValue("ash");
+});
 });
 
 test("release before permission resolves stops tracks and does not submit", async ({ page }) => {
