@@ -4,6 +4,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Camera, Image as ImageIcon, Mic, Send, Volume2, X } from "lucide-react";
 import { voiceCommand, voiceTranscribe } from "@workspace/api-client-react";
 import type { VoiceCommandResult } from "@workspace/api-client-react";
+import { RECEPTIONIST_VOICE_PERSONAS } from "@workspace/api-client-react";
+import type { ReceptionistVoiceId } from "@workspace/api-client-react";
 import { useVoice } from "@/lib/voice-context";
 
 const ROUTES = ["/dashboard", "/calls", "/jobs", "/assistants", "/contacts", "/quotes", "/invoices", "/certificates", "/email-inbox", "/settings", "/tasks"];
@@ -31,7 +33,7 @@ export default function VoiceAssistant() {
   const [error, setError] = useState<string | null>(null);
   const [heard, setHeard] = useState("");
   const [blocked, setBlocked] = useState(false);
-  const [voice, setVoice] = useState<"alloy" | "echo" | "shimmer">("shimmer");
+  const [voice, setVoice] = useState<ReceptionistVoiceId>("cedar");
 
   const qc = useQueryClient();
   const { setQuoteDraft } = useVoice();
@@ -354,10 +356,10 @@ export default function VoiceAssistant() {
 
           <label className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
             Spoken voice
-            <select value={voice} onChange={e => setVoice(e.target.value as typeof voice)} className="rounded border bg-background px-2 py-1" disabled={phase !== "idle"}>
-              <option value="alloy">Alloy</option>
-              <option value="echo">Edward (Echo)</option>
-              <option value="shimmer">Shimmer</option>
+            <select value={voice} onChange={e => setVoice(e.target.value as ReceptionistVoiceId)} className="rounded border bg-background px-2 py-1" disabled={phase !== "idle"}>
+              {RECEPTIONIST_VOICE_PERSONAS.map((persona) => (
+                <option key={persona.id} value={persona.id}>{persona.label}</option>
+              ))}
             </select>
           </label>
           <div className="flex flex-wrap items-center gap-2">

@@ -183,7 +183,6 @@ export const AssistantVoice = {
   sage: 'sage',
   shimmer: 'shimmer',
   verse: 'verse',
-  marin: 'marin',
   cedar: 'cedar',
 } as const;
 
@@ -191,16 +190,12 @@ export type AssistantRealtimeVoice = typeof AssistantRealtimeVoice[keyof typeof 
 
 
 export const AssistantRealtimeVoice = {
-  alloy: 'alloy',
+  cedar: 'cedar',
   ash: 'ash',
-  ballad: 'ballad',
-  coral: 'coral',
   echo: 'echo',
+  coral: 'coral',
   sage: 'sage',
   shimmer: 'shimmer',
-  verse: 'verse',
-  marin: 'marin',
-  cedar: 'cedar',
 } as const;
 
 export type AssistantPersonality = typeof AssistantPersonality[keyof typeof AssistantPersonality];
@@ -257,7 +252,6 @@ export const AssistantInputVoice = {
   sage: 'sage',
   shimmer: 'shimmer',
   verse: 'verse',
-  marin: 'marin',
   cedar: 'cedar',
 } as const;
 
@@ -265,16 +259,12 @@ export type AssistantInputRealtimeVoice = typeof AssistantInputRealtimeVoice[key
 
 
 export const AssistantInputRealtimeVoice = {
-  alloy: 'alloy',
+  cedar: 'cedar',
   ash: 'ash',
-  ballad: 'ballad',
-  coral: 'coral',
   echo: 'echo',
+  coral: 'coral',
   sage: 'sage',
   shimmer: 'shimmer',
-  verse: 'verse',
-  marin: 'marin',
-  cedar: 'cedar',
 } as const;
 
 export type AssistantInputPersonality = typeof AssistantInputPersonality[keyof typeof AssistantInputPersonality];
@@ -388,7 +378,6 @@ export const AssistantUpdateVoice = {
   sage: 'sage',
   shimmer: 'shimmer',
   verse: 'verse',
-  marin: 'marin',
   cedar: 'cedar',
 } as const;
 
@@ -396,16 +385,12 @@ export type AssistantUpdateRealtimeVoice = typeof AssistantUpdateRealtimeVoice[k
 
 
 export const AssistantUpdateRealtimeVoice = {
-  alloy: 'alloy',
+  cedar: 'cedar',
   ash: 'ash',
-  ballad: 'ballad',
-  coral: 'coral',
   echo: 'echo',
+  coral: 'coral',
   sage: 'sage',
   shimmer: 'shimmer',
-  verse: 'verse',
-  marin: 'marin',
-  cedar: 'cedar',
 } as const;
 
 export type AssistantUpdatePersonality = typeof AssistantUpdatePersonality[keyof typeof AssistantUpdatePersonality];
@@ -1371,6 +1356,26 @@ export type UpdateTaskResponse = Task;
 export type GenerateTasksResponse = Task[];
 
 export type MarketingDraftChannel = typeof MarketingDraftChannel[keyof typeof MarketingDraftChannel];
+
+
+export const MarketingDraftChannel = {
+  sms: 'sms',
+  email: 'email',
+} as const;
+
+export type MarketingDraftDeliveryStatus = typeof MarketingDraftDeliveryStatus[keyof typeof MarketingDraftDeliveryStatus];
+
+
+export const MarketingDraftDeliveryStatus = {
+  not_sent: 'not_sent',
+  sending: 'sending',
+  queued: 'queued',
+  sent: 'sent',
+  delivered: 'delivered',
+  failed: 'failed',
+  unknown: 'unknown',
+} as const;
+
 export type MarketingDraftType = typeof MarketingDraftType[keyof typeof MarketingDraftType];
 
 
@@ -1421,6 +1426,13 @@ export interface GenerateMarketingDraftsBody {
 export type GenerateMarketingDraftsResponse = MarketingDraft[];
 
 export type UpdateMarketingDraftBodyChannel = typeof UpdateMarketingDraftBodyChannel[keyof typeof UpdateMarketingDraftBodyChannel];
+
+
+export const UpdateMarketingDraftBodyChannel = {
+  sms: 'sms',
+  email: 'email',
+} as const;
+
 export interface UpdateMarketingDraftBody {
   /** @minLength 1 */
   editedMessage?: string;
@@ -1458,8 +1470,11 @@ export type VoiceCommandBodyVoice = typeof VoiceCommandBodyVoice[keyof typeof Vo
 
 
 export const VoiceCommandBodyVoice = {
-  alloy: 'alloy',
+  cedar: 'cedar',
+  ash: 'ash',
   echo: 'echo',
+  coral: 'coral',
+  sage: 'sage',
   shimmer: 'shimmer',
 } as const;
 
@@ -1637,25 +1652,3 @@ export const ListMarketingDraftsStatus = {
   all: 'all',
 } as const;
 
-
-export const UpdateMarketingDraftBodyChannel = {
-  sms: 'sms',
-  email: 'email',
-} as const;
-
-export const MarketingDraftDeliveryStatus = {
-  not_sent: 'not_sent',
-  sending: 'sending',
-  queued: 'queued',
-  sent: 'sent',
-  delivered: 'delivered',
-  failed: 'failed',
-  unknown: 'unknown',
-} as const;
-
-export type MarketingDraftDeliveryStatus = typeof MarketingDraftDeliveryStatus[keyof typeof MarketingDraftDeliveryStatus];
-
-export const MarketingDraftChannel = {
-  sms: 'sms',
-  email: 'email',
-} as const;

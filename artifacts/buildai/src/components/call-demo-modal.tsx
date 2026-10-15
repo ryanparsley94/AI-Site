@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { getReceptionistVoicePersona } from "@workspace/api-client-react";
 
 type BusinessProfile = Record<string, unknown>;
 type PreviewResponse = { preview: BusinessProfile; source?: unknown };
@@ -26,9 +27,7 @@ type SampleFailure = { category: string | null; type: string | null; code: strin
 type DemoBot = { id: number; name: string; defaultVoice: string };
 type DemoOptions = {
   bots: DemoBot[];
-  voices: { id: string; label: string; description?: string }[];
   displayNames: string[];
-  languagePreference: string;
 };
 
 const RECEPTIONIST_NAME = "Receptionist";
@@ -97,7 +96,6 @@ export function CallDemoModal({
   const [voicePreviewLoading, setVoicePreviewLoading] = useState(false);
   const [demoOptions, setDemoOptions] = useState<DemoOptions | null>(null);
   const [selectedAssistantId, setSelectedAssistantId] = useState("");
-  const [selectedVoice, setSelectedVoice] = useState("marin");
   const [selectedDisplayName, setSelectedDisplayName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [phoneConsent, setPhoneConsent] = useState(false);
@@ -120,6 +118,7 @@ export function CallDemoModal({
   const [audioPlaybackBlocked, setAudioPlaybackBlocked] = useState(false);
   const [embeddedContext, setEmbeddedContext] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
+  const selectedVoice = demoOptions?.bots.find((bot) => String(bot.id) === selectedAssistantId)?.defaultVoice ?? "cedar";
 
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -146,7 +145,6 @@ export function CallDemoModal({
         const bot = body.bots[0];
         if (bot) {
           setSelectedAssistantId(String(bot.id));
-          setSelectedVoice(bot.defaultVoice);
           setSelectedDisplayName(bot.name);
         }
       })
@@ -207,7 +205,6 @@ export function CallDemoModal({
     setVoicePreviewLoading(false);
     setDemoOptions(null);
     setSelectedAssistantId("");
-    setSelectedVoice("marin");
     setSelectedDisplayName("");
     setPhoneNumber("");
     setPhoneConsent(false);
@@ -266,7 +263,7 @@ export function CallDemoModal({
     setError("");
     setSampleFailure(null);
     try {
-      const response = await fetch(apiPath(`/api/public-demo/sample-audio?assistantId=${encodeURIComponent(selectedAssistantId)}&voice=${encodeURIComponent(selectedVoice)}&receptionistName=${encodeURIComponent(selectedDisplayName)}`));
+      const response = await fetch(apiPath(`/api/public-demo/sample-audio?assistantId=${encodeURIComponent(selectedAssistantId)}&receptionistName=${encodeURIComponent(selectedDisplayName)}`));
       if (!response.ok) {
         const result = await response.json().catch(() => ({})) as { error?: string; category?: string | null; type?: string | null; code?: string | null; requestId?: string | null };
         setSampleFailure({
@@ -304,7 +301,7 @@ export function CallDemoModal({
     setVoicePreviewLoading(true);
     setError("");
     try {
-      const response = await fetch(apiPath(`/api/public-demo/sample-audio?assistantId=${encodeURIComponent(selectedAssistantId)}&voice=${encodeURIComponent(selectedVoice)}&receptionistName=${encodeURIComponent(selectedDisplayName)}`));
+      const response = await fetch(apiPath(`/api/public-demo/sample-audio?assistantId=${encodeURIComponent(selectedAssistantId)}&receptionistName=${encodeURIComponent(selectedDisplayName)}`));
       if (!response.ok) {
         const body = await response.json().catch(() => ({})) as { error?: string };
         throw new Error(body.error || `Voice preview returned ${response.status}.`);
@@ -326,7 +323,7 @@ export function CallDemoModal({
     try {
       const result = await postJson<{ demoId: string; status: string; message: string; assistantId: number; voice: string; receptionistName: string }>(
         "/api/public-demo/phone-call",
-        { phone: phoneNumber.trim(), consent: phoneConsent, assistantId: Number(selectedAssistantId), voice: selectedVoice, receptionistName: selectedDisplayName },
+        { phone: phoneNumber.trim(), consent: phoneConsent, assistantId: Number(selectedAssistantId), receptionistName: selectedDisplayName },
       );
       if (result.assistantId !== Number(selectedAssistantId) || result.voice !== selectedVoice || result.receptionistName !== selectedDisplayName) {
         throw new Error("The phone demo did not confirm the selected receptionist and voice. No call status was reported.");
@@ -522,7 +519,6 @@ export function CallDemoModal({
         {
           profile,
           assistantId: Number(selectedAssistantId),
-          voice: selectedVoice,
           receptionistName: selectedDisplayName,
           consent: livePilotConsent,
           websiteFacts: profile,
@@ -670,8 +666,8 @@ export function CallDemoModal({
 
             {stage === "profile" && (
               <section className="mb-5 rounded-xl border border-[#36C6D5]/20 bg-[#122128] p-3.5" aria-label="Demo receptionist and voice">
-                <p className="text-[10px] font-bold uppercase tracking-[.14em] text-[#36C6D5]">Receptionist and voice</p>
-                {!demoOptions ? <p className="mt-2 text-xs text-white/55">Loading available Parsley demo bots and voices…</p> : (
+                <p className="text-[10px] font-bold uppercase tracking-[.14em] text-[#36C6D5]">Receptionist and saved voice</p>
+                {!demoOptions ? <p className="mt-2 text-xs text-white/55">Loading available Parsley receptionists…</p> : (
                   <>
                     <div className="mt-3 grid gap-3 sm:grid-cols-3">
                       <label className="block text-xs font-semibold text-white/65">
@@ -680,7 +676,6 @@ export function CallDemoModal({
                           const bot = demoOptions.bots.find((item) => String(item.id) === event.target.value);
                           setSelectedAssistantId(event.target.value);
                           if (bot) {
-                            setSelectedVoice(bot.defaultVoice);
                             setSelectedDisplayName(bot.name);
                           }
                         }} className="mt-1.5 h-10 w-full rounded-lg border border-white/15 bg-[#0b1418] px-2.5 text-sm text-white">
@@ -694,21 +689,20 @@ export function CallDemoModal({
                         </select>
                       </label>
                       <label className="block text-xs font-semibold text-white/65">
-                        OpenAI voice
-                        <select aria-label="OpenAI Realtime voice" value={selectedVoice} onChange={(event) => setSelectedVoice(event.target.value)} className="mt-1.5 h-10 w-full rounded-lg border border-white/15 bg-[#0b1418] px-2.5 text-sm text-white">
-                          {demoOptions.voices.map((voice) => <option key={voice.id} value={voice.id}>{voice.label}</option>)}
-                        </select>
+                        Saved receptionist voice
+                        <p className="mt-1.5 rounded-lg border border-white/15 bg-[#0b1418] px-2.5 py-2 text-sm text-white">
+                          {getReceptionistVoicePersona(selectedVoice).label}
+                        </p>
                       </label>
                     </div>
                     <p className="mt-2 text-[11px] leading-relaxed text-white/45">
-                      {demoOptions.languagePreference}. <strong className="font-semibold text-white/65">{demoOptions.voices.find((voice) => voice.id === selectedVoice)?.description}</strong>
-                      {" "}The demo receptionist name and audio voice are separate choices. These demo choices affect only this session and callback; the saved active business bot controls later direct inbound calls.
+                      {getReceptionistVoicePersona(selectedVoice).description} The preview and demo use this receptionist’s saved voice; it is not changed from this screen. Regional cues are guidance, not a guaranteed accent.
                     </p>
                     <div className="mt-3 flex flex-wrap items-center gap-3">
                       <Button type="button" variant="outline" onClick={() => void previewSelectedVoice()} disabled={!selectedAssistantId || voicePreviewLoading} className="h-9 border-[#36C6D5]/40 text-xs text-[#8be2e9]">
                         {voicePreviewLoading ? <><LoaderCircle size={14} className="mr-2 animate-spin" /> Preparing preview</> : <><AudioLines size={14} className="mr-2" /> Preview selected voice</>}
                       </Button>
-                      {voicePreviewUrl && <audio controls preload="none" src={voicePreviewUrl} aria-label={`Voice preview for ${selectedDisplayName}, OpenAI voice ${selectedVoice}`} className="h-9 max-w-full" />}
+                      {voicePreviewUrl && <audio controls preload="none" src={voicePreviewUrl} aria-label={`Voice preview for ${selectedDisplayName}, ${getReceptionistVoicePersona(selectedVoice).label}`} className="h-9 max-w-full" />}
                     </div>
                   </>
                 )}
@@ -730,7 +724,7 @@ export function CallDemoModal({
                   </button>
                   <button type="button" disabled={!demoOptions} onClick={() => setDemoMode("phone")} className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[.03] p-4 text-left hover:border-[#36C6D5]/50 disabled:opacity-50">
                     <Phone className="mt-0.5 text-[#36C6D5]" size={19} />
-                    <span><strong className="block text-sm">Get a demo call</strong><span className="mt-1 block text-xs text-white/50">A consented Twilio callback using the demo bot name and selected OpenAI voice.</span></span>
+                    <span><strong className="block text-sm">Get a demo call</strong><span className="mt-1 block text-xs text-white/50">A consented Twilio callback using the selected bot and its saved receptionist voice.</span></span>
                   </button>
                 </div>
               </section>
@@ -762,7 +756,7 @@ export function CallDemoModal({
               <section aria-labelledby="phone-demo-heading">
                 <button type="button" onClick={() => { setDemoMode("choose"); setPhoneDemoId(""); setPhoneStatus(""); }} className="mb-4 inline-flex items-center gap-1.5 text-xs font-semibold text-white/45 hover:text-white"><ArrowLeft size={14} /> Demo choices</button>
                 <h2 id="phone-demo-heading" className="text-xl font-bold">Get a live demonstration call</h2>
-                <p className="mt-1 text-sm text-white/55">We’ll call as {selectedDisplayName || "the selected receptionist"} using the selected Parsley bot’s business knowledge and the separate OpenAI voice choice. UK pronunciation is guided by instructions but cannot be guaranteed by every voice. No call is placed until you consent.</p>
+                <p className="mt-1 text-sm text-white/55">We’ll call as {selectedDisplayName || "the selected receptionist"} using the selected Parsley bot’s business knowledge and saved voice. British regional cues are guidance, not a guaranteed accent. No call is placed until you consent.</p>
                 <form onSubmit={requestPhoneDemo} className="mt-4 space-y-4">
                   <label className="block text-xs font-semibold text-white/60" htmlFor="demo-phone">Your phone number (international format)</label>
                   <input id="demo-phone" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} placeholder="+44…" type="tel" autoComplete="tel" className="h-11 w-full rounded-lg border border-white/15 bg-[#0b1418] px-3 text-sm text-white" required disabled={!!phoneDemoId} />

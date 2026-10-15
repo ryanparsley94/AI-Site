@@ -135,7 +135,7 @@ paths:
                   type: string
                 voice:
                   type: string
-                  enum: [alloy, echo, shimmer]
+                  enum: [cedar, ash, echo, coral, sage, shimmer]
       responses:
         "200":
           description: Action result and optional spoken audio, never persisted
@@ -2024,10 +2024,10 @@ components:
           enum: [phone, email, chat, marketing, scheduling]
         voice:
           type: string
-          enum: [alloy, ash, ballad, coral, echo, sage, shimmer, verse, marin, cedar]
+          enum: [alloy, ash, ballad, coral, echo, sage, shimmer, verse, cedar]
         realtimeVoice:
           type: string
-          enum: [alloy, ash, ballad, coral, echo, sage, shimmer, verse, marin, cedar]
+          enum: [cedar, ash, echo, coral, sage, shimmer]
         twilioPhoneNumber:
           type: ["string", "null"]
         businessName:
@@ -2064,10 +2064,10 @@ components:
           enum: [phone, email, chat, marketing, scheduling]
         voice:
           type: string
-          enum: [alloy, ash, ballad, coral, echo, sage, shimmer, verse, marin, cedar]
+          enum: [alloy, ash, ballad, coral, echo, sage, shimmer, verse, cedar]
         realtimeVoice:
           type: string
-          enum: [alloy, ash, ballad, coral, echo, sage, shimmer, verse, marin, cedar]
+          enum: [cedar, ash, echo, coral, sage, shimmer]
         twilioPhoneNumber:
           type: ["string", "null"]
         businessName:
@@ -2152,10 +2152,10 @@ components:
           enum: [phone, email, chat, marketing, scheduling]
         voice:
           type: string
-          enum: [alloy, ash, ballad, coral, echo, sage, shimmer, verse, marin, cedar]
+          enum: [alloy, ash, ballad, coral, echo, sage, shimmer, verse, cedar]
         realtimeVoice:
           type: string
-          enum: [alloy, ash, ballad, coral, echo, sage, shimmer, verse, marin, cedar]
+          enum: [cedar, ash, echo, coral, sage, shimmer]
         twilioPhoneNumber:
           type: ["string", "null"]
         businessName:

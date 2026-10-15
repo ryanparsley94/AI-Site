@@ -2,6 +2,7 @@ import { Router } from "express";
 import { eq, and } from "drizzle-orm";
 import { db, pool, assistantsTable, assistantTrainingTable } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { getReceptionistVoicePersona, RECEPTIONIST_VOICE_PERSONAS } from "@workspace/api-zod";
 import {
   ListAssistantsResponse,
   CreateAssistantBody,
@@ -67,9 +68,10 @@ router.post("/assistants", async (req, res): Promise<void> => {
     return;
   }
   const companyId = await currentCompanyId();
+  const voice = parsed.data.type === "phone" ? (parsed.data.realtimeVoice ?? "cedar") : parsed.data.voice;
   const [row] = await db
     .insert(assistantsTable)
-    .values({ ...parsed.data, companyId })
+    .values({ ...parsed.data, voice, companyId })
     .returning();
   res.status(201).json(CreateAssistantResponse.parse(mapAssistant(row)));
 });
@@ -91,10 +93,22 @@ router.patch("/assistants/:id", async (req, res): Promise<void> => {
   if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
   const parsed = UpdateAssistantBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+  const companyId = await currentCompanyId();
+  const [owned] = await db
+    .select({ id: assistantsTable.id, type: assistantsTable.type, realtimeVoice: assistantsTable.realtimeVoice })
+    .from(assistantsTable)
+    .where(and(eq(assistantsTable.id, params.data.id), eq(assistantsTable.companyId, companyId)));
+  if (!owned) { res.status(404).json({ error: "Not found" }); return; }
+  const updateData = { ...parsed.data };
+  if (owned.type === "phone" || parsed.data.type === "phone") {
+    const realtimeVoice = (parsed.data.realtimeVoice ?? owned.realtimeVoice ?? "cedar") as NonNullable<typeof parsed.data.realtimeVoice>;
+    updateData.realtimeVoice = realtimeVoice;
+    updateData.voice = realtimeVoice;
+  }
   const [row] = await db
     .update(assistantsTable)
-    .set(parsed.data)
-    .where(and(eq(assistantsTable.id, params.data.id), eq(assistantsTable.companyId, await currentCompanyId())))
+    .set(updateData)
+    .where(and(eq(assistantsTable.id, params.data.id), eq(assistantsTable.companyId, companyId)))
     .returning();
   if (!row) { res.status(404).json({ error: "Not found" }); return; }
   res.json(UpdateAssistantResponse.parse(mapAssistant(row)));
@@ -112,9 +126,25 @@ router.delete("/assistants/:id", async (req, res): Promise<void> => {
 
 // Voice preview — returns audio/wav for the given voice
 router.post("/assistants/voice-preview", async (req, res): Promise<void> => {
-  const { voice, text } = req.body as { voice?: string; text?: string };
-  const allowed = ["alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse", "marin", "cedar"];
-  if (!voice || !allowed.includes(voice)) {
+  const { text } = req.body as { assistantId?: number; voice?: string; text?: string };
+  const allowed = new Set<string>(RECEPTIONIST_VOICE_PERSONAS.map((persona) => persona.id));
+  let voice = req.body?.voice as string | undefined;
+  let personaDirection: string | undefined;
+  if (req.body?.assistantId !== undefined) {
+    const assistantId = Number(req.body.assistantId);
+    if (!Number.isSafeInteger(assistantId) || assistantId < 1) { res.status(400).json({ error: "Invalid assistant id." }); return; }
+    const companyId = await currentCompanyId();
+    const saved = await pool.query<{ realtime_voice: string }>(
+      "SELECT realtime_voice FROM assistants WHERE id=$1 AND company_id=$2 AND type='phone' LIMIT 1",
+      [assistantId, companyId],
+    );
+    if (!saved.rows[0]) { res.status(404).json({ error: "Phone assistant not found." }); return; }
+    voice = saved.rows[0].realtime_voice;
+    const persona = RECEPTIONIST_VOICE_PERSONAS.find((item) => item.id === voice);
+    if (!persona) { res.status(409).json({ error: "Save a supported receptionist voice before previewing." }); return; }
+    personaDirection = persona.direction;
+  }
+  if (!voice || !allowed.has(voice)) {
     res.status(400).json({ error: "Invalid voice" });
     return;
   }
@@ -135,7 +165,7 @@ router.post("/assistants/voice-preview", async (req, res): Promise<void> => {
         model: "gpt-4o-mini-tts",
         voice,
         input: sample,
-        instructions: "Speak in natural British English. Warm, professional, conversational, concise and not salesy.",
+        instructions: `Speak in natural British English. ${personaDirection ? `Use this subtle style cue where supported: ${personaDirection}. Do not claim an exact regional accent.` : ""} Warm, professional, conversational, concise and not salesy.`,
         response_format: "mp3",
       }),
     });

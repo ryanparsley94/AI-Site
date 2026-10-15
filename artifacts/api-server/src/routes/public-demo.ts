@@ -13,11 +13,11 @@ import {
   getRealtimeSessionErrorMessage,
   getSampleAudioErrorMessage,
 } from "../lib/openai-error-diagnostics";
+import { getReceptionistVoicePersona, RECEPTIONIST_VOICE_PERSONAS } from "@workspace/api-zod";
 
 const router = Router();
-export const PUBLIC_DEMO_VOICES = ["alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse", "marin", "cedar"] as const;
 export const PUBLIC_DEMO_DISPLAY_NAMES = ["Ash", "James", "Sophie", "Emma", "Oliver", "Charlotte"] as const;
-const allowedVoices = new Set<string>(PUBLIC_DEMO_VOICES);
+const allowedVoices = new Set<string>(RECEPTIONIST_VOICE_PERSONAS.map((persona) => persona.id));
 const allowedDisplayNames = new Set<string>(PUBLIC_DEMO_DISPLAY_NAMES.map((name) => name.toLowerCase()));
 const requestTimes = new Map<string, number[]>();
 const phoneDemoRequests = new Map<string, number[]>();
@@ -75,8 +75,10 @@ router.get("/public-demo/sample-audio", async (req, res): Promise<void> => {
     const assistantId = Number(req.query.assistantId);
     pilot = await loadParsleyPilot(Number.isInteger(assistantId) && assistantId > 0 ? assistantId : undefined);
   } catch (error) { res.status(503).json({ error: error instanceof Error ? error.message : "Demo receptionist is unavailable." }); return; }
-  const voice = text(req.query.voice, 20) || pilot.realtime_voice;
-  if (!allowedVoices.has(voice)) { res.status(400).json({ error: "Choose a supported OpenAI Realtime voice." }); return; }
+  const requestedVoice = text(req.query.voice, 20);
+  const voice = pilot.realtime_voice;
+  if (!allowedVoices.has(voice)) { res.status(503).json({ error: "The saved receptionist voice is unavailable." }); return; }
+  if (requestedVoice && requestedVoice !== voice) { res.status(409).json({ error: "The saved receptionist voice changed. Reload the demo before previewing." }); return; }
   const receptionistName = demoDisplayName(req.query.receptionistName, pilot.assistant_name);
   if (!receptionistName) { res.status(400).json({ error: "Choose a listed demo receptionist name or use the saved bot name." }); return; }
   const cacheKey = `${pilot.company_id}:${pilot.assistant_id}:${voice}:${receptionistName}:${pilot.greeting}:${pilot.personality}:${pilot.instructions}`;
@@ -94,7 +96,7 @@ router.get("/public-demo/sample-audio", async (req, res): Promise<void> => {
         modalities: ["text", "audio"],
         audio: { voice, format: "wav" },
         messages: [
-          { role: "system", content: `Speak the following short dramatized sample as ${receptionistName}, a ${pilot.personality} receptionist for ${pilot.company_name}. Use natural British English and UK pronunciation as an instruction; the selected voice itself does not guarantee a particular accent. Follow these saved receptionist instructions where relevant: ${pilot.instructions || "Be warm, concise and helpful."} Do not add words.` },
+          { role: "system", content: `Speak the following short dramatized sample as ${receptionistName}, a ${pilot.personality} receptionist for ${pilot.company_name}. Use natural British English with ${getReceptionistVoicePersona(voice).direction}. This is a style cue, not a promise of an exact accent. Follow these saved receptionist instructions where relevant: ${pilot.instructions || "Be warm, concise and helpful."} Do not add words.` },
           { role: "user", content: `Receptionist: ${pilot.greeting} Caller: I need help with an electrical fault. Receptionist: I can take the details and pass them to the team. Is there any immediate danger, such as smoke, heat or sparking?` },
         ],
       }),
@@ -193,15 +195,9 @@ router.get("/public-demo/options", async (_req, res): Promise<void> => {
     res.json({
       businessName: "Parsley Electrical",
       bots: result.rows.map((bot) => ({
-        id: bot.id, name: bot.name, defaultVoice: allowedVoices.has(bot.realtime_voice) ? bot.realtime_voice : "marin",
+        id: bot.id, name: bot.name, defaultVoice: allowedVoices.has(bot.realtime_voice) ? bot.realtime_voice : "cedar",
       })),
       displayNames: PUBLIC_DEMO_DISPLAY_NAMES,
-      voices: PUBLIC_DEMO_VOICES.map((id) => ({
-        id,
-        label: `${id[0].toUpperCase() + id.slice(1)} — OpenAI Realtime voice`,
-        description: `Voice ID “${id}”. Preview it with the selected receptionist name. British pronunciation is guided by instructions and is not guaranteed by the voice.`,
-      })),
-      languagePreference: "British English · UK pronunciation (guided by instructions; voice accent can vary)",
     });
   } catch {
     res.status(503).json({ error: "The Parsley Electrical demo options could not be loaded." });
@@ -259,8 +255,10 @@ router.post("/public-demo/phone-call", async (req, res): Promise<void> => {
     const pilot = await loadParsleyPilot(requestedAssistantId);
     const receptionistName = demoDisplayName(req.body?.receptionistName, pilot.assistant_name);
     if (!receptionistName) { res.status(400).json({ error: "Choose a listed demo receptionist name or use the saved bot name." }); return; }
-    const voice = text(req.body?.voice, 20);
-    if (!allowedVoices.has(voice)) { res.status(400).json({ error: "Choose a supported OpenAI Realtime voice." }); return; }
+    const voice = pilot.realtime_voice;
+    const requestedVoice = text(req.body?.voice, 20);
+    if (!allowedVoices.has(voice)) { res.status(503).json({ error: "The saved receptionist voice is unavailable." }); return; }
+    if (requestedVoice && requestedVoice !== voice) { res.status(409).json({ error: "The saved receptionist voice changed. Reload the demo." }); return; }
     const demoId = randomUUID();
     const profile = { companyName: pilot.company_name, website: "Parsley Electrical saved business profile" };
     await pool.query(
@@ -296,7 +294,7 @@ router.post("/public-demo/phone-call", async (req, res): Promise<void> => {
     ]);
     res.status(202).json({
       demoId, status: call.status || "queued",
-      message: `Call requested for ${receptionistName} using OpenAI Realtime voice ${voice}. Answer the incoming call to begin.`,
+      message: `Call requested for ${receptionistName} using the ${getReceptionistVoicePersona(voice).label} voice. Answer the incoming call to begin.`,
       assistantId: pilot.assistant_id, assistantName: receptionistName, voice, receptionistName,
     });
   } catch (error) {
@@ -504,11 +502,11 @@ router.post("/public-demo/realtime-session", async (req, res): Promise<void> => 
   if (!allowRequest(req, res)) return;
   const profile = req.body?.profile;
   const requestedAssistantId = Number(req.body?.assistantId);
-  const selectedVoice = text(req.body?.voice, 20);
+  const requestedVoice = text(req.body?.voice, 20);
   const requestedName = text(req.body?.receptionistName, 40);
   const website = text((profile as Record<string, unknown> | null)?.website, 2000);
-  if (!profile || typeof profile !== "object" || !website || req.body?.consent !== true || !Number.isInteger(requestedAssistantId) || requestedAssistantId <= 0 || !allowedVoices.has(selectedVoice)) {
-    res.status(400).json({ error: "A reviewed profile, consent, Parsley website and supported voice are required." });
+  if (!profile || typeof profile !== "object" || !website || req.body?.consent !== true || !Number.isInteger(requestedAssistantId) || requestedAssistantId <= 0) {
+    res.status(400).json({ error: "A reviewed profile, consent and Parsley website are required." });
     return;
   }
   if (!process.env.OPENAI_API_KEY) {
@@ -534,12 +532,14 @@ router.post("/public-demo/realtime-session", async (req, res): Promise<void> => 
   }
   const demoId = randomUUID();
   const callSid = `DEMO-${demoId}`;
-  const voice = selectedVoice;
+  const voice = pilot.realtime_voice;
+  if (!allowedVoices.has(voice)) { res.status(503).json({ error: "The saved receptionist voice is unavailable." }); return; }
+  if (requestedVoice && requestedVoice !== voice) { res.status(409).json({ error: "The saved receptionist voice changed. Reload the demo." }); return; }
   const receptionistName = demoDisplayName(requestedName, pilot.assistant_name)!;
   const facts = text(JSON.stringify({ savedBusinessTraining: pilot.training, scannedWebsiteProfile: req.body?.websiteFacts ?? profile }), 12000);
   const businessName = pilot.company_name;
   const instructions = [
-    `You are ${receptionistName}, a warm, concise, natural British English receptionist for ${businessName}. You are speaking aloud in a live phone-style conversation.`,
+    `You are ${receptionistName}, a warm, concise, natural British English receptionist for ${businessName}. Use this subtle voice direction where supported: ${getReceptionistVoicePersona(voice).direction}. This is guidance, not a promise of an exact accent. You are speaking aloud in a live phone-style conversation.`,
     `Use the saved receptionist greeting and style: ${pilot.greeting} ${pilot.personality}. ${pilot.instructions || ""}`,
     "Greet the caller as a helpful employee. Speak conversationally, listen carefully, allow interruptions, and answer questions only from saved business training or the reviewed website profile below. Prefer saved training when sources conflict. If unsure, say so and offer to pass the question to the team.",
     "Naturally collect caller name, callback number, work needed, site address/postcode, urgency and availability. Do not invent prices, services, appointments or attendance promises.",

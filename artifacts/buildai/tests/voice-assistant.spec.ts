@@ -6,8 +6,7 @@ test.beforeEach(async ({ page }) => {
     if (path.startsWith("/api/voice/")) return route.fallback();
     if (path === "/api/public-demo/options") return route.fulfill({ json: {
       businessName: "Parsley Electrical",
-      bots: [{ id: 7, name: "Oliver", defaultVoice: "marin" }],
-      voices: ["alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse", "marin", "cedar"].map(id => ({ id, label: id[0].toUpperCase() + id.slice(1) })),
+      bots: [{ id: 7, name: "Edward", defaultVoice: "cedar" }],
       displayNames: ["Ash", "James", "Sophie", "Emma", "Oliver", "Charlotte"],
       languagePreference: "British English · UK pronunciation (guided by instructions; voice accent can vary)",
     } });
@@ -28,6 +27,9 @@ test("collapsed global control, text command and clearing on close", async ({ pa
   await page.goto("/jobs");
   await expect(page.getByTestId("panel-voice")).toHaveCount(0);
   await page.getByTestId("button-voice-open").click();
+  const spokenVoice = page.getByLabel("Spoken voice");
+  await expect(spokenVoice.locator("option")).toHaveCount(6);
+  await expect(spokenVoice.locator("option").evaluateAll(options => options.map(option => option.textContent))).resolves.toEqual(["Edward", "Arthur", "George", "Charlotte", "Sophie", "Amelia"]);
   await page.getByTestId("input-voice-text").fill("Today's schedule");
   await page.getByTestId("button-voice-send").click();
   await expect(page).toHaveURL(/\/jobs$/);
@@ -88,7 +90,7 @@ test("embedded browser demo explains microphone denial and offers standalone ope
   }));
   await page.route("**/api/public-demo/realtime-session", route => {
     realtimeStarts++;
-    return route.fulfill({ json: { clientSecret: "test-only", demoId: "test-demo", receptionistName: "Oliver", assistantId: 7, voice: "marin" } });
+    return route.fulfill({ json: { clientSecret: "test-only", demoId: "test-demo", receptionistName: "Edward", assistantId: 7, voice: "cedar" } });
   });
   await page.goto("/");
   await page.setViewportSize({ width: 390, height: 844 });
@@ -97,7 +99,7 @@ test("embedded browser demo explains microphone denial and offers standalone ope
   await page.getByTestId("input-business-website").fill("https://www.parsleyelectrical.co.uk");
   await page.getByTestId("button-preview-website").click();
   await page.getByRole("checkbox").check();
-  await page.getByRole("button", { name: "Meet Oliver" }).click();
+  await page.getByRole("button", { name: "Meet Edward" }).click();
   await page.getByTestId("button-start-live-call").click();
   await expect(page.getByTestId("status-live-demo-error")).toContainText("browser or embedded preview did not grant microphone access");
   await expect(page.getByTestId("status-live-demo-error")).toContainText("Nothing was recorded and no call started");
@@ -158,7 +160,7 @@ test("generated demo sample is reused by audio replay and never falls back to br
   expect(browserSpeech).toBe(0);
 });
 
-test("voice preview and instant callback carry the selected receptionist, bot and supported Realtime voice", async ({ page }) => {
+test("demo preview and callback use the receptionist's saved voice without a public voice override", async ({ page }) => {
   let previewUrl = "";
   let callbackBody: Record<string, unknown> | null = null;
   await page.route("**/api/public-demo/sample-audio?**", async route => {
@@ -167,39 +169,37 @@ test("voice preview and instant callback carry the selected receptionist, bot an
   });
   await page.route("**/api/public-demo/phone-call", async route => {
     callbackBody = route.request().postDataJSON();
-    await route.fulfill({ status: 202, json: { demoId: "test-demo", status: "queued", message: "Call requested for Sophie using OpenAI Realtime voice cedar.", assistantId: 7, assistantName: "Sophie", receptionistName: "Sophie", voice: "cedar" } });
+    await route.fulfill({ status: 202, json: { demoId: "test-demo", status: "queued", message: "Call requested for Sophie using the Edward voice.", assistantId: 7, assistantName: "Sophie", receptionistName: "Sophie", voice: "cedar" } });
   });
   await page.goto("/");
   await page.getByRole("button", { name: "Hear a Demo Call" }).click();
   await page.getByLabel("Demo receptionist name").selectOption("Sophie");
-  await page.getByLabel("OpenAI Realtime voice").selectOption("cedar");
   await page.getByRole("button", { name: "Preview selected voice" }).click();
-  await expect(page.locator('audio[aria-label="Voice preview for Sophie, OpenAI voice cedar"]')).toBeVisible();
+  await expect(page.locator('audio[aria-label="Voice preview for Sophie, Edward"]')).toBeVisible();
   expect(new URL(previewUrl).searchParams.get("assistantId")).toBe("7");
-  expect(new URL(previewUrl).searchParams.get("voice")).toBe("cedar");
+  expect(new URL(previewUrl).searchParams.has("voice")).toBe(false);
   expect(new URL(previewUrl).searchParams.get("receptionistName")).toBe("Sophie");
   await page.getByRole("button", { name: "Get a demo call" }).click();
   await page.getByLabel("Your phone number (international format)").fill("+447700900123");
   await page.getByRole("checkbox").check();
   await page.getByRole("button", { name: "Call me now" }).click();
-  await expect.poll(() => callbackBody).toMatchObject({ assistantId: 7, voice: "cedar", receptionistName: "Sophie", consent: true });
+  await expect.poll(() => callbackBody).toMatchObject({ assistantId: 7, receptionistName: "Sophie", consent: true });
+  expect(callbackBody).not.toHaveProperty("voice");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.setViewportSize({ width: 1440, height: 960 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
-test("phone assistant voice preview sends the currently selected Realtime voice", async ({ page }) => {
-  let previewBody: Record<string, unknown> | null = null;
-  await page.route("**/api/assistants/voice-preview", async route => {
-    previewBody = route.request().postDataJSON();
-    await route.fulfill({ status: 200, contentType: "audio/wav", body: Buffer.from("RIFFtestWAVE") });
-  });
+test("phone assistant offers exactly six curated voices and requires saving before preview", async ({ page }) => {
   await page.goto("/assistants");
   await page.getByRole("button", { name: "New Assistant" }).click();
   await page.getByRole("button", { name: "Phone Operator" }).click();
-  await page.locator('select[name="realtimeVoice"]').selectOption("cedar");
-  await page.getByRole("button", { name: "Preview selected voice" }).click();
-  await expect.poll(() => previewBody).toMatchObject({ voice: "cedar" });
+  const select = page.locator('select[name="realtimeVoice"]');
+  await expect(select.locator("option")).toHaveCount(6);
+  await expect(select.locator("option").evaluateAll(options => options.map(option => (option as HTMLOptionElement).value))).resolves.toEqual(["cedar", "ash", "echo", "coral", "sage", "shimmer"]);
+  await expect(select.locator("option").evaluateAll(options => options.map(option => option.textContent))).resolves.toEqual(["Edward", "Arthur", "George", "Charlotte", "Sophie", "Amelia"]);
+  await expect(select).toHaveValue("cedar");
+  await expect(page.getByRole("button", { name: "Save receptionist to preview" })).toBeDisabled();
 });
 
 test("release before permission resolves stops tracks and does not submit", async ({ page }) => {

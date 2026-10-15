@@ -9,8 +9,14 @@ The Parsley Electrical public live demo is an opt-in pilot path, not a fictional
 
 **How to apply:** Before changing the public demo, preserve explicit consent, strict Parsley tenant resolution, real scheduler validation, and the normal CRM records. For Parsley, direct booking is Monday–Friday 08:30–16:30 Europe/London; evenings and weekends are enquiry/follow-up only. Keep OpenAI Realtime as the only speech path and fail clearly when its server secret is missing.
 
-Demo bot/voice choices are per demo session. Carry the chosen active assistant ID and supported Realtime voice through the browser session and server-generated Twilio Media Stream parameters; never update the assistant's saved default to satisfy one anonymous demo request.
+Demo users may choose a receptionist name, but not override the voice. The selected phone assistant's saved curated `realtime_voice` is the source of truth for editor preview, public demo audio, browser Realtime, and inbound Twilio calls. Saving a voice change updates that assistant's persisted configuration; reject stale demo voice overrides.
 
-**Why:** Public callers can choose a voice without changing the business's configured live-call behavior or another demo session.
+**Why:** A demo voice that differs from the saved assistant misrepresents the live receptionist. Voice changes belong to the business owner and must remain consistent across preview and real calls.
 
-**How to apply:** Validate the selected assistant against the Parsley tenant and active phone-assistant list, then confirm the server response matches the requested assistant and voice before reporting a session as started.
+**How to apply:** Validate the selected assistant against the Parsley tenant and active phone-assistant list; resolve its voice server-side for every demo and live path. Require a saved voice before previewing it, and confirm the server response voice matches the saved assistant.
+
+For the active receptionist Edward, Cedar is the default male persona. Do not reintroduce Marin as a selectable voice, saved default, or runtime fallback; map legacy saved Marin values to Cedar.
+
+**Why:** The owner explicitly wants Edward to sound like a calm, mature, warm, clear male British receptionist, and does not want Marin retained for him.
+
+**How to apply:** Keep Cedar first/default in receptionist settings, use its persona direction in preview and live instructions, and preserve the one-time legacy-data conversion when evolving voice configuration.

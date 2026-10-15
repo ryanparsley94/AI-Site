@@ -6,6 +6,7 @@ import { VoiceCommandBody, VoiceCommandResponse, VoiceTranscribeBody } from "@wo
 import { adminOnly } from "../lib/adminAuth";
 import { intentSchema, executeVoiceAction } from "../lib/voice-actions";
 import { recordVoiceDiagnostic } from "../lib/voice-diagnostics";
+import { getReceptionistVoicePersona } from "@workspace/api-zod";
 
 const router = Router();
 // Single-tenant command serialisation: two voice commands cannot race a send or quote append.
@@ -36,7 +37,7 @@ router.post("/voice/transcribe", async (req, res): Promise<void> => {
 router.post("/voice/command", async (req, res): Promise<void> => {
   const parsed = VoiceCommandBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid command." }); return; }
-  const { transcript = "", image, voice = "alloy", timeZone = "Europe/London" } = parsed.data;
+  const { transcript = "", image, voice = "cedar", timeZone = "Europe/London" } = parsed.data;
   if ((!transcript.trim() && !image) || transcript.length > 4000 ||
       (image && (image.length > 7_000_000 || !/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$/.test(image)))) {
     res.status(400).json({ error: "Provide a command or a JPEG, PNG or WebP photo up to 5 MB." }); return;
@@ -111,7 +112,7 @@ Available quotes: ${JSON.stringify(quotes.map(q => ({ id: q.id, title: q.title }
         model: "gpt-audio", max_completion_tokens: 8192, modalities: ["text", "audio"],
         audio: { voice, format: "wav" },
         messages: [
-          { role: "system", content: "Read the supplied text verbatim in a natural British English accent. Do not add, omit or change any words. You are a text-to-speech reader, not an action executor." },
+          { role: "system", content: `Read the supplied text verbatim in natural British English. Use this subtle style guidance where supported: ${getReceptionistVoicePersona(voice).direction}. Do not add, omit or change any words. You are a text-to-speech reader, not an action executor.` },
           { role: "user", content: result.spokenResponse },
         ],
       });

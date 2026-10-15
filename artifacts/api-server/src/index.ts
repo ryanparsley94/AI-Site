@@ -200,6 +200,33 @@ const MIGRATIONS = [
     FROM jobs j JOIN contacts c ON c.id = j.contact_id
     WHERE d.job_id = j.id AND d.client_email IS NULL AND c.email IS NOT NULL
       AND d.delivery_status = 'not_sent'`,
+  // Normalize legacy OpenAI voice IDs to the curated receptionist persona set.
+  `UPDATE assistants
+      SET realtime_voice = CASE lower(realtime_voice)
+        WHEN 'alloy' THEN 'cedar'
+        WHEN 'marin' THEN 'cedar'
+        WHEN 'ballad' THEN 'coral'
+        WHEN 'verse' THEN 'echo'
+        WHEN 'fable' THEN 'sage'
+        WHEN 'nova' THEN 'coral'
+        WHEN 'onyx' THEN 'echo'
+        ELSE 'cedar'
+      END
+    WHERE realtime_voice NOT IN ('cedar','ash','echo','coral','sage','shimmer')`,
+  `UPDATE assistants
+      SET voice = CASE lower(voice)
+        WHEN 'alloy' THEN 'cedar'
+        WHEN 'marin' THEN 'cedar'
+        WHEN 'ballad' THEN 'coral'
+        WHEN 'verse' THEN 'echo'
+        ELSE 'cedar'
+      END
+    WHERE voice NOT IN ('cedar','ash','echo','coral','sage','shimmer')`,
+  `UPDATE assistants
+      SET voice = realtime_voice
+    WHERE type='phone'
+      AND realtime_voice IN ('cedar','ash','echo','coral','sage','shimmer')
+      AND voice IS DISTINCT FROM realtime_voice`,
 ];
 
 async function runMigrations(): Promise<void> {

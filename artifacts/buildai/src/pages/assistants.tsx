@@ -11,6 +11,7 @@ import {
   useDeleteAssistantTraining,
   useTestAssistant,
   AssistantInputVoice,
+  RECEPTIONIST_VOICE_PERSONAS,
   AssistantInputRealtimeVoice,
   AssistantInputPersonality,
   AssistantUpdateVoice,
@@ -117,18 +118,12 @@ function getTypeConfig(type: string): AssistantTypeConfig {
 
 // ─── Voice constants ──────────────────────────────────────────────────────────
 
-const VOICES: { value: AssistantInputVoice; label: string; description: string }[] = [
-  { value: "marin",   label: "Marin",   description: "Recommended · warm, natural" },
-  { value: "cedar",   label: "Cedar",   description: "Recommended · clear, grounded" },
-  { value: "coral",   label: "Coral",   description: "Friendly, balanced" },
-  { value: "sage",    label: "Sage",    description: "Calm, professional" },
-  { value: "verse",   label: "Verse",   description: "Expressive, conversational" },
-  { value: "shimmer", label: "Shimmer", description: "Bright, reassuring" },
-  { value: "alloy",   label: "Alloy",   description: "Neutral, versatile" },
-  { value: "ash",     label: "Ash",     description: "Direct, clear" },
-  { value: "ballad",  label: "Ballad",  description: "Warm, expressive" },
-  { value: "echo",    label: "Echo",    description: "Steady, confident" },
-];
+const VOICES: { value: AssistantInputVoice; label: string; description: string }[] =
+  RECEPTIONIST_VOICE_PERSONAS.map((persona) => ({
+    value: persona.id as AssistantInputVoice,
+    label: persona.label,
+    description: `${persona.gender} · ${persona.description}`,
+  }));
 
 // ─── Trade templates (phone only) ─────────────────────────────────────────────
 
@@ -173,7 +168,7 @@ const TRADE_TEMPLATES: TradeTemplate[] = [
   {
     label: "Electrician",
     icon: "⚡",
-    voice: "marin",
+    voice: "cedar",
     personality: "professional",
     greeting: "Hi there, you've reached our electrical team. How can I help?",
     instructions: `You are a receptionist for a UK NICEIC/NAPIT registered electrical contractor. You understand:
@@ -435,12 +430,14 @@ function CommonFields({
 
 function PhoneFormFields({
   defaults,
+  assistantId,
   voice,
   onVoiceChange,
   template,
   onTemplateSelect,
 }: {
   defaults?: Record<string, string>;
+  assistantId?: number;
   voice: AssistantInputVoice;
   onVoiceChange: (v: AssistantInputVoice) => void;
   template: TradeTemplate | null;
@@ -448,6 +445,7 @@ function PhoneFormFields({
 }) {
   const [previewing, setPreviewing] = useState(false);
   const { toast } = useToast();
+  const selectedPersona = RECEPTIONIST_VOICE_PERSONAS.find((persona) => persona.id === voice) ?? RECEPTIONIST_VOICE_PERSONAS[0];
   const playRealtimePreview = async () => {
     setPreviewing(true);
     try {
@@ -455,7 +453,7 @@ function PhoneFormFields({
       const response = await fetch(`${base}/api/assistants/voice-preview`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ voice, text: "Hello, you've reached Parsley Electrical. How can I help?" }),
+        body: JSON.stringify({ assistantId, text: "Hello, you've reached Parsley Electrical. How can I help?" }),
       });
       if (!response.ok) {
         const result = await response.json().catch(() => ({}));
@@ -473,8 +471,6 @@ function PhoneFormFields({
   };
   return (
     <div className="space-y-4">
-      <input type="hidden" name="voice" value={voice} />
-
       <TradeTemplatePicker selected={template?.label ?? null} onSelect={onTemplateSelect} />
 
       <div className="border-t pt-4 space-y-4">
@@ -505,23 +501,16 @@ function PhoneFormFields({
               onChange={e => onVoiceChange(e.target.value as AssistantInputVoice)}
               className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
             >
-              <option value="marin">Marin · recommended · warm and natural</option>
-              <option value="cedar">Cedar · recommended · clear and grounded</option>
-              <option value="coral">Coral · friendly and expressive</option>
-              <option value="sage">Sage · calm and professional</option>
-              <option value="alloy">Alloy · neutral and balanced</option>
-              <option value="ash">Ash · direct and clear</option>
-              <option value="ballad">Ballad · warm and gentle</option>
-              <option value="echo">Echo · steady and confident</option>
-              <option value="shimmer">Shimmer · bright and reassuring</option>
-              <option value="verse">Verse · conversational and expressive</option>
+              {RECEPTIONIST_VOICE_PERSONAS.map((persona) => (
+                <option key={persona.id} value={persona.id}>{persona.label}</option>
+              ))}
             </select>
-            <p className="text-xs text-muted-foreground">One voice setting controls the browser preview and the live OpenAI Realtime phone call. The receptionist is instructed to speak in natural British English.</p>
+            <p className="text-xs text-muted-foreground">{selectedPersona.description} Regional cues guide delivery where supported; a specific accent is not guaranteed. Save a changed voice before previewing.</p>
           </div>
           <div className="flex items-end">
-            <Button type="button" variant="outline" disabled={previewing} onClick={playRealtimePreview} className="w-full gap-2">
+            <Button type="button" variant="outline" disabled={previewing || !assistantId || voice !== defaults?.realtimeVoice} onClick={playRealtimePreview} className="w-full gap-2">
               {previewing ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
-              Preview selected voice
+              {!assistantId ? "Save receptionist to preview" : voice !== defaults?.realtimeVoice ? "Save voice to preview" : "Preview saved voice"}
             </Button>
           </div>
           <div className="space-y-2 sm:col-span-2">
@@ -963,7 +952,7 @@ function AssistantEditDialog({
   const updateAssistant = useUpdateAssistant();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [voice, setVoice] = useState<AssistantInputVoice>("marin");
+  const [voice, setVoice] = useState<AssistantInputVoice>("cedar");
 
   const savedPhoneVoice = assistant?.type === "phone"
     ? (assistant.realtimeVoice ?? assistant.voice)
@@ -980,12 +969,12 @@ function AssistantEditDialog({
       id,
       data: {
         name: fd.get("name") as string,
-        voice: fd.get("voice") as AssistantUpdateVoice,
+        voice: assistant.type === "phone" ? fd.get("realtimeVoice") as AssistantUpdateVoice : fd.get("voice") as AssistantUpdateVoice,
         ...(assistant.type === "phone" ? {
           twilioPhoneNumber: String(fd.get("twilioPhoneNumber") || "").trim() || null,
           businessName: String(fd.get("businessName") || "").trim() || null,
           twilioVoice: String(fd.get("twilioVoice") || "Polly.Amy-Neural") as "Polly.Amy-Neural" | "Polly.Emma-Neural" | "Polly.Arthur-Neural" | "Polly.Brian-Neural",
-            realtimeVoice: String(fd.get("realtimeVoice") || "marin") as AssistantUpdateRealtimeVoice,
+            realtimeVoice: String(fd.get("realtimeVoice") || "cedar") as AssistantUpdateRealtimeVoice,
             receptionistStyle: String(fd.get("receptionistStyle") || "Warm, professional, concise and naturally British where appropriate."),
         } : {}),
         personality: fd.get("personality") as AssistantUpdatePersonality,
@@ -1025,6 +1014,7 @@ function AssistantEditDialog({
               <form onSubmit={handleUpdate} className="space-y-4">
                 {assistant.type === "phone" ? (
                   <PhoneFormFields
+                    assistantId={id}
                     defaults={{
                       name: assistant.name,
                       personality: assistant.personality,
@@ -1033,7 +1023,7 @@ function AssistantEditDialog({
                       twilioPhoneNumber: assistant.twilioPhoneNumber ?? "",
                       businessName: assistant.businessName ?? "",
                       twilioVoice: assistant.twilioVoice ?? "Polly.Amy-Neural",
-                      realtimeVoice: assistant.realtimeVoice ?? "marin",
+                      realtimeVoice: assistant.realtimeVoice ?? "cedar",
                       receptionistStyle: assistant.receptionistStyle ?? "Warm, professional, concise and naturally British where appropriate.",
                     }}
                     voice={voice}
@@ -1184,14 +1174,14 @@ function CreateDialog({
 
   const [step, setStep] = useState<"type" | "form">("type");
   const [selectedType, setSelectedType] = useState<AssistantInputType>("phone");
-  const [voice, setVoice] = useState<AssistantInputVoice>("marin");
+  const [voice, setVoice] = useState<AssistantInputVoice>("cedar");
   const [template, setTemplate] = useState<TradeTemplate | null>(null);
   const [formKey, setFormKey] = useState(0);
 
   const reset = () => {
     setStep("type");
     setSelectedType("phone");
-    setVoice("alloy");
+    setVoice("cedar");
     setTemplate(null);
     setFormKey((k) => k + 1);
   };
@@ -1219,12 +1209,12 @@ function CreateDialog({
       data: {
         name: fd.get("name") as string,
         type: selectedType,
-        voice: fd.get("voice") as AssistantInputVoice,
+        voice: selectedType === "phone" ? fd.get("realtimeVoice") as AssistantInputVoice : fd.get("voice") as AssistantInputVoice,
         ...(selectedType === "phone" ? {
           twilioPhoneNumber: String(fd.get("twilioPhoneNumber") || "").trim() || null,
           businessName: String(fd.get("businessName") || "").trim() || null,
           twilioVoice: String(fd.get("twilioVoice") || "Polly.Amy-Neural") as "Polly.Amy-Neural" | "Polly.Emma-Neural" | "Polly.Arthur-Neural" | "Polly.Brian-Neural",
-            realtimeVoice: String(fd.get("realtimeVoice") || "marin") as AssistantInputRealtimeVoice,
+            realtimeVoice: String(fd.get("realtimeVoice") || "cedar") as AssistantInputRealtimeVoice,
             receptionistStyle: String(fd.get("receptionistStyle") || "Warm, professional, concise and naturally British where appropriate."),
         } : {}),
         personality: fd.get("personality") as AssistantInputPersonality,

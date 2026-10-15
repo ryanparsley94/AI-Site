@@ -351,7 +351,7 @@ router.post("/business-setup/apply", async (req, res): Promise<void> => {
         assistant = await client.query<{ id: number; name: string }>(
           `INSERT INTO assistants(
              company_id,name,type,voice,realtime_voice,personality,greeting,instructions,active
-           ) VALUES ($1,'CREWON Receptionist','phone','alloy','marin','professional',$2,$3,true)
+           ) VALUES ($1,'CREWON Receptionist','phone','cedar','cedar','professional',$2,$3,true)
            RETURNING id,name`,
           [
             company.id,

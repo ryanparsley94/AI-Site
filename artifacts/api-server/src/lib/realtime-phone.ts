@@ -6,6 +6,7 @@ import { validTwilioWebSocketRequest } from "./voice-security";
 import { finaliseRealtimeEnquiry } from "./realtime-finalise";
 import { getVoicePublicBaseUrl } from "./voice-config";
 import { recordVoiceDiagnostic } from "./voice-diagnostics";
+import { getReceptionistVoicePersona, RECEPTIONIST_VOICE_PERSONAS } from "@workspace/api-zod";
 import {
   getAvailableAppointmentSlots,
   bookRealtimeAppointment,
@@ -48,7 +49,7 @@ type AssistantContext = {
   instructions: string | null;
   training: Array<{ category: string; question: string; answer: string }>;
 };
-const selectableRealtimeVoices = new Set(["alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse", "marin", "cedar"]);
+const selectableRealtimeVoices = new Set<string>(RECEPTIONIST_VOICE_PERSONAS.map((persona) => persona.id));
 
 const REALTIME_PATH = "/api/voice/media";
 const MAX_PENDING_AUDIO = 250;
@@ -60,23 +61,22 @@ function toInt(value: string | undefined): number | null {
 }
 
 function realtimeVoice(value: string): string {
-  // Preserve older saved selections while moving to voices supported by Realtime.
+  // Normalize old saved selections to the current curated set.
   const aliases: Record<string, string> = {
-    alloy: "alloy",
+    alloy: "cedar",
     ash: "ash",
-    ballad: "ballad",
+    ballad: "coral",
     coral: "coral",
     echo: "echo",
     sage: "sage",
     shimmer: "shimmer",
-    verse: "verse",
-    marin: "marin",
+    verse: "echo",
     cedar: "cedar",
     fable: "sage",
     nova: "coral",
     onyx: "echo",
   };
-  return aliases[value.toLowerCase()] ?? "marin";
+  return aliases[value.toLowerCase()] ?? "cedar";
 }
 
 async function loadContext(companyId: number, assistantId: number, selectedVoice?: string, displayName?: string): Promise<AssistantContext> {
@@ -130,6 +130,7 @@ async function loadContext(companyId: number, assistantId: number, selectedVoice
 }
 
 function buildInstructions(ctx: AssistantContext): string {
+  const persona = getReceptionistVoicePersona(ctx.voice);
   const knowledge = ctx.training.length
     ? ctx.training
         .slice(0, 100)
@@ -141,6 +142,7 @@ function buildInstructions(ctx: AssistantContext): string {
 
 VOICE AND CONVERSATION
 - Speak in natural British English with a warm, capable, concise receptionist style.
+- Use this subtle persona direction where the voice supports it: ${persona.direction}. This is guidance, not a guarantee of a specific regional accent.
 - Sound conversational, not scripted. Keep turns short and do not repeat information unnecessarily.
 - Respond promptly after the caller finishes, but do not talk over them.
 - The caller may interrupt you. Stop speaking immediately and listen.
