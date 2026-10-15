@@ -25,7 +25,7 @@ test("collapsed global control, text command and clearing on close", async ({ pa
     expect(route.request().postDataJSON().transcript).toBe("Today's schedule");
     await route.fulfill({ json: { action: "schedule", spokenResponse: "No active jobs today.", navigateTo: "/jobs" } });
   });
-  await page.goto("/");
+  await page.goto("/jobs");
   await expect(page.getByTestId("panel-voice")).toHaveCount(0);
   await page.getByTestId("button-voice-open").click();
   await page.getByTestId("input-voice-text").fill("Today's schedule");
@@ -186,6 +186,20 @@ test("voice preview and instant callback carry the selected receptionist, bot an
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.setViewportSize({ width: 1440, height: 960 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
+test("phone assistant voice preview sends the currently selected Realtime voice", async ({ page }) => {
+  let previewBody: Record<string, unknown> | null = null;
+  await page.route("**/api/assistants/voice-preview", async route => {
+    previewBody = route.request().postDataJSON();
+    await route.fulfill({ status: 200, contentType: "audio/wav", body: Buffer.from("RIFFtestWAVE") });
+  });
+  await page.goto("/assistants");
+  await page.getByRole("button", { name: "New Assistant" }).click();
+  await page.getByRole("button", { name: "Phone Operator" }).click();
+  await page.locator('select[name="realtimeVoice"]').selectOption("cedar");
+  await page.getByRole("button", { name: "Preview selected voice" }).click();
+  await expect.poll(() => previewBody).toMatchObject({ voice: "cedar" });
 });
 
 test("release before permission resolves stops tracks and does not submit", async ({ page }) => {

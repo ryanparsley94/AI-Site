@@ -704,7 +704,7 @@ router.post("/public-demo/appointments/book", async (req, res): Promise<void> =>
       return;
     }
     await pool.query(
-      `UPDATE public_demo_sessions SET booking=jsonb_build_object('status','booked','jobId',$2,'slot', $3)
+      `UPDATE public_demo_sessions SET booking=jsonb_build_object('status','booked','jobId',$2::int,'slot',$3::text)
        WHERE id=$1`,
       [demoId, result.jobId, result.label],
     );

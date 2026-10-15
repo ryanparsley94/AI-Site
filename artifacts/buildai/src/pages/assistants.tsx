@@ -455,7 +455,7 @@ function PhoneFormFields({
       const response = await fetch(`${base}/api/assistants/voice-preview`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ voice: previewVoice, text: "Hello, you've reached Parsley Electrical. How can I help?" }),
+        body: JSON.stringify({ voice, text: "Hello, you've reached Parsley Electrical. How can I help?" }),
       });
       if (!response.ok) {
         const result = await response.json().catch(() => ({}));

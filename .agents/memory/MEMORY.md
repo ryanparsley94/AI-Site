@@ -15,3 +15,4 @@
 - [Workspace access](workspace-access.md) — businesses are private workspaces with invited, role-based members; business contact emails stay separate from user login and invitation addresses.
 - [Drizzle schema drift](drizzle-schema-drift.md) — avoid force-pushing the whole schema when legacy tables trigger interactive conflicts; apply verified additive changes only.
 - [Outbound delivery safety](outbound-delivery-safety.md) — uncertain sends are not confirmed failures; reconcile before retrying to prevent duplicate customer messages.
+- [JSONB parameter typing](postgres-jsonb-parameter-types.md) — cast bound values passed to PostgreSQL JSON builders so a post-commit response update cannot fail with unknown parameter types.
