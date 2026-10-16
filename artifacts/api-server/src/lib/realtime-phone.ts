@@ -7,6 +7,7 @@ import { finaliseRealtimeEnquiry } from "./realtime-finalise";
 import { getVoicePublicBaseUrl } from "./voice-config";
 import { recordVoiceDiagnostic } from "./voice-diagnostics";
 import { buildOpeningGreeting, createOpeningResponseGate, isGreetingKnowledgeCategory } from "./voice-twiml";
+import { buildRealtimeAudioOutput, resolveRealtimeVoice } from "./realtime-voice-config";
 import { getReceptionistVoicePersona, RECEPTIONIST_VOICE_PERSONAS } from "@workspace/api-zod";
 import {
   getAvailableAppointmentSlots,
@@ -50,8 +51,6 @@ type AssistantContext = {
   instructions: string | null;
   training: Array<{ category: string; question: string; answer: string }>;
 };
-const selectableRealtimeVoices = new Set<string>(RECEPTIONIST_VOICE_PERSONAS.map((persona) => persona.id));
-
 const REALTIME_PATH = "/api/voice/media";
 const MAX_PENDING_AUDIO = 250;
 
@@ -88,7 +87,7 @@ function realtimeVoice(value: string): string {
   return aliases[value.toLowerCase()] ?? "cedar";
 }
 
-async function loadContext(companyId: number, assistantId: number, selectedVoice?: string, displayName?: string): Promise<AssistantContext> {
+async function loadContext(companyId: number, assistantId: number, displayName?: string): Promise<AssistantContext> {
   const company = await pool.query<{
     id: number;
     name: string;
@@ -127,9 +126,7 @@ async function loadContext(companyId: number, assistantId: number, selectedVoice
     companyEmail: company.rows[0].email,
     assistantId,
     assistantName: displayName?.trim() || assistant.rows[0].name,
-    voice: selectedVoice && selectableRealtimeVoices.has(selectedVoice)
-      ? selectedVoice
-      : realtimeVoice(assistant.rows[0].realtime_voice),
+    voice: realtimeVoice(assistant.rows[0].realtime_voice),
     personality: assistant.rows[0].personality,
     receptionistStyle: assistant.rows[0].receptionist_style,
     greeting: assistant.rows[0].greeting,
@@ -151,8 +148,9 @@ function buildInstructions(ctx: AssistantContext): string {
   return `You are ${ctx.assistantName}, the virtual receptionist for ${ctx.companyName}, a UK trade business.
 
 VOICE AND CONVERSATION
-- Speak in natural British English with a warm, capable, concise receptionist style.
-- Use this subtle persona direction where the voice supports it: ${persona.direction}. This is guidance, not a guarantee of a specific regional accent.
+- Speak in natural UK English with a warm, capable, concise receptionist style.
+- Persona delivery direction: ${persona.direction}
+- Use relaxed conversational pacing, clear consonants, natural UK vocabulary, and short clauses. Do not imitate a caricature or claim that a stock voice guarantees a regional accent.
 - Sound conversational, not scripted. Keep turns short and do not repeat information unnecessarily.
 - Ask at most ONE clear question in each spoken turn. Ask about only one detail; never bundle questions or join separate requests with "and" or "or".
 - After asking, stop and wait for the caller's answer before asking the next question. Use the answer to choose the next relevant, still-missing detail; do not ask again for information already provided.
@@ -253,7 +251,6 @@ export function attachRealtimePhone(server: HttpServer): void {
     let callId: number | null = null;
     let companyId: number | null = null;
     let assistantId: number | null = null;
-    let selectedVoice: string | undefined;
     let selectedDisplayName: string | undefined;
     let startedAt = Date.now();
     let openaiReady = false;
@@ -529,7 +526,12 @@ export function attachRealtimePhone(server: HttpServer): void {
       const apiKey = process.env.OPENAI_API_KEY;
       if (!apiKey) throw new Error("OPENAI_API_KEY is not configured");
 
-      const ctx = await loadContext(companyId, assistantId, selectedVoice, selectedDisplayName);
+      const ctx = await loadContext(companyId, assistantId, selectedDisplayName);
+      const voiceConfiguration = await resolveRealtimeVoice(ctx.voice, ctx.voice, {
+        enabled: process.env.OPENAI_REALTIME_CUSTOM_VOICES_ENABLED,
+        configuredIds: process.env.OPENAI_REALTIME_CUSTOM_VOICE_IDS,
+        apiKey,
+      });
       const model = process.env.OPENAI_REALTIME_MODEL || "gpt-realtime-2.1";
       openai = new WebSocket(
         `wss://api.openai.com/v1/realtime?model=${encodeURIComponent(model)}`,
@@ -616,11 +618,7 @@ export function attachRealtimePhone(server: HttpServer): void {
                   idle_timeout_ms: 12000,
                 },
               },
-              output: {
-                format: { type: "audio/pcmu" },
-                voice: ctx.voice,
-                speed: 1.03,
-              },
+              output: buildRealtimeAudioOutput(voiceConfiguration.voice),
             },
           },
         });
@@ -638,9 +636,30 @@ export function attachRealtimePhone(server: HttpServer): void {
             companyId,
             eventType: "realtime_session_started",
             summary: "OpenAI Realtime session is ready for the call.",
-            details: { voice: ctx.voice },
+            details: {
+              provider: "openai_realtime",
+              model,
+              voice: voiceConfiguration.kind === "custom" && typeof voiceConfiguration.voice === "object"
+                ? voiceConfiguration.voice.id
+                : ctx.voice,
+              voice_kind: voiceConfiguration.kind,
+              custom_voice_status: voiceConfiguration.status,
+              persona: ctx.voice,
+            },
           });
-          logger.info({ callId, callSid, assistantId, voice: selectedVoice ?? "saved-default" }, "Realtime receptionist session ready");
+          logger.info({
+            callId,
+            callSid,
+            assistantId,
+            provider: "openai_realtime",
+            model,
+            persona: ctx.voice,
+            voice: voiceConfiguration.kind === "custom" && typeof voiceConfiguration.voice === "object"
+              ? voiceConfiguration.voice.id
+              : ctx.voice,
+            voiceKind: voiceConfiguration.kind,
+            customVoiceStatus: voiceConfiguration.status,
+          }, "Realtime receptionist session ready");
           if (openingResponseGate()) {
             openingResponseStarted = true;
             void claimCallOpening(callSid).then((claimed) => {
@@ -682,7 +701,7 @@ export function attachRealtimePhone(server: HttpServer): void {
             // PCMU is 8 kHz, 8-bit: 8 decoded bytes = 1 ms of audio.
             sentAudioMs += Buffer.from(event.delta, "base64").length / 8;
             if (sentAudioMs === Buffer.from(event.delta, "base64").length / 8) {
-              logger.info({ callId, callSid, itemId, voice: selectedVoice ?? "saved-default" }, "Realtime receptionist audio playback started");
+          logger.info({ callId, callSid, itemId, provider: "openai_realtime", voice: ctx.voice }, "Realtime receptionist audio playback started");
             }
             twilio.send(
               JSON.stringify({
@@ -833,11 +852,10 @@ export function attachRealtimePhone(server: HttpServer): void {
         callId = toInt(params.callId);
         companyId = toInt(params.companyId);
         assistantId = toInt(params.assistantId);
-        selectedVoice = selectableRealtimeVoices.has(params.voice ?? "") ? params.voice : undefined;
         selectedDisplayName = typeof params.receptionistName === "string" && /^[\p{L}][\p{L}\p{M} .'-]{0,39}$/u.test(params.receptionistName)
           ? params.receptionistName.trim()
           : undefined;
-        logger.info({ callId, callSid, companyId, assistantId, voice: selectedVoice ?? "saved-default", demoDisplayName: selectedDisplayName }, "Twilio realtime stream started");
+        logger.info({ callId, callSid, companyId, assistantId, voice_selection: "saved_assistant_setting", demoDisplayName: selectedDisplayName }, "Twilio realtime stream started");
 
         try {
           await startOpenAI();

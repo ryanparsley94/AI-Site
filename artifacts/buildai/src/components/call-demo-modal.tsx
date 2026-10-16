@@ -702,7 +702,7 @@ export function CallDemoModal({
                       </label>
                     </div>
                     <p className="mt-2 text-[11px] leading-relaxed text-white/45">
-                      {getReceptionistVoicePersona(selectedVoice).description} The preview and demo use this receptionist’s saved voice; it is not changed from this screen. Regional cues are guidance, not a guaranteed accent.
+                      {getReceptionistVoicePersona(selectedVoice).description} The preview and demo use this receptionist’s saved voice; it is not changed from this screen. Standard OpenAI voices are prompt-guided, not guaranteed regional accents. The demo uses Realtime; a Twilio Gather fallback uses its Twilio voice instead.
                     </p>
                     <div className="mt-3 flex flex-wrap items-center gap-3">
                       <Button type="button" variant="outline" onClick={() => void previewSelectedVoice()} disabled={!selectedAssistantId || voicePreviewLoading} className="h-9 border-[#36C6D5]/40 text-xs text-[#8be2e9]">

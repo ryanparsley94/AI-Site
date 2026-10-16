@@ -3,6 +3,7 @@ import { logger } from "./logger";
 
 export type VoiceDiagnosticType =
   | "call_received"
+  | "call_routing_selected"
   | "realtime_session_started"
   | "transcript_saved"
   | "transcript_persist_failed"

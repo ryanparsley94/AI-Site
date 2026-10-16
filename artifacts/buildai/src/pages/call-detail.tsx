@@ -52,6 +52,7 @@ export default function CallDetail() {
   const [status, setStatus] = useState<CallUpdateStatus | "">("");
   const [isExtractingQuote, setIsExtractingQuote] = useState(false);
   const [delivery, setDelivery] = useState<{ owner: string; caller: string; retryable: boolean } | null>(null);
+  const [voicePath, setVoicePath] = useState<{ eventType: string; summary: string; details: Record<string, unknown> } | null>(null);
   const [retrying, setRetrying] = useState(false);
   const initialized = useRef(false);
   const markedReviewed = useRef(false);
@@ -62,6 +63,19 @@ export default function CallDetail() {
       .then(r => r.ok ? r.json() : null)
       .then(setDelivery)
       .catch(() => setDelivery(null));
+  }, [callId]);
+
+  useEffect(() => {
+    if (!callId) return;
+    fetch(`${import.meta.env.BASE_URL.replace(/\/$/, "")}/api/calls/${callId}/diagnostics`, { credentials: "include" })
+      .then(r => r.ok ? r.json() : [])
+      .then((events: Array<{ eventType: string; summary: string; details?: Record<string, unknown> }>) => {
+        const realtime = [...events].reverse().find(event => event.eventType === "realtime_session_started");
+        const route = [...events].reverse().find(event => event.eventType === "call_routing_selected");
+        const active = realtime ?? route;
+        setVoicePath(active ? { eventType: active.eventType, summary: active.summary, details: active.details ?? {} } : null);
+      })
+      .catch(() => setVoicePath(null));
   }, [callId]);
 
   const retryOwnerSummary = async () => {
@@ -226,6 +240,18 @@ export default function CallDetail() {
             </Button>
           )}
           {!delivery.retryable && <Link href="/settings?tab=notifications" className="font-semibold text-primary underline-offset-4 hover:underline">Notification setup</Link>}
+        </div>
+      )}
+      {voicePath && (
+        <div className="px-4 py-2 border-b bg-muted/30 text-xs text-muted-foreground" aria-label="Phone audio path">
+          <span className="font-semibold text-foreground">Phone audio: </span>
+          {voicePath.eventType === "realtime_session_started" ? (
+            <>OpenAI Realtime · {String(voicePath.details.model ?? "model unreported")} · voice {String(voicePath.details.voice ?? "unreported")} ({String(voicePath.details.voice_kind ?? "stock")})</>
+          ) : voicePath.details.mode === "gather" ? (
+            <>Twilio Gather · {String(voicePath.details.twilio_voice ?? "UK English fallback")} · the OpenAI persona selector does not apply</>
+          ) : (
+            <>OpenAI Realtime selected; waiting for session diagnostics</>
+          )}
         </div>
       )}
       <div className="flex-1 overflow-hidden flex flex-col md:flex-row">

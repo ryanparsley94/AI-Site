@@ -505,7 +505,7 @@ function PhoneFormFields({
                 <option key={persona.id} value={persona.id}>{persona.label}</option>
               ))}
             </select>
-            <p className="text-xs text-muted-foreground">{selectedPersona.description} Regional cues guide delivery where supported; a specific accent is not guaranteed.</p>
+            <p className="text-xs text-muted-foreground">{selectedPersona.description} By default, these use standard OpenAI voices with prompt-guided style, not guaranteed regional accents. This choice controls inbound calls in Realtime mode; legacy Twilio Gather uses its saved Twilio voice. Approved custom OpenAI voices can replace stock voices when enabled and available to the project.</p>
           </div>
           <div className="flex items-end">
             <Button type="button" variant="outline" disabled={previewing || !assistantId} onClick={playRealtimePreview} className="min-h-12 w-full gap-2">

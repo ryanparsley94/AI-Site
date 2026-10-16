@@ -212,8 +212,7 @@ import { pool } from "@workspace/db";
 import { logger } from "../lib/logger";
 import { validTwilioRequest } from "../lib/voice-security";
 import { realtimePhoneStreamUrl } from "../lib/realtime-phone";
-import { buildIncomingVoiceResponse } from "../lib/voice-twiml";
-import { buildOpeningGreeting } from "../lib/voice-twiml";
+import { buildIncomingVoiceResponse, buildOpeningGreeting, buildSpeech, DEFAULT_TWILIO_VOICE, resolveTwilioUkNeuralVoice } from "../lib/voice-twiml";
 import { emailNotificationReady, smsNotificationReady } from "../lib/notification-readiness";
 
 /** The first pilot uses a controlled interview so a failed AI request cannot lose a caller's message. */
@@ -274,10 +273,26 @@ phoneRouter.use(["/voice/incoming", "/voice/answer", "/voice/status"], (req, res
   next();
 });
 
-function ask(step: number, prefix = ""): string {
+function ask(step: number, prefix = "", voiceId: string = DEFAULT_TWILIO_VOICE): string {
   const question = questions[step]?.[1];
-  if (!question) return "<Say>Thank you. We have your message and will be in touch.</Say><Hangup/>";
-  return `<Gather input="speech" language="en-GB" speechTimeout="auto" timeout="6" actionOnEmptyResult="true" method="POST" action="/api/voice/answer?step=${step}"><Say voice="alice" language="en-GB">${xml(prefix + question)}</Say></Gather>`;
+  if (!question) return `${buildSpeech("Thank you. We have your message and will be in touch.", voiceId)}<Hangup/>`;
+  return `<Gather input="speech" language="en-GB" speechTimeout="auto" timeout="6" actionOnEmptyResult="true" method="POST" action="/api/voice/answer?step=${step}">${buildSpeech(prefix + question, voiceId)}</Gather>`;
+}
+
+async function fallbackVoiceForCall(callSid: string): Promise<string> {
+  try {
+    const result = await pool.query<{ twilio_voice: string | null }>(
+      `SELECT a.twilio_voice
+         FROM voice_call_sessions s
+         LEFT JOIN assistants a ON a.id=s.assistant_id
+        WHERE s.call_sid=$1 LIMIT 1`,
+      [callSid],
+    );
+    return resolveTwilioUkNeuralVoice(result.rows[0]?.twilio_voice);
+  } catch (error) {
+    logger.warn({ err: error }, "Could not load saved fallback voice; using UK English default");
+    return DEFAULT_TWILIO_VOICE;
+  }
 }
 
 async function ensureSession(sid: string, from: string, to: string): Promise<Session> {
@@ -641,7 +656,7 @@ phoneRouter.post("/voice/incoming", async (req, res): Promise<void> => {
       summary: "Inbound call received and linked to a CREWON assistant.",
       details: { mode: "incoming_webhook" },
     });
-    if (session.completed) { twiml(res, "<Say>Thank you. Goodbye.</Say><Hangup/>"); return; }
+    if (session.completed) { twiml(res, `${buildSpeech("Thank you. Goodbye.")}<Hangup/>`); return; }
 
     const realtimeUrl = realtimePhoneStreamUrl();
     const realtimeEnabled =
@@ -651,6 +666,18 @@ phoneRouter.post("/voice/incoming", async (req, res): Promise<void> => {
       Boolean(session.call_id) &&
       Boolean(session.company_id) &&
       Boolean(session.assistant_id);
+    await recordVoiceDiagnostic({
+      callSid: sid,
+      callId: session.call_id,
+      companyId: session.company_id,
+      eventType: "call_routing_selected",
+      summary: realtimeEnabled
+        ? "Inbound call routed to OpenAI Realtime audio."
+        : "Inbound call routed to the Twilio Gather message-taking fallback.",
+      details: realtimeEnabled
+        ? { mode: "realtime", provider: "openai_realtime", model: process.env.OPENAI_REALTIME_MODEL || "gpt-realtime-2.1", voice_selection: "saved_assistant_persona" }
+        : { mode: "gather", provider: "twilio_say", language: "en-GB", twilio_voice: await fallbackVoiceForCall(sid), voice_selection: "twilio_voice_setting_not_openai_persona" },
+    });
 
     if (realtimeEnabled && realtimeUrl && session.call_id && session.company_id && session.assistant_id) {
       await pool.query(
@@ -691,7 +718,7 @@ phoneRouter.post("/voice/incoming", async (req, res): Promise<void> => {
               agentName: greeting.rows[0]?.agent_name,
             });
           })()
-        : ask(session.step),
+        : ask(session.step, "", await fallbackVoiceForCall(sid)),
     );
   } catch (error) {
     await recordVoiceDiagnostic({
@@ -715,12 +742,14 @@ phoneRouter.post("/voice/answer", async (req, res): Promise<void> => {
   let nextStep = 0;
   let done = false;
   let prefix = "";
+  let assistantId: number | null = null;
   try {
     await client.query("BEGIN");
     const result = await client.query<Session>("SELECT * FROM voice_call_sessions WHERE call_sid=$1 FOR UPDATE", [sid]);
     const session = result.rows[0];
     if (!session) { await client.query("ROLLBACK"); res.status(404).end(); return; }
-    if (session.completed) { await client.query("COMMIT"); twiml(res, "<Say>Thank you. Goodbye.</Say><Hangup/>"); return; }
+    if (session.completed) { await client.query("COMMIT"); twiml(res, `${buildSpeech("Thank you. Goodbye.")}<Hangup/>`); return; }
+    assistantId = session.assistant_id;
     if (session.step === expectedStep) {
       const speech = typeof req.body.SpeechResult === "string" ? req.body.SpeechResult.trim().slice(0, 1000) : "";
       if (speech) {
@@ -753,8 +782,12 @@ phoneRouter.post("/voice/answer", async (req, res): Promise<void> => {
   } finally { client.release(); }
   if (done) {
     try { await finish(sid); } catch (error) { logger.error({ err: error, sid }, "Voice finalisation failed"); res.status(500).end(); return; }
-    twiml(res, "<Say voice=\"alice\" language=\"en-GB\">Thank you. We have your message and the team will be in touch.</Say><Hangup/>");
-  } else twiml(res, ask(nextStep, prefix));
+    const voiceId = await fallbackVoiceForCall(sid);
+    twiml(res, `${buildSpeech("Thank you. We have your message and the team will be in touch.", voiceId)}<Hangup/>`);
+  } else {
+    const voiceId = assistantId ? await fallbackVoiceForCall(sid) : DEFAULT_TWILIO_VOICE;
+    twiml(res, ask(nextStep, prefix, voiceId));
+  }
 });
 
 // Configure this URL as the Twilio number's status callback (completed event).
