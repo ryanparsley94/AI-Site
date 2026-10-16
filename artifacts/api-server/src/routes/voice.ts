@@ -214,6 +214,7 @@ import { validTwilioRequest } from "../lib/voice-security";
 import { realtimePhoneStreamUrl } from "../lib/realtime-phone";
 import { buildIncomingVoiceResponse } from "../lib/voice-twiml";
 import { buildOpeningGreeting } from "../lib/voice-twiml";
+import { emailNotificationReady, smsNotificationReady } from "../lib/notification-readiness";
 
 /** The first pilot uses a controlled interview so a failed AI request cannot lose a caller's message. */
 const questions = [
@@ -413,13 +414,23 @@ export async function notifyOwner(sid: string): Promise<void> {
   const session = claim.rows[0];
   if (!session) return;
   try {
+    const preferences = await pool.query<{ voice_owner_email_enabled: boolean; voice_notification_email: string | null; email: string | null }>(
+      `SELECT voice_owner_email_enabled,voice_notification_email,email FROM companies WHERE id=$1 LIMIT 1`, [session.company_id],
+    );
+    const prefs = preferences.rows[0];
+    if (!prefs?.voice_owner_email_enabled) {
+      await pool.query("UPDATE voice_call_sessions SET notification_status='disabled',updated_at=now() WHERE call_sid=$1", [sid]);
+      return;
+    }
     const company = session.company_id
       ? await pool.query<{ name: string; email: string | null }>("SELECT name,email FROM companies WHERE id=$1 LIMIT 1", [session.company_id])
       : await pool.query<{ name: string; email: string | null }>("SELECT name,email FROM companies ORDER BY id LIMIT 1");
-    const recipient = company.rows[0]?.email;
+    const recipient = prefs.voice_notification_email ?? prefs.email ?? company.rows[0]?.email;
+    const savedCall = await pool.query<{ notes: string | null }>("SELECT notes FROM calls WHERE id=$1 LIMIT 1", [session.call_id]);
+    const savedSummary = savedCall.rows[0]?.notes?.trim() || summary(session.answers, session.caller_phone);
     const from = process.env.RESEND_FROM_EMAIL;
     const key = process.env.RESEND_API_KEY;
-    if (!recipient || !from || !key) {
+    if (!recipient || !from || !key || !await emailNotificationReady()) {
       await pool.query("UPDATE voice_call_sessions SET notification_status='unconfigured',updated_at=now() WHERE call_sid=$1", [sid]);
       await recordVoiceDiagnostic({
         callSid: sid,
@@ -431,14 +442,14 @@ export async function notifyOwner(sid: string): Promise<void> {
       });
       return;
     }
-    const urgent = /urgent|danger|sparking|fire|shock|burning|no power/i.test(session.answers.urgency ?? "");
     const result = await new Resend(key).emails.send({
       from: `CREWON <${from}>`,
       to: [recipient],
-      subject: `${urgent ? "URGENT: " : ""}New phone enquiry — ${session.answers.name || session.caller_phone}`,
-      text: `${summary(session.answers, session.caller_phone)}\n\nReview the full call in CREWON.`,
+      subject: `New phone enquiry — ${session.answers.name || session.caller_phone || "Unknown caller"}`,
+      text: `${savedSummary}\n\nReview the full transcript in CREWON Office.`,
     }, { idempotencyKey: `crewon-voice-${sid}` });
-    const status = result.error ? "failed" : "sent";
+    const providerErrorCode = result.error?.statusCode;
+    const status = !result.error ? "sent" : providerErrorCode == null || providerErrorCode >= 500 || providerErrorCode === 408 ? "unknown" : "failed";
     await pool.query("UPDATE voice_call_sessions SET notification_status=$2,updated_at=now() WHERE call_sid=$1", [sid, status]);
     await recordVoiceDiagnostic({
       callSid: sid,
@@ -450,7 +461,7 @@ export async function notifyOwner(sid: string): Promise<void> {
     });
   } catch (error) {
     logger.error({ err: error, sid }, "Voice enquiry notification failed");
-    await pool.query("UPDATE voice_call_sessions SET notification_status='failed',updated_at=now() WHERE call_sid=$1", [sid]);
+    await pool.query("UPDATE voice_call_sessions SET notification_status='unknown',updated_at=now() WHERE call_sid=$1", [sid]);
     await recordVoiceDiagnostic({
       callSid: sid,
       eventType: "notification_result",
@@ -467,11 +478,18 @@ async function confirmToCaller(sid: string): Promise<void> {
   );
   const session = claim.rows[0];
   if (!session) return;
+  const preferences = await pool.query<{ voice_caller_sms_enabled: boolean }>(
+    "SELECT voice_caller_sms_enabled FROM companies WHERE id=$1 LIMIT 1", [session.company_id],
+  );
+  if (!preferences.rows[0]?.voice_caller_sms_enabled) {
+    await pool.query("UPDATE voice_call_sessions SET customer_confirmation_status='disabled' WHERE call_sid=$1", [sid]);
+    return;
+  }
   const account = process.env.TWILIO_ACCOUNT_SID;
   const from = process.env.TWILIO_SMS_FROM;
   const token = process.env.TWILIO_AUTH_TOKEN;
   // The verified inbound caller number is safer than a speech-recognised number.
-  if (!account || !from || !token || !/^\+\d{8,15}$/.test(session.caller_phone)) {
+  if (!account || !from || !token || !/^\+\d{8,15}$/.test(session.caller_phone) || !await smsNotificationReady()) {
     await pool.query("UPDATE voice_call_sessions SET customer_confirmation_status='unconfigured' WHERE call_sid=$1", [sid]);
     await recordVoiceDiagnostic({
       callSid: sid,
@@ -501,7 +519,7 @@ async function confirmToCaller(sid: string): Promise<void> {
       },
       body,
     });
-    const status = response.ok ? "sent" : "failed";
+    const status = response.ok ? "sent" : response.status >= 500 || response.status === 408 ? "unknown" : "failed";
     await pool.query("UPDATE voice_call_sessions SET customer_confirmation_status=$2 WHERE call_sid=$1", [sid, status]);
     await recordVoiceDiagnostic({
       callSid: sid,
@@ -513,7 +531,7 @@ async function confirmToCaller(sid: string): Promise<void> {
     });
   } catch (error) {
     logger.error({ err: error, sid }, "Caller confirmation failed");
-    await pool.query("UPDATE voice_call_sessions SET customer_confirmation_status='failed' WHERE call_sid=$1", [sid]);
+    await pool.query("UPDATE voice_call_sessions SET customer_confirmation_status='unknown' WHERE call_sid=$1", [sid]);
     await recordVoiceDiagnostic({
       callSid: sid,
       callId: session.call_id,

@@ -36,8 +36,8 @@ test("call transcript stays legible in light and dark themes on mobile and deskt
   for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
     await page.setViewportSize(viewport);
     await page.goto("/calls/10");
-    await expect(page.getByText("Hi, this is Ryan Parsley. We need help with a faulty consumer unit.")).toBeVisible();
-    await expect(page.getByText("Of course, Ryan. I can take a few details and arrange a callback.")).toBeVisible();
+    await expect(page.getByText("Hi, this is Ryan Parsley. We need help with a faulty consumer unit.").first()).toBeVisible();
+    await expect(page.getByText("Of course, Ryan. I can take a few details and arrange a callback.").first()).toBeVisible();
     await expect(page.getByText("Ryan Parsley", { exact: true }).last()).toBeVisible();
     await expect(page.getByText("Edward", { exact: true }).last()).toBeVisible();
     const bubbleBounds = await page.locator(".flex.min-w-0.gap-3").evaluateAll(bubbles =>

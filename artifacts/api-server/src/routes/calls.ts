@@ -109,7 +109,8 @@ router.get("/calls/:id/voice-delivery", async (req, res): Promise<void> => {
   if (!Number.isInteger(id) || id < 1) { res.status(400).json({ error: "Invalid id" }); return; }
   const result = await pool.query<{ notification_status: string; customer_confirmation_status: string; retryable: boolean }>(
     `SELECT notification_status,customer_confirmation_status,
-      completed AND (notification_status IN ('pending','failed','unconfigured')
+      completed AND EXISTS (SELECT 1 FROM companies WHERE id=voice_call_sessions.company_id AND voice_owner_email_enabled=true)
+        AND (notification_status IN ('pending','failed','unconfigured')
         OR (notification_status='sending' AND updated_at < now() - interval '5 minutes')) AS retryable
      FROM voice_call_sessions WHERE call_id=$1 LIMIT 1`, [id],
   );

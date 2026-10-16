@@ -159,6 +159,16 @@ export default function CallDetail() {
 
   const currentStatusInfo = statusConfig[call.status];
   const StatusIcon = currentStatusInfo?.icon || PhoneIncoming;
+  const savedCallSummary = call.notes?.trim() || call.transcript
+    .filter(line => line.speaker === "caller" && line.text.trim())
+    .map(line => line.text.trim()).join(" ").slice(0, 700) || "No summary was captured; review the transcript below.";
+  const deliveryLabel = (value: string, channel: "email" | "sms") => {
+    if (value === "sent") return "Provider accepted · delivery unverified";
+    if (value === "unconfigured") return channel === "email" ? "Email not configured" : "SMS not configured";
+    if (value === "disabled") return channel === "email" ? "Email disabled" : "SMS disabled";
+    if (value === "unknown") return channel === "email" ? "Email outcome unknown — check Resend before retrying" : "SMS outcome unknown — check Twilio before retrying";
+    return value;
+  };
 
   return (
     <div className="flex-1 flex flex-col h-full bg-background overflow-hidden">
@@ -208,13 +218,14 @@ export default function CallDetail() {
 
       {delivery && (
         <div className="px-4 py-2 border-b bg-card text-xs flex flex-wrap items-center gap-3">
-          <span>Owner summary: <strong>{delivery.owner === "sent" ? "Provider accepted · delivery unverified" : delivery.owner}</strong></span>
-          <span>Caller confirmation: <strong>{delivery.caller === "sent" ? "Provider accepted · delivery unverified" : delivery.caller}</strong></span>
+          <span>Owner summary email: <strong>{deliveryLabel(delivery.owner, "email")}</strong></span>
+          <span>Caller confirmation SMS: <strong>{deliveryLabel(delivery.caller, "sms")}</strong></span>
           {delivery.retryable && (
             <Button size="sm" variant="outline" disabled={retrying} onClick={retryOwnerSummary}>
               {retrying ? "Retrying…" : "Retry owner summary"}
             </Button>
           )}
+          {!delivery.retryable && <Link href="/settings?tab=notifications" className="font-semibold text-primary underline-offset-4 hover:underline">Notification setup</Link>}
         </div>
       )}
       <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
@@ -270,6 +281,10 @@ export default function CallDetail() {
         {/* Sidebar details */}
         <div className="w-full md:w-80 bg-card flex flex-col overflow-y-auto">
           <div className="p-6 space-y-6">
+            <div>
+              <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-3">Call summary</h3>
+              <div className="p-4 bg-muted/50 rounded-lg border text-sm leading-relaxed text-foreground" data-testid="call-summary">{savedCallSummary}</div>
+            </div>
             <div>
               <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-3">AI Outcome Summary</h3>
               <div className="p-4 bg-muted/50 rounded-lg border text-sm leading-relaxed text-secondary">

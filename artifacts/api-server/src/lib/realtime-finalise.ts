@@ -2,6 +2,7 @@ import { Resend } from "resend";
 import { pool } from "@workspace/db";
 import { logger } from "./logger";
 import { recordVoiceDiagnostic } from "./voice-diagnostics";
+import { emailNotificationReady, smsNotificationReady } from "./notification-readiness";
 
 export type PhoneTranscriptEntry = {
   speaker: "caller" | "assistant";
@@ -177,15 +178,19 @@ async function notifyOwner(
   if (!claim.rows[0]) return;
 
   try {
-    const company = await pool.query<{ name: string; email: string | null }>(
-      "SELECT name,email FROM companies WHERE id=$1 LIMIT 1",
+    const company = await pool.query<{ name: string; email: string | null; voice_notification_email: string | null; voice_owner_email_enabled: boolean }>(
+      "SELECT name,email,voice_notification_email,voice_owner_email_enabled FROM companies WHERE id=$1 LIMIT 1",
       [companyId],
     );
-    const recipient = company.rows[0]?.email;
+    if (!company.rows[0]?.voice_owner_email_enabled) {
+      await pool.query("UPDATE voice_call_sessions SET notification_status='disabled',updated_at=now() WHERE call_sid=$1", [callSid]);
+      return;
+    }
+    const recipient = company.rows[0]?.voice_notification_email ?? company.rows[0]?.email;
     const from = process.env.RESEND_FROM_EMAIL;
     const key = process.env.RESEND_API_KEY;
 
-    if (!recipient || !from || !key) {
+    if (!recipient || !from || !key || !await emailNotificationReady()) {
       await pool.query(
         `UPDATE voice_call_sessions
             SET notification_status='unconfigured',updated_at=now()
@@ -202,33 +207,30 @@ async function notifyOwner(
       return;
     }
 
-    const urgent =
-      enquiry.safetyConcern ||
-      enquiry.urgency === "emergency" ||
-      enquiry.urgency === "urgent";
-
     const result = await new Resend(key).emails.send(
       {
         from: `CREWON <${from}>`,
         to: [recipient],
-        subject: `${urgent ? "URGENT: " : ""}New phone enquiry — ${enquiry.name || verifiedInboundNumber || "Unknown caller"}`,
-        text: `${notesFor(enquiry, verifiedInboundNumber)}\n\nReview the full transcript in CREWON.`,
+        subject: `New phone enquiry — ${enquiry.name || verifiedInboundNumber || "Unknown caller"}`,
+        text: `${notesFor(enquiry, verifiedInboundNumber)}\n\nReview the full transcript in CREWON Office.`,
       },
-      { idempotencyKey: `crewon-realtime-${callSid}` },
+      { idempotencyKey: `crewon-voice-${callSid}` },
     );
 
+    const emailErrorCode = result.error?.statusCode;
+    const emailStatus = !result.error ? "sent" : emailErrorCode == null || emailErrorCode >= 500 || emailErrorCode === 408 ? "unknown" : "failed";
     await pool.query(
       `UPDATE voice_call_sessions
           SET notification_status=$2,updated_at=now()
         WHERE call_sid=$1`,
-      [callSid, result.error ? "failed" : "sent"],
+      [callSid, emailStatus],
     );
     await recordVoiceDiagnostic({
       callSid,
       companyId,
       eventType: "notification_result",
-      summary: result.error ? "Owner email notification failed." : "Owner email notification was sent.",
-      details: { channel: "email", result: result.error ? "failed" : "sent" },
+      summary: emailStatus === "sent" ? "Owner email notification was sent." : emailStatus === "unknown" ? "Owner email acceptance could not be confirmed." : "Owner email notification failed.",
+      details: { channel: "email", result: emailStatus },
     });
   } catch (error) {
     logger.error({ err: error, callSid }, "Realtime owner notification failed");
@@ -265,11 +267,18 @@ async function confirmCaller(
   if (!claim.rows[0]) return;
 
   const to = e164ish(verifiedInboundNumber);
+  const preferences = await pool.query<{ voice_caller_sms_enabled: boolean }>(
+    "SELECT voice_caller_sms_enabled FROM companies WHERE id=$1 LIMIT 1", [companyId],
+  );
+  if (!preferences.rows[0]?.voice_caller_sms_enabled) {
+    await pool.query("UPDATE voice_call_sessions SET customer_confirmation_status='disabled',updated_at=now() WHERE call_sid=$1", [callSid]);
+    return;
+  }
   const account = process.env.TWILIO_ACCOUNT_SID;
   const from = process.env.TWILIO_SMS_FROM;
   const token = process.env.TWILIO_AUTH_TOKEN;
 
-  if (!to || !account || !from || !token) {
+  if (!to || !account || !from || !token || !await smsNotificationReady()) {
     await pool.query(
       `UPDATE voice_call_sessions
           SET customer_confirmation_status='unconfigured',updated_at=now()
@@ -310,18 +319,19 @@ async function confirmCaller(
       },
     );
 
+    const smsStatus = response.ok ? "sent" : response.status >= 500 || response.status === 408 ? "unknown" : "failed";
     await pool.query(
       `UPDATE voice_call_sessions
           SET customer_confirmation_status=$2,updated_at=now()
         WHERE call_sid=$1`,
-      [callSid, response.ok ? "sent" : "failed"],
+      [callSid, smsStatus],
     );
     await recordVoiceDiagnostic({
       callSid,
       companyId,
       eventType: "notification_result",
-      summary: response.ok ? "Caller SMS confirmation was sent." : "Caller SMS confirmation failed.",
-      details: { channel: "sms", result: response.ok ? "sent" : "failed" },
+      summary: response.ok ? "Caller SMS confirmation was sent." : smsStatus === "unknown" ? "Caller SMS acceptance could not be confirmed." : "Caller SMS confirmation failed.",
+      details: { channel: "sms", result: smsStatus },
     });
   } catch (error) {
     logger.error({ err: error, callSid }, "Realtime caller confirmation failed");

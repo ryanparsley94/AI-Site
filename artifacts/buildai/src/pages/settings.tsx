@@ -326,11 +326,96 @@ function EssexVoiceLab({
   );
 }
 
+function NotificationsSettings() {
+  const [state, setState] = useState({
+    destination: "",
+    internalOwnerEmail: "",
+    ownerEmailEnabled: false,
+    callerSmsEnabled: false,
+    emailReady: false,
+    smsReady: false,
+    emailSenderConfigured: false,
+    smsSenderConfigured: false,
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const load = useCallback(async () => {
+    try {
+      const response = await fetch(`${getApiBase()}/notifications/settings`, { credentials: "include" });
+      if (!response.ok) throw new Error("Could not load notification settings.");
+      const payload = await response.json();
+      setState(current => ({ ...current, ...payload }));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not load notification settings.");
+    } finally { setLoading(false); }
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+  const save = async () => {
+    setSaving(true); setMessage("");
+    try {
+      const response = await fetch(`${getApiBase()}/notifications/settings`, {
+        method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ destination: state.destination, ownerEmailEnabled: state.ownerEmailEnabled, callerSmsEnabled: state.callerSmsEnabled }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error ?? "Could not save notification settings.");
+      await load(); setMessage("Notification settings saved.");
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not save settings."); }
+    finally { setSaving(false); }
+  };
+  const sendTest = async () => {
+    if (!window.confirm(`Send a test email to the configured owner destination (${state.destination})? No customer will be contacted.`)) return;
+    setMessage("");
+    try {
+      const response = await fetch(`${getApiBase()}/notifications/test-owner-email`, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ confirmed: true }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error ?? "Test email failed.");
+      setMessage(result.message);
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Test email failed."); }
+  };
+  if (loading) return <p className="p-5 text-sm text-muted-foreground">Checking notification readiness…</p>;
+  return <Card>
+    <CardHeader><CardTitle>Call notifications</CardTitle><CardDescription>Call summaries remain available in CREWON. Email and SMS are separate optional outbound channels.</CardDescription></CardHeader>
+    <CardContent className="space-y-6">
+      <div className="rounded-lg border bg-muted/20 p-4 text-sm">
+        <p className="font-semibold">Owner summary email · {state.emailReady ? "Ready" : "Not ready"}</p>
+        <p className="mt-1 text-muted-foreground">Requires a Resend API key and a sender address on a verified Resend domain. Add credentials in Replit Secrets; never paste keys here.</p>
+        {!state.emailReady && <p className="mt-2 text-amber-700">Missing or unverified Resend sender configuration. Automatic email is blocked.</p>}
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="owner-notification-email">Owner summary destination</Label>
+        <Input id="owner-notification-email" type="email" value={state.destination} onChange={event => setState(current => ({ ...current, destination: event.target.value }))} />
+      </div>
+      <label className="flex items-center justify-between gap-4 rounded-lg border p-4">
+        <span><strong className="block text-sm">Automatic owner email</strong><span className="text-xs text-muted-foreground">Send a call summary to this address after each completed phone enquiry.</span></span>
+        <Switch checked={state.ownerEmailEnabled} disabled={!state.emailReady} onCheckedChange={ownerEmailEnabled => setState(current => ({ ...current, ownerEmailEnabled }))} aria-label="Automatic owner email" />
+      </label>
+      <div className="rounded-lg border bg-muted/20 p-4 text-sm">
+        <p className="font-semibold">Caller confirmation SMS · {state.smsReady ? "Ready" : "Not ready"}</p>
+        <p className="mt-1 text-muted-foreground">Requires Twilio credentials and an SMS-capable sender number configured as TWILIO_SMS_FROM. An inbound voice number is not assumed to support SMS.</p>
+        {!state.smsReady && <p className="mt-2 text-amber-700">Missing or unverified SMS sender configuration. Customer texts are blocked.</p>}
+      </div>
+      <label className="flex items-center justify-between gap-4 rounded-lg border p-4">
+        <span><strong className="block text-sm">Automatic caller SMS</strong><span className="text-xs text-muted-foreground">Off by default. Only enable after confirming the SMS sender and consent requirements.</span></span>
+        <Switch checked={state.callerSmsEnabled} disabled={!state.smsReady} onCheckedChange={callerSmsEnabled => setState(current => ({ ...current, callerSmsEnabled }))} aria-label="Automatic caller SMS" />
+      </label>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button onClick={save} disabled={saving}>{saving ? "Saving…" : "Save notification settings"}</Button>
+        <Button variant="outline" onClick={sendTest} disabled={!state.emailReady || !state.destination || state.destination !== state.internalOwnerEmail}>Send internal test email</Button>
+        {message && <span role="status" className="text-sm text-muted-foreground">{message}</span>}
+      </div>
+    </CardContent>
+  </Card>;
+}
+
 export default function Settings() {
   const [location] = useLocation();
   // Read ?tab= param from the URL (e.g. after OAuth callback redirect)
   const urlParams = new URLSearchParams(window.location.search);
-  const initialTab = urlParams.get("tab") === "integrations" ? "integrations" : "profile";
+  const initialTab = urlParams.get("tab") === "integrations" ? "integrations" : urlParams.get("tab") === "notifications" ? "notifications" : "profile";
 
   const [activeTab, setActiveTab] = useState(initialTab);
 
@@ -565,6 +650,7 @@ export default function Settings() {
             <TabsTrigger value="voice-lab">Essex Voice Lab</TabsTrigger>
             <TabsTrigger value="branding">Quote Branding</TabsTrigger>
             <TabsTrigger value="integrations">Integrations</TabsTrigger>
+            <TabsTrigger value="notifications">Call Notifications</TabsTrigger>
           </TabsList>
 
           {/* ── Company Profile ────────────────────────────────────────── */}
@@ -1133,6 +1219,9 @@ export default function Settings() {
                 <IntegrationsTab />
               </CardContent>
             </Card>
+          </TabsContent>
+          <TabsContent value="notifications">
+            <NotificationsSettings />
           </TabsContent>
         </Tabs>
       </div>

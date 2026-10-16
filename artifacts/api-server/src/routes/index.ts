@@ -26,6 +26,7 @@ import voiceRouter, { phoneRouter } from "./voice";
 import { adminOnly } from "../lib/adminAuth";
 import publicDemoRouter from "./public-demo";
 import telephonyRouter from "./telephony";
+import notificationsRouter from "./notifications";
 
 const router: IRouter = Router();
 
@@ -55,6 +56,7 @@ router.use(assistantsRouter);
 router.use(contactsRouter);
 router.use(jobsRouter);
 router.use(callsRouter);
+router.use(notificationsRouter);
 router.use(quotesRouter);
 router.use(quoteSharingRouter);
 router.use(invoicesRouter);
