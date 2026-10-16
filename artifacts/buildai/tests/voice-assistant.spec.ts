@@ -211,6 +211,45 @@ test("phone assistant offers exactly six curated voices and requires saving befo
   await expect(page.getByRole("button", { name: "Save receptionist to preview" })).toBeDisabled();
 });
 
+test("Essex Voice Lab API requires an admin session", async ({ page }) => {
+  await page.goto("/");
+  const status = await page.evaluate(async () => {
+    const response = await fetch("/api/voice/essex-design/status", { credentials: "include" });
+    return response.status;
+  });
+  expect(status).toBe(401);
+});
+
+test("Essex Voice Lab auditions unverified provider samples without activating live calls", async ({ page }) => {
+  let designRequests = 0;
+  await page.route("**/api/voice/essex-design/status", route => route.fulfill({ json: { configured: true, activationEnabled: false, liveCallsChanged: false } }));
+  await page.route("**/api/voice/essex-design", async route => {
+    if (route.request().method() !== "POST") return route.fallback();
+    designRequests += 1;
+    await route.fulfill({ json: {
+      status: "unverified",
+      warning: "Generated samples are candidates only. Listen and verify the accent with Ryan; this does not change any receptionist or live call.",
+      text: "Sample greeting for evaluation.",
+      previews: [1, 2, 3].map((n) => ({
+        id: `candidate-${n}`,
+        audioBase64: "dGVzdA==",
+        mediaType: "audio/mpeg",
+        durationSeconds: 2,
+        verified: false,
+        liveEnabled: false,
+      })),
+    } });
+  });
+  await page.goto("/settings");
+  await page.getByRole("tab", { name: "Essex Voice Lab" }).click();
+  await expect(page.getByText("Candidates are unverified")).toBeVisible();
+  await page.getByRole("button", { name: "Generate 3 Essex voice candidates" }).click();
+  await expect(page.getByLabel("Unverified Essex voice candidate 1")).toBeVisible();
+  await expect(page.getByText("Unverified · audition only").first()).toBeVisible();
+  await expect(page.getByText("this does not change any receptionist or live call.")).toBeVisible();
+  expect(designRequests).toBe(1);
+});
+
 test.describe("mobile receptionist voice editing", () => {
 test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
 

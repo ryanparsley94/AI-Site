@@ -13,7 +13,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   Save, Building2, Code2, RefreshCw, Copy, Check, MessageSquare,
   ExternalLink, Lock, Calendar, BookOpen, Link2, CheckCircle2,
-  XCircle, Loader2, PlugZap, Bell, Palette, FileImage, FileText,
+  XCircle, Loader2, PlugZap, Bell, Palette, FileImage, FileText, Play, Mic2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -190,6 +190,141 @@ function IntegrationsTab() {
 }
 
 // ── Main Settings page ────────────────────────────────────────────────────────
+
+type EssexPreview = {
+  id: string;
+  audioBase64: string;
+  mediaType: string;
+  durationSeconds: number | null;
+  verified: false;
+  liveEnabled: false;
+};
+
+function EssexVoiceLab({
+  adminAuthenticated,
+  onUnlock,
+}: {
+  adminAuthenticated: boolean | null;
+  onUnlock: () => void;
+}) {
+  const [providerConfigured, setProviderConfigured] = useState<boolean | null>(null);
+  const [previews, setPreviews] = useState<EssexPreview[]>([]);
+  const [previewText, setPreviewText] = useState("");
+  const [warning, setWarning] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (adminAuthenticated !== true) return;
+    let cancelled = false;
+    fetch(getApiBase() + "/voice/essex-design/status", { credentials: "include" })
+      .then(async (res) => {
+        if (!res.ok) throw new Error("Could not check voice-provider setup.");
+        return res.json() as Promise<{ configured: boolean }>;
+      })
+      .then((data) => { if (!cancelled) setProviderConfigured(data.configured); })
+      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : "Could not check voice-provider setup."); });
+    return () => { cancelled = true; };
+  }, [adminAuthenticated]);
+
+  const generatePreviews = async () => {
+    setLoading(true);
+    setError("");
+    setPreviews([]);
+    try {
+      const res = await fetch(getApiBase() + "/voice/essex-design", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json() as {
+        error?: string;
+        warning?: string;
+        text?: string;
+        previews?: EssexPreview[];
+      };
+      if (!res.ok) throw new Error(data.error || "Could not generate voice samples.");
+      setPreviews(data.previews ?? []);
+      setPreviewText(data.text ?? "");
+      setWarning(data.warning ?? "Samples are unverified and are not connected to live calls.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not generate voice samples.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-start gap-3">
+          <div className="rounded-lg bg-primary/10 p-2 text-primary"><Mic2 size={22} /></div>
+          <div>
+            <CardTitle>Essex Voice Lab</CardTitle>
+            <CardDescription>
+              Admin-only audition of real ElevenLabs Voice Design samples. This does not alter the saved receptionist or route live calls.
+            </CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {adminAuthenticated === null && <p className="text-sm text-muted-foreground">Checking admin access…</p>}
+        {adminAuthenticated === false && (
+          <div className="rounded-lg border bg-muted/30 p-4">
+            <p className="text-sm font-medium">Admin authentication required</p>
+            <p className="mt-1 text-xs text-muted-foreground">Voice generation is protected by the server-side admin session.</p>
+            <Button variant="outline" className="mt-3" onClick={onUnlock}>Unlock admin settings</Button>
+          </div>
+        )}
+        {adminAuthenticated === true && (
+          <>
+            <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+              <p className="font-semibold">Candidates are unverified</p>
+              <p className="mt-1 text-xs leading-relaxed">
+                Voice Design can attempt the requested Essex accent, but generation is not proof of accent. Ryan must audition and approve a sample. There is deliberately no activation control here.
+              </p>
+            </div>
+            {providerConfigured === false && (
+              <div role="status" className="rounded-lg border p-4 text-sm">
+                <p className="font-medium">ElevenLabs is not configured</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Requires an ElevenLabs account with Voice Design/API access and the server secret <code>ELEVENLABS_API_KEY</code>. Add it through Replit Secrets; do not paste keys here. No live-call settings are affected.
+                </p>
+              </div>
+            )}
+            {providerConfigured === true && (
+              <Button onClick={generatePreviews} disabled={loading} className="gap-2">
+                {loading ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
+                {loading ? "Generating unverified samples…" : "Generate 3 Essex voice candidates"}
+              </Button>
+            )}
+            {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+            {warning && <p role="status" className="text-sm text-amber-800">{warning}</p>}
+            {previews.length > 0 && (
+              <div className="space-y-3">
+                {previews.map((preview, index) => (
+                  <div key={preview.id} className="rounded-lg border p-4">
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <p className="font-medium">Candidate {index + 1}</p>
+                      <span className="rounded-full border px-2 py-0.5 text-xs text-amber-800">Unverified · audition only</span>
+                    </div>
+                    <audio controls preload="none" className="w-full" aria-label={`Unverified Essex voice candidate ${index + 1}`}
+                      src={`data:${preview.mediaType};base64,${preview.audioBase64}`} />
+                    {preview.durationSeconds !== null && (
+                      <p className="mt-1 text-xs text-muted-foreground">{preview.durationSeconds.toFixed(1)} seconds</p>
+                    )}
+                  </div>
+                ))}
+                <p className="text-xs text-muted-foreground">Sample script: “{previewText}”</p>
+              </div>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function Settings() {
   const [location] = useLocation();
@@ -427,6 +562,7 @@ export default function Settings() {
           <TabsList className="mb-6">
             <TabsTrigger value="profile">Company Profile</TabsTrigger>
             <TabsTrigger value="widget">Chat Widget</TabsTrigger>
+            <TabsTrigger value="voice-lab">Essex Voice Lab</TabsTrigger>
             <TabsTrigger value="branding">Quote Branding</TabsTrigger>
             <TabsTrigger value="integrations">Integrations</TabsTrigger>
           </TabsList>
@@ -715,6 +851,13 @@ export default function Settings() {
                 </CardFooter>
               )}
             </Card>
+          </TabsContent>
+
+          <TabsContent value="voice-lab">
+            <EssexVoiceLab
+              adminAuthenticated={isAdminAuthenticated}
+              onUnlock={() => setActiveTab("widget")}
+            />
           </TabsContent>
 
           {/* ── Quote Branding ──────────────────────────────────────────── */}

@@ -16,6 +16,85 @@ router.use("/voice", adminOnly, (_req, res, next) => {
   next();
 });
 
+router.get("/voice/essex-design/status", (_req, res) => {
+  res.json({
+    provider: "ElevenLabs Voice Design",
+    configured: Boolean(process.env.ELEVENLABS_API_KEY),
+    liveCallsChanged: false,
+    activationEnabled: false,
+  });
+});
+
+router.post("/voice/essex-design", async (_req, res): Promise<void> => {
+  const apiKey = process.env.ELEVENLABS_API_KEY;
+  if (!apiKey) {
+    res.status(503).json({
+      error: "ElevenLabs is not configured. Add ELEVENLABS_API_KEY in Replit Secrets and use an ElevenLabs account to generate voice samples.",
+      code: "provider_not_configured",
+    });
+    return;
+  }
+
+  try {
+    const response = await fetch("https://api.elevenlabs.io/v1/text-to-voice/design", {
+      method: "POST",
+      headers: {
+        "xi-api-key": apiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model_id: "eleven_multilingual_ttv_v2",
+        voice_description: "A natural, personable adult male voice from Essex in South-East England. Clearly local Essex English, warm and calm as a trusted trades receptionist. Contemporary and conversational, not theatrical, exaggerated, or American.",
+        text: "Hello, thanks for calling Parsley Electrical. You're speaking with Edward. Tell me briefly what you need help with and I'll make sure the right person gets back to you.",
+        stream_previews: false,
+        guidance_scale: 4,
+      }),
+      signal: AbortSignal.timeout(45_000),
+    });
+
+    if (!response.ok) {
+      // Do not relay upstream errors: provider responses can include account details.
+      res.status(502).json({ error: "ElevenLabs could not generate voice previews. Check the account, API access, and available credits." });
+      return;
+    }
+
+    const payload = await response.json() as {
+      previews?: Array<{
+        generated_voice_id?: string;
+        audio_base_64?: string;
+        media_type?: string;
+        duration_secs?: number;
+      }>;
+      text?: string;
+    };
+    const previews = (payload.previews ?? []).slice(0, 3).filter((item) =>
+      typeof item.generated_voice_id === "string" &&
+      typeof item.audio_base_64 === "string" &&
+      /^[A-Za-z0-9+/]+=*$/.test(item.audio_base_64),
+    );
+    if (previews.length === 0) {
+      res.status(502).json({ error: "ElevenLabs returned no playable voice samples." });
+      return;
+    }
+
+    res.json({
+      status: "unverified",
+      warning: "Generated samples are candidates only. Listen and verify the accent with Ryan; this does not change any receptionist or live call.",
+      text: payload.text,
+      previews: previews.map((item) => ({
+        id: item.generated_voice_id,
+        audioBase64: item.audio_base_64,
+        mediaType: item.media_type || "audio/mpeg",
+        durationSeconds: item.duration_secs ?? null,
+        verified: false,
+        liveEnabled: false,
+      })),
+    });
+  } catch {
+    res.status(502).json({ error: "ElevenLabs preview request failed or timed out. Live receptionist settings were not changed." });
+  }
+});
+
 router.post("/voice/transcribe", async (req, res): Promise<void> => {
   const parsed = VoiceTranscribeBody.safeParse(req.body);
   const audio = parsed.success ? parsed.data.audio : "";
