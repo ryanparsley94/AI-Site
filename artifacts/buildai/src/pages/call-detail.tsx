@@ -219,7 +219,7 @@ export default function CallDetail() {
       )}
       <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
         {/* Transcript Area */}
-        <div className="flex-1 border-r flex flex-col bg-slate-50/50">
+        <div className="flex-1 border-r flex flex-col bg-background">
           <div className="p-4 border-b bg-card flex justify-between items-center">
             <h2 className="font-semibold text-sm flex items-center gap-2">
               Transcript
@@ -230,27 +230,27 @@ export default function CallDetail() {
             </div>
           </div>
           
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
             {call.transcript && call.transcript.length > 0 ? (
               call.transcript.map((line, idx) => (
-                <div key={idx} className={`flex gap-4 max-w-[85%] ${line.speaker === 'caller' ? 'self-start' : 'self-end ml-auto'}`}>
+                <div key={idx} className={`flex min-w-0 gap-3 sm:gap-4 max-w-[96%] sm:max-w-[85%] ${line.speaker === 'caller' ? 'self-start' : 'self-end ml-auto'}`}>
                   {line.speaker === 'caller' && (
-                    <div className="w-8 h-8 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center shrink-0 mt-1">
+                    <div className="w-8 h-8 rounded-full bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-100 flex items-center justify-center shrink-0 mt-1">
                       <User size={16} />
                     </div>
                   )}
-                  <div className={`p-4 rounded-xl shadow-sm ${
+                  <div className={`min-w-0 break-words p-4 rounded-xl shadow-sm border ${
                     line.speaker === 'caller' 
-                      ? 'bg-white border' 
-                      : 'bg-primary/10 border border-primary/20'
+                      ? 'bg-slate-100 text-slate-900 border-slate-300 dark:bg-slate-800 dark:text-slate-50 dark:border-slate-600'
+                      : 'bg-primary text-primary-foreground border-primary'
                   }`}>
                     <div className="flex items-center gap-2 mb-1.5">
-                      <span className={`text-xs font-bold ${line.speaker === 'caller' ? 'text-slate-700' : 'text-primary'}`}>
+                      <span className={`text-xs font-bold ${line.speaker === 'caller' ? 'text-slate-800 dark:text-slate-100' : 'text-primary-foreground'}`}>
                         {line.speaker === 'caller' ? call.callerName : call.assistantName}
                       </span>
-                      <span className="text-[10px] text-muted-foreground">{formatDuration(line.timestamp)}</span>
+                      <span className={`text-[10px] ${line.speaker === 'caller' ? 'text-slate-600 dark:text-slate-300' : 'text-primary-foreground/80'}`}>{formatDuration(line.timestamp)}</span>
                     </div>
-                    <p className="text-sm leading-relaxed text-secondary">{line.text}</p>
+                    <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{line.text}</p>
                   </div>
                   {line.speaker === 'assistant' && (
                     <div className="w-8 h-8 rounded-full bg-primary/20 text-primary flex items-center justify-center shrink-0 mt-1">
