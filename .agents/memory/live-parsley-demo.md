@@ -15,7 +15,7 @@ Demo users may choose a receptionist name, but not override the voice. The selec
 
 **How to apply:** Validate the selected assistant against the Parsley tenant and active phone-assistant list; resolve its voice server-side for every demo and live path. Require a saved voice before previewing it, and confirm the server response voice matches the saved assistant.
 
-For the active receptionist Edward, Cedar is the default male persona only until a verified British-voice provider is wired into live calls. Do not reintroduce Marin as a selectable voice, saved default, or runtime fallback; map legacy saved Marin values to Cedar. Prompt-only accent guidance does not count as fixing a British-accent requirement.
+For the active receptionist Edward, Cedar is the default male persona only until a verified British-voice provider is wired into live calls. The owner confirmed Marin was tried and sounded like an American woman: do not retest or use Marin. Do not reintroduce it as a selectable voice, saved default, or runtime fallback; map legacy saved Marin values to Cedar. Prompt-only accent guidance does not count as fixing a British-accent requirement.
 
 **Why:** The owner explicitly wants Edward to sound like a friendly male from Essex/southeast England, and live calls still sounded American after the prompt-only change.
 
