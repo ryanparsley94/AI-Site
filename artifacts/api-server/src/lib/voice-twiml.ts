@@ -9,6 +9,69 @@ export const TWILIO_UK_NEURAL_VOICES = [
 
 export type TwilioUkNeuralVoice = (typeof TWILIO_UK_NEURAL_VOICES)[number];
 
+// Twilio currently exposes distinct, gender-matched Google Chirp 3 voices for
+// every curated persona in en-GB. Gather uses these when Realtime is unavailable.
+export const TWILIO_UK_GATHER_VOICES = [
+  "Google.en-GB-Chirp3-HD-Charon",
+  "Google.en-GB-Chirp3-HD-Fenrir",
+  "Google.en-GB-Chirp3-HD-Orus",
+  "Google.en-GB-Chirp3-HD-Aoede",
+  "Google.en-GB-Chirp3-HD-Kore",
+  "Google.en-GB-Chirp3-HD-Leda",
+] as const;
+
+const RECEPTIONIST_GATHER_VOICE: Record<string, (typeof TWILIO_UK_GATHER_VOICES)[number]> = {
+  cedar: "Google.en-GB-Chirp3-HD-Charon",
+  ash: "Google.en-GB-Chirp3-HD-Fenrir",
+  echo: "Google.en-GB-Chirp3-HD-Orus",
+  coral: "Google.en-GB-Chirp3-HD-Aoede",
+  sage: "Google.en-GB-Chirp3-HD-Kore",
+  shimmer: "Google.en-GB-Chirp3-HD-Leda",
+};
+
+const LEGACY_RECEPTIONIST_VOICE: Record<string, string> = {
+  alloy: "cedar",
+  ash: "ash",
+  ballad: "coral",
+  coral: "coral",
+  echo: "echo",
+  fable: "sage",
+  marin: "cedar",
+  nova: "coral",
+  onyx: "echo",
+  sage: "sage",
+  shimmer: "shimmer",
+  verse: "echo",
+  cedar: "cedar",
+};
+
+const SUPPORTED_TWILIO_UK_VOICES = new Set<string>([
+  ...TWILIO_UK_NEURAL_VOICES,
+  ...TWILIO_UK_GATHER_VOICES,
+]);
+
+export function resolveTwilioGatherVoice(
+  receptionistVoice: string | null | undefined,
+  legacyTwilioVoice?: string | null,
+): { voice: string; personaId: string | null; source: "saved_persona" | "legacy_persona" | "legacy_twilio_setting" | "uk_default" } {
+  const normalized = receptionistVoice?.trim().toLowerCase();
+  const personaId = normalized
+    ? (RECEPTIONIST_GATHER_VOICE[normalized] ? normalized : LEGACY_RECEPTIONIST_VOICE[normalized])
+    : undefined;
+  if (personaId && RECEPTIONIST_GATHER_VOICE[personaId]) {
+    return {
+      voice: RECEPTIONIST_GATHER_VOICE[personaId],
+      personaId,
+      source: normalized === personaId ? "saved_persona" : "legacy_persona",
+    };
+  }
+
+  if (legacyTwilioVoice && SUPPORTED_TWILIO_UK_VOICES.has(legacyTwilioVoice)) {
+    return { voice: legacyTwilioVoice, personaId: null, source: "legacy_twilio_setting" };
+  }
+  return { voice: DEFAULT_TWILIO_VOICE, personaId: null, source: "uk_default" };
+}
+
 export function buildOpeningGreeting(
   businessName: string | null | undefined,
   savedGreeting: string | null | undefined,
@@ -55,12 +118,16 @@ export function resolveTwilioUkNeuralVoice(value: string | null | undefined): Tw
     : DEFAULT_TWILIO_VOICE;
 }
 
+export function resolveTwilioUkVoice(value: string | null | undefined): string {
+  return value && SUPPORTED_TWILIO_UK_VOICES.has(value) ? value : DEFAULT_TWILIO_VOICE;
+}
+
 function xml(text: string): string {
   return text.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[c]!);
 }
 
 export function buildSpeech(text: string, voiceId?: string | null): string {
-  const voice = resolveTwilioUkNeuralVoice(voiceId);
+  const voice = resolveTwilioUkVoice(voiceId);
   return `<Say voice="${voice}" language="en-GB">${xml(text)}</Say>`;
 }
 
@@ -88,7 +155,7 @@ export function buildIncomingVoiceResponse(
     greeting?: string | null;
   } = {},
 ): string {
-  const voiceId = resolveTwilioUkNeuralVoice(settings.voiceId);
+  const voiceId = resolveTwilioUkVoice(settings.voiceId);
   const businessName = spokenBusinessName(settings.businessName);
   const agentName = settings.agentName?.trim();
   const greeting = step === 0

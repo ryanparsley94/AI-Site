@@ -5,6 +5,8 @@ import {
   buildSpeech,
   buildVoiceQuestion,
   resolveTwilioUkNeuralVoice,
+  resolveTwilioGatherVoice,
+  TWILIO_UK_GATHER_VOICES,
   TWILIO_UK_NEURAL_VOICES,
 } from "../src/lib/voice-twiml.ts";
 
@@ -57,6 +59,40 @@ test("saved voice selection is used for greeting, every prompt, retries, and spo
 test("unsupported stored voice values resolve to the documented default", () => {
   assert.equal(resolveTwilioUkNeuralVoice("invalid"), "Polly.Amy-Neural");
   assert.equal(resolveTwilioUkNeuralVoice(null), "Polly.Amy-Neural");
+});
+
+test("all six saved receptionist personas resolve to distinct Twilio en-GB Gather voices", () => {
+  const personas = ["cedar", "ash", "echo", "coral", "sage", "shimmer"];
+  const expectedVoices = [
+    "Google.en-GB-Chirp3-HD-Charon",
+    "Google.en-GB-Chirp3-HD-Fenrir",
+    "Google.en-GB-Chirp3-HD-Orus",
+    "Google.en-GB-Chirp3-HD-Aoede",
+    "Google.en-GB-Chirp3-HD-Kore",
+    "Google.en-GB-Chirp3-HD-Leda",
+  ];
+  assert.deepEqual([...TWILIO_UK_GATHER_VOICES], expectedVoices);
+  const resolved = personas.map(persona => resolveTwilioGatherVoice(persona));
+  assert.deepEqual(resolved.map(selection => selection.voice), expectedVoices);
+  assert.deepEqual(resolved.map(selection => selection.personaId), personas);
+  assert.ok(resolved.every(selection => selection.source === "saved_persona"));
+
+  for (const voice of expectedVoices) {
+    const greeting = buildIncomingVoiceResponse(0, "What's your full name?", { voiceId: voice });
+    const followUp = buildVoiceQuestion(1, "What's the best number to call you back on?", "", voice);
+    const ending = buildVoiceQuestion(6, undefined, "", voice);
+    for (const twiml of [greeting, followUp, ending]) {
+      assert.match(twiml, new RegExp(`voice="${voice.replaceAll(".", "\\.")}" language="en-GB"`));
+    }
+  }
+});
+
+test("legacy Marin selection is safely mapped to Edward's British Gather voice", () => {
+  assert.deepEqual(resolveTwilioGatherVoice("marin"), {
+    voice: "Google.en-GB-Chirp3-HD-Charon",
+    personaId: "cedar",
+    source: "legacy_persona",
+  });
 });
 
 test("follow-up questions do not repeat the initial greeting", () => {

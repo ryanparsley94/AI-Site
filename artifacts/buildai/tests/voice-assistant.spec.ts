@@ -257,6 +257,16 @@ test("editing a phone assistant keeps an unsaved voice, previews it, and saves i
   let persistedVoice = "cedar";
   let previewRequest: Record<string, unknown> | null = null;
   let saveRequest: Record<string, unknown> | null = null;
+  await page.addInitScript(() => {
+    const originalFetch = window.fetch.bind(window);
+    (window as any).__voicePreviewCredentials = [];
+    window.fetch = (input, init) => {
+      if (String(input).includes("/api/assistants/voice-preview")) {
+        (window as any).__voicePreviewCredentials.push(init?.credentials);
+      }
+      return originalFetch(input, init);
+    };
+  });
   const assistant = () => ({
     id: 7,
     name: "Edward",
@@ -310,6 +320,7 @@ test("editing a phone assistant keeps an unsaved voice, previews it, and saves i
 
   await page.getByRole("button", { name: "Preview unsaved choice" }).click();
   await expect.poll(() => previewRequest).toMatchObject({ assistantId: 7, voice: "ash" });
+  await expect.poll(async () => page.evaluate(() => (window as any).__voicePreviewCredentials)).toEqual(["include"]);
   expect(persistedVoice).toBe("cedar");
 
   await page.getByRole("button", { name: "Save Changes" }).click();

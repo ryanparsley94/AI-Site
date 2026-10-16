@@ -7,6 +7,7 @@ import { adminOnly } from "../lib/adminAuth";
 import { intentSchema, executeVoiceAction } from "../lib/voice-actions";
 import { recordVoiceDiagnostic } from "../lib/voice-diagnostics";
 import { getReceptionistVoicePersona } from "@workspace/api-zod";
+import { resolveTwilioGatherVoice } from "../lib/voice-twiml";
 
 const router = Router();
 // Single-tenant command serialisation: two voice commands cannot race a send or quote append.
@@ -212,7 +213,7 @@ import { pool } from "@workspace/db";
 import { logger } from "../lib/logger";
 import { validTwilioRequest } from "../lib/voice-security";
 import { realtimePhoneStreamUrl } from "../lib/realtime-phone";
-import { buildIncomingVoiceResponse, buildOpeningGreeting, buildSpeech, DEFAULT_TWILIO_VOICE, resolveTwilioUkNeuralVoice } from "../lib/voice-twiml";
+import { buildIncomingVoiceResponse, buildOpeningGreeting, buildSpeech, DEFAULT_TWILIO_VOICE } from "../lib/voice-twiml";
 import { emailNotificationReady, smsNotificationReady } from "../lib/notification-readiness";
 
 /** The first pilot uses a controlled interview so a failed AI request cannot lose a caller's message. */
@@ -279,19 +280,19 @@ function ask(step: number, prefix = "", voiceId: string = DEFAULT_TWILIO_VOICE):
   return `<Gather input="speech" language="en-GB" speechTimeout="auto" timeout="6" actionOnEmptyResult="true" method="POST" action="/api/voice/answer?step=${step}">${buildSpeech(prefix + question, voiceId)}</Gather>`;
 }
 
-async function fallbackVoiceForCall(callSid: string): Promise<string> {
+async function fallbackVoiceForCall(callSid: string): Promise<ReturnType<typeof resolveTwilioGatherVoice>> {
   try {
-    const result = await pool.query<{ twilio_voice: string | null }>(
-      `SELECT a.twilio_voice
+    const result = await pool.query<{ realtime_voice: string | null; twilio_voice: string | null }>(
+      `SELECT a.realtime_voice,a.twilio_voice
          FROM voice_call_sessions s
          LEFT JOIN assistants a ON a.id=s.assistant_id
         WHERE s.call_sid=$1 LIMIT 1`,
       [callSid],
     );
-    return resolveTwilioUkNeuralVoice(result.rows[0]?.twilio_voice);
+    return resolveTwilioGatherVoice(result.rows[0]?.realtime_voice, result.rows[0]?.twilio_voice);
   } catch (error) {
     logger.warn({ err: error }, "Could not load saved fallback voice; using UK English default");
-    return DEFAULT_TWILIO_VOICE;
+    return resolveTwilioGatherVoice(null);
   }
 }
 
@@ -656,7 +657,11 @@ phoneRouter.post("/voice/incoming", async (req, res): Promise<void> => {
       summary: "Inbound call received and linked to a CREWON assistant.",
       details: { mode: "incoming_webhook" },
     });
-    if (session.completed) { twiml(res, `${buildSpeech("Thank you. Goodbye.")}<Hangup/>`); return; }
+    if (session.completed) {
+      const fallbackVoice = await fallbackVoiceForCall(sid);
+      twiml(res, `${buildSpeech("Thank you. Goodbye.", fallbackVoice.voice)}<Hangup/>`);
+      return;
+    }
 
     const realtimeUrl = realtimePhoneStreamUrl();
     const realtimeEnabled =
@@ -666,6 +671,7 @@ phoneRouter.post("/voice/incoming", async (req, res): Promise<void> => {
       Boolean(session.call_id) &&
       Boolean(session.company_id) &&
       Boolean(session.assistant_id);
+    const gatherVoice = realtimeEnabled ? null : await fallbackVoiceForCall(sid);
     await recordVoiceDiagnostic({
       callSid: sid,
       callId: session.call_id,
@@ -673,10 +679,17 @@ phoneRouter.post("/voice/incoming", async (req, res): Promise<void> => {
       eventType: "call_routing_selected",
       summary: realtimeEnabled
         ? "Inbound call routed to OpenAI Realtime audio."
-        : "Inbound call routed to the Twilio Gather message-taking fallback.",
+        : "Inbound call routed to Twilio Gather using the saved receptionist voice's UK English mapping.",
       details: realtimeEnabled
         ? { mode: "realtime", provider: "openai_realtime", model: process.env.OPENAI_REALTIME_MODEL || "gpt-realtime-2.1", voice_selection: "saved_assistant_persona" }
-        : { mode: "gather", provider: "twilio_say", language: "en-GB", twilio_voice: await fallbackVoiceForCall(sid), voice_selection: "twilio_voice_setting_not_openai_persona" },
+        : {
+            mode: "gather",
+            provider: "twilio_say",
+            language: "en-GB",
+            twilio_voice: gatherVoice?.voice ?? DEFAULT_TWILIO_VOICE,
+            receptionist_voice: gatherVoice?.personaId ?? "unresolved",
+            voice_selection: gatherVoice?.source ?? "uk_default",
+          },
     });
 
     if (realtimeEnabled && realtimeUrl && session.call_id && session.company_id && session.assistant_id) {
@@ -695,8 +708,8 @@ phoneRouter.post("/voice/incoming", async (req, res): Promise<void> => {
       return;
     }
 
-    // The legacy Gather interview is intentionally disclosed as message-taking:
-    // it does not use the assistant's selected OpenAI Realtime voice.
+    // Gather cannot use OpenAI Realtime voices. It maps the same saved persona
+    // to a documented Twilio Google Chirp 3 en-GB voice instead.
     await pool.query(
       "UPDATE voice_call_sessions SET mode='gather',updated_at=now() WHERE call_sid=$1",
       [sid],
@@ -706,7 +719,7 @@ phoneRouter.post("/voice/incoming", async (req, res): Promise<void> => {
       session.step === 0 && await claimCallOpening(sid)
         ? await (async () => {
             const greeting = await pool.query<{ business_name: string; agent_name: string | null; saved_greeting: string | null; voice_id: string | null }>(
-              `SELECT c.name AS business_name,a.name AS agent_name,a.greeting AS saved_greeting,a.twilio_voice AS voice_id
+              `SELECT c.name AS business_name,a.name AS agent_name,a.greeting AS saved_greeting
                  FROM companies c LEFT JOIN assistants a ON a.id=$2 AND a.company_id=c.id
                 WHERE c.id=$1 LIMIT 1`,
               [session.company_id, session.assistant_id],
@@ -714,11 +727,11 @@ phoneRouter.post("/voice/incoming", async (req, res): Promise<void> => {
             return buildIncomingVoiceResponse(0, questions[0][1], {
               businessName: greeting.rows[0]?.business_name,
               greeting: greeting.rows[0]?.saved_greeting,
-              voiceId: greeting.rows[0]?.voice_id,
+              voiceId: gatherVoice?.voice ?? DEFAULT_TWILIO_VOICE,
               agentName: greeting.rows[0]?.agent_name,
             });
           })()
-        : ask(session.step, "", await fallbackVoiceForCall(sid)),
+        : ask(session.step, "", gatherVoice?.voice ?? DEFAULT_TWILIO_VOICE),
     );
   } catch (error) {
     await recordVoiceDiagnostic({
@@ -748,7 +761,12 @@ phoneRouter.post("/voice/answer", async (req, res): Promise<void> => {
     const result = await client.query<Session>("SELECT * FROM voice_call_sessions WHERE call_sid=$1 FOR UPDATE", [sid]);
     const session = result.rows[0];
     if (!session) { await client.query("ROLLBACK"); res.status(404).end(); return; }
-    if (session.completed) { await client.query("COMMIT"); twiml(res, `${buildSpeech("Thank you. Goodbye.")}<Hangup/>`); return; }
+    if (session.completed) {
+      await client.query("COMMIT");
+      const fallbackVoice = await fallbackVoiceForCall(sid);
+      twiml(res, `${buildSpeech("Thank you. Goodbye.", fallbackVoice.voice)}<Hangup/>`);
+      return;
+    }
     assistantId = session.assistant_id;
     if (session.step === expectedStep) {
       const speech = typeof req.body.SpeechResult === "string" ? req.body.SpeechResult.trim().slice(0, 1000) : "";
@@ -782,11 +800,11 @@ phoneRouter.post("/voice/answer", async (req, res): Promise<void> => {
   } finally { client.release(); }
   if (done) {
     try { await finish(sid); } catch (error) { logger.error({ err: error, sid }, "Voice finalisation failed"); res.status(500).end(); return; }
-    const voiceId = await fallbackVoiceForCall(sid);
-    twiml(res, `${buildSpeech("Thank you. We have your message and the team will be in touch.", voiceId)}<Hangup/>`);
+    const fallbackVoice = await fallbackVoiceForCall(sid);
+    twiml(res, `${buildSpeech("Thank you. We have your message and the team will be in touch.", fallbackVoice.voice)}<Hangup/>`);
   } else {
-    const voiceId = assistantId ? await fallbackVoiceForCall(sid) : DEFAULT_TWILIO_VOICE;
-    twiml(res, ask(nextStep, prefix, voiceId));
+    const fallbackVoice = assistantId ? await fallbackVoiceForCall(sid) : resolveTwilioGatherVoice(null);
+    twiml(res, ask(nextStep, prefix, fallbackVoice.voice));
   }
 });
 

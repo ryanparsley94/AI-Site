@@ -293,6 +293,7 @@ function VoicePicker({
       const base = import.meta.env.BASE_URL.replace(/\/$/, "");
       const resp = await fetch(`${base}/api/assistants/voice-preview`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ voice, text: SAMPLE_TEXT }),
       });
@@ -452,6 +453,7 @@ function PhoneFormFields({
       const base = import.meta.env.BASE_URL.replace(/\/$/, "");
       const response = await fetch(`${base}/api/assistants/voice-preview`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ assistantId, voice, text: "Hello, you've reached Parsley Electrical. How can I help?" }),
       });
@@ -505,7 +507,7 @@ function PhoneFormFields({
                 <option key={persona.id} value={persona.id}>{persona.label}</option>
               ))}
             </select>
-            <p className="text-xs text-muted-foreground">{selectedPersona.description} By default, these use standard OpenAI voices with prompt-guided style, not guaranteed regional accents. This choice controls inbound calls in Realtime mode; legacy Twilio Gather uses its saved Twilio voice. Approved custom OpenAI voices can replace stock voices when enabled and available to the project.</p>
+            <p className="text-xs text-muted-foreground">{selectedPersona.description} Preview uses the selected stock OpenAI voice. Realtime uses the saved persona, or an approved custom OpenAI voice when enabled. If a call falls back to Twilio Gather, the same persona maps to a distinct Twilio Google Chirp 3 en-GB voice. Regional accents are not guaranteed.</p>
           </div>
           <div className="flex items-end">
             <Button type="button" variant="outline" disabled={previewing || !assistantId} onClick={playRealtimePreview} className="min-h-12 w-full gap-2">

@@ -26,6 +26,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatDuration } from "@/lib/utils";
+import { RECEPTIONIST_VOICE_PERSONAS } from "@workspace/api-zod";
 
 const statusConfig = {
   booked: { icon: CalendarCheck, color: "text-green-600", bg: "bg-green-100", label: "Booked" },
@@ -173,6 +174,9 @@ export default function CallDetail() {
 
   const currentStatusInfo = statusConfig[call.status];
   const StatusIcon = currentStatusInfo?.icon || PhoneIncoming;
+  const gatherPersona = voicePath?.details.receptionist_voice
+    ? RECEPTIONIST_VOICE_PERSONAS.find(persona => persona.id === voicePath.details.receptionist_voice)?.label
+    : null;
   const savedCallSummary = call.notes?.trim() || call.transcript
     .filter(line => line.speaker === "caller" && line.text.trim())
     .map(line => line.text.trim()).join(" ").slice(0, 700) || "No summary was captured; review the transcript below.";
@@ -248,7 +252,7 @@ export default function CallDetail() {
           {voicePath.eventType === "realtime_session_started" ? (
             <>OpenAI Realtime · {String(voicePath.details.model ?? "model unreported")} · voice {String(voicePath.details.voice ?? "unreported")} ({String(voicePath.details.voice_kind ?? "stock")})</>
           ) : voicePath.details.mode === "gather" ? (
-            <>Twilio Gather · {String(voicePath.details.twilio_voice ?? "UK English fallback")} · the OpenAI persona selector does not apply</>
+            <>Twilio Gather · {String(voicePath.details.twilio_voice ?? "UK English fallback")} · {gatherPersona ? `mapped from ${gatherPersona}` : "British-English fallback"}; regional accent not guaranteed</>
           ) : (
             <>OpenAI Realtime selected; waiting for session diagnostics</>
           )}
