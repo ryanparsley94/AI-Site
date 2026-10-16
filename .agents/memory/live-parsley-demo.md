@@ -15,11 +15,17 @@ Demo users may choose a receptionist name, but not override the voice. The selec
 
 **How to apply:** Validate the selected assistant against the Parsley tenant and active phone-assistant list; resolve its voice server-side for every demo and live path. Require a saved voice before previewing it, and confirm the server response voice matches the saved assistant.
 
-For the active receptionist Edward, Cedar is the default male persona. Do not reintroduce Marin as a selectable voice, saved default, or runtime fallback; map legacy saved Marin values to Cedar.
+For the active receptionist Edward, Cedar is the default male persona only until a verified British-voice provider is wired into live calls. Do not reintroduce Marin as a selectable voice, saved default, or runtime fallback; map legacy saved Marin values to Cedar. Prompt-only accent guidance does not count as fixing a British-accent requirement.
 
-**Why:** The owner explicitly wants Edward to sound like a calm, mature, warm, clear male British receptionist, and does not want Marin retained for him.
+**Why:** The owner explicitly wants Edward to sound like a friendly male from Essex/southeast England, and live calls still sounded American after the prompt-only change.
 
-**How to apply:** Keep Cedar first/default in receptionist settings, use its persona direction in preview and live instructions, and preserve the one-time legacy-data conversion when evolving voice configuration.
+**How to apply:** Keep voice selections persisted and consistent across preview/live paths, but verify the acoustic provider output before claiming an accent. Any replacement must cover every active live-call mode and map all six personas to genuinely suitable British voices.
+
+For every receptionist, ask at most one clear question per spoken turn, then wait for the caller's answer before asking the next. Do not bundle unrelated details into a multi-part question.
+
+**Why:** The owner reports that callers are being asked too many questions at once, even though lead capture is otherwise working.
+
+**How to apply:** Enforce this in live-call turn instructions and verify it against real or realistic caller turns without dropping existing lead-capture fields.
 
 The saved receptionist greeting is the sole call-opening source and must be spoken once per call, including retries and fallback paths. Website learning may populate that saved greeting when blank, but must not also expose it as callable script or discard useful non-greeting facts.
 
