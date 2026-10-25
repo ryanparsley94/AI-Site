@@ -145,14 +145,14 @@ export default function Landing() {
             <img
               src="/hero-tradesperson.jpg"
               alt="Tradesperson taking a call on site"
-              className="w-full h-full object-cover object-center"
+              className="w-full h-full object-cover object-center md:object-contain md:object-right"
             />
             {/* Gradient overlays for readability */}
             <div className="absolute inset-0 bg-gradient-to-r from-[#0D171C] via-[#0D171C]/80 to-[#0D171C]/30" />
             <div className="absolute inset-0 bg-gradient-to-t from-[#0D171C] via-transparent to-transparent" />
           </div>
 
-          <div className="relative z-10 w-full max-w-7xl mx-auto px-6 py-14 md:py-24 grid md:grid-cols-2 gap-12 items-center">
+          <div className="relative z-10 w-full max-w-7xl mx-auto px-6 py-14 md:py-24 grid xl:grid-cols-2 gap-8 xl:gap-12 items-center">
             {/* Left — copy */}
             <div className="space-y-8">
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#36C6D5]/15 text-[#36C6D5] text-sm font-semibold border border-[#36C6D5]/30">
@@ -196,7 +196,7 @@ export default function Landing() {
             </div>
 
             {/* Right — AI chat demo card */}
-            <div className="relative hidden md:block">
+            <div className="relative hidden xl:block">
               <div className="relative bg-[#203038]/90 backdrop-blur-md border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
                 <div className="bg-[#0D171C] px-5 py-3.5 flex items-center gap-3 border-b border-white/10">
                   <div className="flex gap-1.5">
@@ -309,16 +309,16 @@ export default function Landing() {
         </section>
 
         {/* Photo break — electrician on site */}
-        <section className="relative h-72 md:h-96 overflow-hidden">
+        <section className="relative h-72 bg-[#0D171C] md:h-[28rem] lg:h-[34rem] overflow-hidden">
           <img
             src="/hero-electrician.jpg"
             alt="Electrician on site handling a call"
-            className="w-full h-full object-cover object-top"
+            className="absolute inset-0 w-full h-full object-cover object-top md:inset-y-0 md:left-auto md:right-0 md:w-[min(48vw,35rem)] md:object-contain md:object-right"
           />
           <div className="absolute inset-0 bg-gradient-to-r from-[#0D171C] via-[#0D171C]/60 to-transparent" />
           <div className="absolute inset-0 flex items-center">
             <div className="max-w-7xl mx-auto px-6">
-              <p className="text-2xl md:text-3xl font-extrabold text-white max-w-md leading-snug">
+              <p className="text-2xl md:text-3xl font-extrabold text-white max-w-md md:max-w-[40%] leading-snug">
                 Out on the tools. Still on the call.
               </p>
             </div>
