@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 import { pool } from "@workspace/db";
 import { logger } from "./logger";
+import { z } from "zod";
 
 export type PhoneTranscriptEntry = {
   speaker: "caller" | "assistant";
@@ -8,16 +9,18 @@ export type PhoneTranscriptEntry = {
   timestamp: number;
 };
 
-type ExtractedEnquiry = {
-  name: string | null;
-  callbackPhone: string | null;
-  work: string | null;
-  address: string | null;
-  urgency: "emergency" | "urgent" | "routine" | "unknown";
-  availability: string | null;
-  summary: string;
-  safetyConcern: boolean;
-};
+const extractedEnquirySchema = z.object({
+  name: z.string().max(500).nullable(),
+  callbackPhone: z.string().max(100).nullable(),
+  work: z.string().max(5000).nullable(),
+  address: z.string().max(2000).nullable(),
+  urgency: z.enum(["emergency", "urgent", "routine", "unknown"]),
+  availability: z.string().max(2000).nullable(),
+  summary: z.string().trim().min(1).max(5000),
+  safetyConcern: z.boolean(),
+}).strict();
+
+type ExtractedEnquiry = z.infer<typeof extractedEnquirySchema>;
 
 type FinaliseInput = {
   callSid: string;
@@ -65,6 +68,7 @@ async function extractEnquiry(transcript: PhoneTranscriptEntry[]): Promise<Extra
   try {
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
+      signal: AbortSignal.timeout(15_000),
       headers: {
         Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
         "Content-Type": "application/json",
@@ -126,7 +130,7 @@ async function extractEnquiry(transcript: PhoneTranscriptEntry[]): Promise<Extra
     };
     const raw = json.choices?.[0]?.message?.content;
     if (!raw) throw new Error("Post-call extraction returned no content");
-    return JSON.parse(raw) as ExtractedEnquiry;
+    return extractedEnquirySchema.parse(JSON.parse(raw));
   } catch (error) {
     logger.warn({ err: error }, "Post-call extraction failed; raw transcript preserved");
     return fallbackExtraction(transcript);
@@ -301,31 +305,60 @@ async function confirmCaller(
 }
 
 export async function finaliseRealtimeEnquiry(input: FinaliseInput): Promise<void> {
-  const sessionResult = await pool.query<{
-    caller_phone: string;
-    completed: boolean;
-  }>(
-    "SELECT caller_phone,completed FROM voice_call_sessions WHERE call_sid=$1 LIMIT 1",
-    [input.callSid],
-  );
-  const session = sessionResult.rows[0];
+  // Stream parameters alone are not an ownership boundary. Require the durable
+  // session, call and assistant to agree before reading a caller or writing CRM.
+  const capture = await pool.connect();
+  let session: { caller_phone: string; completed: boolean } | undefined;
+  try {
+    await capture.query("BEGIN");
+    const sessionResult = await capture.query<{
+      caller_phone: string;
+      completed: boolean;
+    }>(
+      `SELECT s.caller_phone,s.completed
+         FROM voice_call_sessions s
+         JOIN calls c ON c.id=s.call_id AND c.company_id=s.company_id
+         JOIN assistants a ON a.id=s.assistant_id AND a.company_id=s.company_id
+        WHERE s.call_sid=$1 AND s.company_id=$2 AND s.call_id=$3 AND s.assistant_id=$4
+        FOR UPDATE OF s,c`,
+      [input.callSid, input.companyId, input.callId, input.assistantId],
+    );
+    session = sessionResult.rows[0];
+    // Keep the raw enquiry visible even if extraction stalls or finalisation is
+    // interrupted. Locking also prevents a late retry overwriting a completed call.
+    if (session && !session.completed) {
+      await capture.query(
+        `UPDATE calls SET transcript=$3::jsonb,duration=$4,updated_at=now()
+          WHERE id=$1 AND company_id=$2`,
+        [input.callId, input.companyId, JSON.stringify(input.transcript), input.durationSeconds],
+      );
+    }
+    await capture.query("COMMIT");
+  } catch (error) {
+    await capture.query("ROLLBACK");
+    throw error;
+  } finally {
+    capture.release();
+  }
   if (!session || session.completed) return;
 
   const enquiry = await extractEnquiry(input.transcript);
   const verifiedInboundNumber = e164ish(session.caller_phone) ?? session.caller_phone;
   const primaryPhone =
     e164ish(session.caller_phone) ??
-    e164ish(enquiry.callbackPhone) ??
-    (session.caller_phone.trim() || "") ??
-    "";
+    e164ish(enquiry.callbackPhone) ?? "";
 
   const client = await pool.connect();
   let shouldNotify = false;
   try {
     await client.query("BEGIN");
     const locked = await client.query<{ completed: boolean }>(
-      "SELECT completed FROM voice_call_sessions WHERE call_sid=$1 FOR UPDATE",
-      [input.callSid],
+      `SELECT s.completed FROM voice_call_sessions s
+         JOIN calls c ON c.id=s.call_id AND c.company_id=s.company_id
+         JOIN assistants a ON a.id=s.assistant_id AND a.company_id=s.company_id
+        WHERE s.call_sid=$1 AND s.company_id=$2 AND s.call_id=$3 AND s.assistant_id=$4
+        FOR UPDATE OF s,c`,
+      [input.callSid, input.companyId, input.callId, input.assistantId],
     );
     if (!locked.rows[0] || locked.rows[0].completed) {
       await client.query("COMMIT");
@@ -396,8 +429,7 @@ export async function finaliseRealtimeEnquiry(input: FinaliseInput): Promise<voi
 
     await client.query(
       `UPDATE calls
-          SET company_id=$2,
-              caller_name=$3,
+          SET caller_name=$3,
               caller_phone=$4,
               contact_id=$5,
                status=CASE WHEN job_id IS NOT NULL THEN status ELSE 'unresolved' END,
@@ -406,7 +438,7 @@ export async function finaliseRealtimeEnquiry(input: FinaliseInput): Promise<voi
               transcript=$8::jsonb,
               duration=$9,
               updated_at=now()
-        WHERE id=$1`,
+        WHERE id=$1 AND company_id=$2`,
       [
         input.callId,
         input.companyId,
