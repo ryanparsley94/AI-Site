@@ -10,7 +10,8 @@
     "dev": "export NODE_ENV=development && pnpm run build && pnpm run start",
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test:realtime-finalise": "node test/build-realtime-finalise.mjs && node --test test/.realtime-finalise.test.mjs; result=$?; rm -f test/.realtime-finalise.test.mjs; exit $result"
   },
   "dependencies": {
     "@replit/connectors-sdk": "^0.4.1",
