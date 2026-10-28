@@ -63,13 +63,32 @@ test.describe("responsive CREWON daily workflow", () => {
     for (const label of ["home", "jobs", "scheduler", "sales", "more"]) {
       const link = page.getByTestId(`mobile-nav-${label}`);
       await expect(link).toBeVisible();
-      expect((await link.boundingBox())?.height).toBeGreaterThanOrEqual(58);
+      expect((await link.boundingBox())?.height).toBeGreaterThanOrEqual(64);
     }
     await page.getByTestId("mobile-nav-scheduler").click();
     await expect(page.getByTestId("page-schedule")).toBeVisible();
     await page.getByTestId("mobile-nav-more").click();
     await expect(page.getByTestId("mobile-nav-more")).toHaveAttribute("aria-expanded", "true");
     await expect(page.getByTestId("link-sidebar-home").last()).toBeVisible();
+  });
+
+  test("public mobile navigation and primary actions have touch-sized targets", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/");
+
+    const getStarted = page.getByRole("button", { name: "Get Started" });
+    expect((await getStarted.boundingBox())?.height).toBeGreaterThanOrEqual(48);
+    const menuButton = page.getByRole("button", { name: "Open navigation menu" });
+    expect((await menuButton.boundingBox())?.height).toBeGreaterThanOrEqual(48);
+    await menuButton.click();
+
+    const mobileNavigation = page.getByRole("navigation", { name: "Mobile navigation" });
+    await expect(mobileNavigation).toBeVisible();
+    for (const label of ["Features", "How it Works", "Pricing", "FAQ", "Login"]) {
+      expect((await mobileNavigation.getByRole("link", { name: label }).boundingBox())?.height).toBeGreaterThanOrEqual(48);
+    }
+    await mobileNavigation.getByRole("link", { name: "Pricing" }).click();
+    await expect(mobileNavigation).not.toBeVisible();
   });
 
   test("day and week timelines position duration-sized overlaps; month agenda is tappable without horizontal scrolling", async ({ page }) => {

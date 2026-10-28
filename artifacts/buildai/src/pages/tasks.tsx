@@ -28,6 +28,7 @@ import {
   ShieldCheck,
   ListTodo,
   ArrowUpRight,
+  ArrowLeft,
 } from "lucide-react";
 import { Link } from "wouter";
 import { cn } from "@/lib/utils";
@@ -41,10 +42,10 @@ const PRIORITY_COLORS: Record<TaskPriority, string> = {
 };
 
 const TASK_SECTIONS = [
-  { id: "quotes", label: "Quotes", icon: FileText, path: "/quotes", color: "border-cyan-500/35 bg-cyan-500/5 text-cyan-800 dark:text-cyan-200", dot: "bg-cyan-500" },
-  { id: "invoices", label: "Invoices", icon: Receipt, path: "/invoices", color: "border-blue-500/35 bg-blue-500/5 text-blue-800 dark:text-blue-200", dot: "bg-blue-500" },
-  { id: "certificates", label: "Certificates", icon: ShieldCheck, path: "/certificates", color: "border-amber-500/35 bg-amber-500/5 text-amber-900 dark:text-amber-200", dot: "bg-amber-500" },
-  { id: "todo", label: "To-do List", icon: ListTodo, path: "/tasks", color: "border-slate-500/30 bg-slate-500/5 text-foreground", dot: "bg-slate-500" },
+  { id: "quotes", label: "Quotes to Do", icon: FileText, path: "/quotes", color: "border-cyan-500/35 bg-cyan-500/5 text-cyan-800 dark:text-cyan-200", dot: "bg-cyan-500" },
+  { id: "invoices", label: "Invoices to Do", icon: Receipt, path: "/invoices", color: "border-blue-500/35 bg-blue-500/5 text-blue-800 dark:text-blue-200", dot: "bg-blue-500" },
+  { id: "certificates", label: "Certificates to Do", icon: ShieldCheck, path: "/certificates", color: "border-amber-500/35 bg-amber-500/5 text-amber-900 dark:text-amber-200", dot: "bg-amber-500" },
+  { id: "todo", label: "General To-do", icon: ListTodo, path: "/tasks", color: "border-slate-500/30 bg-slate-500/5 text-foreground", dot: "bg-slate-500" },
 ] as const;
 
 type TaskSectionId = typeof TASK_SECTIONS[number]["id"];
@@ -67,6 +68,8 @@ export default function Tasks() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [showCompleted, setShowCompleted] = useState(false);
+  const [activeSection, setActiveSection] = useState<TaskSectionId | null>(null);
+  const [searchText, setSearchText] = useState("");
   const [newTitle, setNewTitle] = useState("");
   const today = useLocalDay();
 
@@ -85,6 +88,23 @@ export default function Tasks() {
   );
   const pendingBySection = groupedTasks(pendingTasks);
   const completedBySection = groupedTasks(completedTasks);
+  const currentSection = TASK_SECTIONS.find((section) => section.id === activeSection);
+  const currentPending = activeSection ? pendingBySection[activeSection] : [];
+  const currentCompleted = activeSection ? completedBySection[activeSection] : [];
+  const normalizedSearch = searchText.trim().toLowerCase();
+  const visiblePending = currentPending.filter((task) => task.title.toLowerCase().includes(normalizedSearch));
+  const visibleCompleted = currentCompleted.filter((task) => task.title.toLowerCase().includes(normalizedSearch));
+
+  const openSection = (section: TaskSectionId) => {
+    setActiveSection(section);
+    setSearchText("");
+    setShowCompleted(false);
+  };
+  const closeSection = () => {
+    setActiveSection(null);
+    setSearchText("");
+    setShowCompleted(false);
+  };
 
   const handleAdd = async () => {
     const title = newTitle.trim();
@@ -151,7 +171,7 @@ export default function Tasks() {
   };
 
   return (
-    <div className="mx-auto max-w-2xl space-y-5 px-4 py-5 pb-32 sm:space-y-6 sm:p-6">
+      <div className="mx-auto max-w-5xl space-y-5 px-4 py-5 pb-32 sm:space-y-6 sm:p-6">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -178,7 +198,7 @@ export default function Tasks() {
         </Button>
       </div>
       <p className="text-xs text-muted-foreground">
-        Tasks are grouped by what their wording refers to; general actions stay in To-do List. Completing an invoice task does not mark its invoice paid.
+        Tasks are grouped by what their wording refers to; general actions stay in General To-do. Completing an invoice task does not mark its invoice paid.
       </p>
 
       {/* Add task input */}
@@ -227,74 +247,115 @@ export default function Tasks() {
       )}
 
       {/* Pending tasks stay as task records; invoice payment state never changes task completion. */}
-      {!isLoading && (
-        <div className="grid gap-4 md:grid-cols-2">
-          {TASK_SECTIONS.map((section) => {
-            const Icon = section.icon;
-            const sectionTasks = pendingBySection[section.id];
-            const sectionOverdue = sectionTasks.filter((task) => overdueDays(task, today) > 0).length;
-            return (
-              <section key={section.id} data-testid={`task-section-${section.id}`} className={cn("min-w-0 rounded-xl border p-4 sm:p-5", section.color)}>
-                <header className="mb-3 flex items-center justify-between gap-3 border-b border-current/10 pb-3">
-                  <h2 className="flex min-w-0 items-center gap-2 text-sm font-semibold">
-                    <span aria-hidden="true" className={cn("h-2.5 w-2.5 shrink-0 rounded-full", section.dot)} />
-                    <Icon size={17} aria-hidden="true" />
-                    {section.label}
-                  </h2>
-                  <span className="shrink-0 rounded-full bg-background/70 px-2 py-0.5 text-xs font-semibold tabular-nums" aria-label={`${sectionTasks.length} pending, ${sectionOverdue} overdue`}>
-                    {sectionTasks.length} pending{sectionOverdue ? ` · ${sectionOverdue} overdue` : ""}
+      {!isLoading && (activeSection === null ? (
+        <section aria-label="Task categories" className="space-y-3" data-testid="task-categories">
+          <div>
+            <h2 className="text-lg font-bold text-foreground">What do you need to work on?</h2>
+            <p className="text-sm text-muted-foreground">Choose one category to open its tasks.</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
+            {TASK_SECTIONS.map((section) => {
+              const Icon = section.icon;
+              const sectionTasks = pendingBySection[section.id];
+              const sectionOverdue = sectionTasks.filter((task) => overdueDays(task, today) > 0).length;
+              return (
+                <button
+                  type="button"
+                  key={section.id}
+                  data-testid={`task-section-${section.id}`}
+                  aria-label={`Open ${section.label}, ${sectionTasks.length} pending tasks`}
+                  onClick={() => openSection(section.id)}
+                  className={cn(
+                    "group flex min-h-[156px] min-w-0 flex-col justify-between gap-3 rounded-2xl border-2 p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:min-h-[176px] sm:p-5",
+                    section.color
+                  )}
+                >
+                  <span className="flex w-full items-center justify-between gap-2">
+                    <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-background/80 shadow-sm">
+                      <Icon size={25} aria-hidden="true" />
+                    </span>
+                    <ArrowUpRight size={23} className="shrink-0 opacity-60 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" aria-hidden="true" />
                   </span>
-                </header>
-                {sectionTasks.length ? (
-                  <div className="space-y-2">
-                    {sectionTasks.map((task) => (
-                      <TaskRow key={task.id} task={task} today={today} openPath={section.path}
+                  <span className="space-y-1">
+                    <span className="block text-base font-bold leading-tight sm:text-xl">{section.label}</span>
+                    <span className="block text-sm font-semibold tabular-nums">
+                      {sectionTasks.length} pending{sectionOverdue > 0 ? ` · ${sectionOverdue} overdue` : ""}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      ) : (
+        <section className="space-y-4" data-testid={`task-panel-${activeSection}`} aria-labelledby="active-task-category">
+          <button
+            type="button"
+            data-testid="back-to-task-categories"
+            onClick={closeSection}
+            className="inline-flex min-h-12 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-primary hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+          >
+            <ArrowLeft size={19} aria-hidden="true" /> All task categories
+          </button>
+          <div className="rounded-2xl border bg-card p-4 shadow-sm sm:p-6">
+            <header className="flex flex-wrap items-center justify-between gap-2 border-b pb-4">
+              <h2 id="active-task-category" className="text-xl font-bold sm:text-2xl">{currentSection?.label}</h2>
+              <span className="rounded-full bg-muted px-3 py-1 text-sm font-semibold tabular-nums">
+                {currentPending.length} pending
+              </span>
+            </header>
+            <label htmlFor="task-list-search" className="mb-2 mt-4 block text-sm font-semibold text-foreground">
+              Search {currentSection?.label.toLowerCase()} tasks
+            </label>
+            <Input
+              id="task-list-search"
+              type="search"
+              placeholder="Search this task list…"
+              className="mb-4 min-h-12"
+              value={searchText}
+              onChange={(event) => setSearchText(event.target.value)}
+            />
+            {visiblePending.length > 0 ? (
+              <div className="space-y-2" data-testid="task-list-pending">
+                {visiblePending.map((task) => (
+                  <TaskRow key={task.id} task={task} today={today} openPath={currentSection?.path ?? "/tasks"}
+                    onToggle={handleToggle} onDismiss={handleDismiss} onDelete={handleDelete}
+                    onCyclePriority={handleCyclePriority} />
+                ))}
+              </div>
+            ) : (
+              <p className="rounded-xl border border-dashed bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+                {normalizedSearch ? "No tasks match your search." : `No pending tasks in ${currentSection?.label}.`}
+              </p>
+            )}
+            {currentCompleted.length > 0 && (
+              <div className="mt-5 border-t pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowCompleted((value) => !value)}
+                  aria-expanded={showCompleted}
+                  className="inline-flex min-h-12 items-center gap-2 rounded-xl px-3 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  {showCompleted ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                  {currentCompleted.length} completed / dismissed
+                </button>
+                {showCompleted && (
+                  <div className="mt-3 space-y-2" data-testid="task-list-completed">
+                    {visibleCompleted.map((task) => (
+                      <TaskRow key={task.id} task={task} today={today} openPath={currentSection?.path ?? "/tasks"}
                         onToggle={handleToggle} onDismiss={handleDismiss} onDelete={handleDelete}
                         onCyclePriority={handleCyclePriority} />
                     ))}
-                  </div>
-                ) : (
-                  <div className="rounded-lg border border-dashed border-current/20 bg-background/35 px-3 py-5 text-sm text-muted-foreground">
-                    No pending {section.label.toLowerCase()} tasks.
+                    {visibleCompleted.length === 0 && (
+                      <p className="px-3 py-4 text-sm text-muted-foreground">No completed tasks match your search.</p>
+                    )}
                   </div>
                 )}
-              </section>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Completed / dismissed tasks toggle */}
-      {!isLoading && completedTasks.length > 0 && (
-        <div className="space-y-2">
-          <button
-            onClick={() => setShowCompleted((v) => !v)}
-            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            {showCompleted ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-            {completedTasks.length} completed / dismissed
-          </button>
-
-          {showCompleted && (
-            <div className="grid gap-4 pt-3 md:grid-cols-2">
-              {TASK_SECTIONS.map((section) => {
-                const Icon = section.icon;
-                const sectionTasks = completedBySection[section.id];
-                return (
-                  <section key={section.id} className="min-w-0 rounded-xl border bg-card p-3 opacity-70 sm:p-4">
-                    <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground"><Icon size={16} />{section.label} · {sectionTasks.length}</h3>
-                    {sectionTasks.length ? <div className="space-y-2">{sectionTasks.map((task) => (
-                      <TaskRow key={task.id} task={task} today={today} openPath={section.path}
-                        onToggle={handleToggle} onDismiss={handleDismiss} onDelete={handleDelete}
-                        onCyclePriority={handleCyclePriority} />
-                    ))}</div> : <p className="text-sm text-muted-foreground">No completed tasks in this section.</p>}
-                  </section>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
+              </div>
+            )}
+          </div>
+        </section>
+      ))}
     </div>
   );
 }
@@ -386,7 +447,7 @@ function TaskRow({ task, today, openPath, onToggle, onDismiss, onDelete, onCycle
         title="Click to change priority"
         aria-label={`Change priority for ${task.title}; current priority ${task.priority}`}
         className={cn(
-          "hidden min-h-10 sm:inline-flex text-xs px-3 py-1 rounded-full border font-medium shrink-0 transition-opacity",
+          "hidden min-h-11 sm:inline-flex text-xs px-3 py-1 rounded-full border font-medium shrink-0 transition-opacity",
           PRIORITY_COLORS[task.priority],
           isDone && "opacity-50"
         )}
@@ -399,7 +460,7 @@ function TaskRow({ task, today, openPath, onToggle, onDismiss, onDelete, onCycle
         {!isDone && (
           <button
             onClick={() => onDismiss(task)}
-            className="min-h-10 px-3 text-xs text-muted-foreground hover:text-foreground rounded-lg transition-colors"
+            className="min-h-11 px-3 text-xs text-muted-foreground hover:text-foreground rounded-lg transition-colors"
             title="Dismiss"
           >
             Dismiss
@@ -407,7 +468,7 @@ function TaskRow({ task, today, openPath, onToggle, onDismiss, onDelete, onCycle
         )}
         <button
           onClick={() => onDelete(task)}
-          className="flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+          className="flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
           title="Delete"
           aria-label={`Delete task: ${task.title}`}
         >

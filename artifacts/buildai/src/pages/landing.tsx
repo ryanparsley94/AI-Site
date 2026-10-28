@@ -91,22 +91,22 @@ export default function Landing() {
         <div className="flex items-center gap-2.5 font-bold text-xl">
           <BrandLogo className="h-6 min-[360px]:h-8 sm:h-11 w-auto" />
         </div>
-        <nav className="hidden md:flex gap-8 text-sm font-medium text-white/60">
-          <a href="#features" className="hover:text-white transition-colors">Features</a>
-          <a href="#how-it-works" className="hover:text-white transition-colors">How it Works</a>
-          <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
-          <a href="#faq" className="hover:text-white transition-colors">FAQ</a>
+        <nav className="hidden md:flex gap-5 text-sm font-medium text-white/60">
+          <a href="#features" className="inline-flex min-h-12 items-center px-1 hover:text-white transition-colors">Features</a>
+          <a href="#how-it-works" className="inline-flex min-h-12 items-center px-1 hover:text-white transition-colors">How it Works</a>
+          <a href="#pricing" className="inline-flex min-h-12 items-center px-1 hover:text-white transition-colors">Pricing</a>
+          <a href="#faq" className="inline-flex min-h-12 items-center px-1 hover:text-white transition-colors">FAQ</a>
         </nav>
         <div className="flex items-center gap-2 md:gap-4">
-          <Link href="/dashboard" className="hidden md:inline text-sm font-medium text-white/70 hover:text-white transition-colors">
+          <Link href="/dashboard" className="hidden md:inline-flex min-h-12 items-center rounded-xl px-3 text-sm font-medium text-white/70 hover:bg-white/10 hover:text-white transition-colors">
             Login
           </Link>
           <Link href="/dashboard">
-            <Button className="font-bold bg-[#36C6D5] hover:bg-[#2fb3c1] text-[#0D171C] border-0">Get Started</Button>
+            <Button className="min-h-12 px-5 font-bold bg-[#36C6D5] hover:bg-[#2fb3c1] text-[#0D171C] border-0">Get Started</Button>
           </Link>
           <button
             type="button"
-            className="md:hidden flex h-11 w-11 items-center justify-center rounded-md text-white/80 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#36C6D5]"
+            className="md:hidden flex h-12 w-12 items-center justify-center rounded-xl text-white/80 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#36C6D5]"
             aria-label={mobileNavOpen ? "Close navigation menu" : "Open navigation menu"}
             aria-expanded={mobileNavOpen}
             aria-controls="mobile-navigation"
@@ -128,11 +128,11 @@ export default function Landing() {
               }
             }}
           >
-            <a href="#features" onClick={handleMobileNavClick} className="block rounded-md px-3 py-3 hover:bg-white/10 hover:text-white">Features</a>
-            <a href="#how-it-works" onClick={handleMobileNavClick} className="block rounded-md px-3 py-3 hover:bg-white/10 hover:text-white">How it Works</a>
-            <a href="#pricing" onClick={handleMobileNavClick} className="block rounded-md px-3 py-3 hover:bg-white/10 hover:text-white">Pricing</a>
-            <a href="#faq" onClick={handleMobileNavClick} className="block rounded-md px-3 py-3 hover:bg-white/10 hover:text-white">FAQ</a>
-            <Link href="/dashboard" className="block rounded-md px-3 py-3 hover:bg-white/10 hover:text-white">Login</Link>
+            <a href="#features" onClick={handleMobileNavClick} className="flex min-h-12 items-center rounded-xl px-4 hover:bg-white/10 hover:text-white">Features</a>
+            <a href="#how-it-works" onClick={handleMobileNavClick} className="flex min-h-12 items-center rounded-xl px-4 hover:bg-white/10 hover:text-white">How it Works</a>
+            <a href="#pricing" onClick={handleMobileNavClick} className="flex min-h-12 items-center rounded-xl px-4 hover:bg-white/10 hover:text-white">Pricing</a>
+            <a href="#faq" onClick={handleMobileNavClick} className="flex min-h-12 items-center rounded-xl px-4 hover:bg-white/10 hover:text-white">FAQ</a>
+            <Link href="/dashboard" className="flex min-h-12 items-center rounded-xl px-4 hover:bg-white/10 hover:text-white">Login</Link>
           </nav>
         )}
       </header>

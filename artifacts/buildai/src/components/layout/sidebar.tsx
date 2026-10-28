@@ -122,7 +122,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         {onClose && (
           <button
             onClick={onClose}
-            className="absolute right-3 top-3 rounded-sm p-1.5 text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground md:hidden"
+            className="absolute right-3 top-3 flex min-h-11 min-w-11 items-center justify-center rounded-xl text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground md:hidden"
             aria-label="Close menu"
             data-testid="button-close-sidebar"
           >
@@ -156,7 +156,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
                     onClick={onClose}
                     data-testid={`nav-${item.label.toLowerCase().replaceAll(" ", "-")}`}
                     className={cn(
-                      "group relative flex min-h-10 items-center gap-3 border-l-2 px-3 py-2 text-[13px] font-medium transition-colors",
+                      "group relative flex min-h-12 items-center gap-3 border-l-2 px-3 py-2 text-[13px] font-medium transition-colors",
                       isActive
                         ? "border-sidebar-primary bg-sidebar-accent/85 text-sidebar-accent-foreground"
                         : "border-transparent text-sidebar-foreground/60 hover:border-sidebar-foreground/15 hover:bg-sidebar-accent/45 hover:text-sidebar-foreground",
@@ -170,6 +170,9 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
                     <span className="flex-1">{item.label}</span>
                     {badgeCount > 0 && (
                       <span
+                        aria-label={item.href === "/tasks"
+                          ? `${pendingTaskCount} pending task${pendingTaskCount === 1 ? "" : "s"}`
+                          : undefined}
                         className={cn(
                           "min-w-[20px] px-1.5 py-0.5 text-center font-mono text-[9px] font-semibold",
                           item.href === "/calls"
