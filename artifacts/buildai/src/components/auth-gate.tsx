@@ -88,6 +88,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
               <Input
                 id="password"
                 type={showPassword ? "text" : "password"}
+                autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your password"
@@ -120,9 +121,6 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
           </Button>
         </form>
 
-        <p className="text-center text-xs text-white/30">
-          Your password is the SESSION_SECRET set on the server.
-        </p>
       </div>
     </div>
   );

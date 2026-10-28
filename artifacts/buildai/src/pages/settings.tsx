@@ -751,7 +751,7 @@ export default function Settings() {
                       Admin authentication required
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Widget settings are protected. Enter your admin password (the <code className="font-mono bg-muted px-1 rounded">SESSION_SECRET</code> value set in your Replit environment) to continue.
+                      Widget settings are protected. Enter your CREWON dashboard password to continue.
                     </p>
                     <form onSubmit={handleAdminLogin} className="flex flex-col gap-3 max-w-sm">
                       <Input

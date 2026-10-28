@@ -126,5 +126,6 @@ export function adminOnly(
     res.status(401).json({ error: "Unauthorized — admin session required" });
     return;
   }
+  res.setHeader("Cache-Control", "no-store");
   next();
 }
