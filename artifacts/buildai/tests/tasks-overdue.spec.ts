@@ -66,6 +66,7 @@ test.describe("task list carry-forward", () => {
   test("overdue first, clear labels, no overdue flag on completed or undated tasks", async ({ page }) => {
     await page.goto("/tasks");
     await expect(page.getByText("4 pending tasks · 2 overdue")).toBeVisible();
+    await page.getByTestId("task-section-todo").click();
     expect(await page.locator('[data-testid^="task-row-"]').evaluateAll(rows => rows.map(r => r.getAttribute("data-testid"))))
       .toEqual(["task-row-3", "task-row-2", "task-row-1", "task-row-4"]);
     await expect(page.getByTestId("task-row-2")).toContainText("Overdue · from yesterday");
@@ -77,11 +78,13 @@ test.describe("task list carry-forward", () => {
     await expect(page.getByTestId("task-row-5")).not.toContainText("Overdue");
     await expect(page.getByTestId("task-row-6")).not.toContainText("Overdue");
     await page.reload();
+    await page.getByTestId("task-section-todo").click();
     await expect(page.getByTestId("task-row-2")).toContainText("Overdue · from yesterday");
   });
 
   test("completion and dismissal remove overdue indicators; reopening restores them", async ({ page }) => {
     await page.goto("/tasks");
+    await page.getByTestId("task-section-todo").click();
     await page.getByTestId("task-row-2").getByTitle("Mark complete", { exact: true }).click();
     await expect(page.getByText("3 pending tasks · 1 overdue")).toBeVisible();
     await page.getByRole("button", { name: "3 completed / dismissed" }).click();
@@ -97,6 +100,7 @@ test.describe("task list carry-forward", () => {
   test("open page rolls over at local midnight without changing due dates", async ({ page }) => {
     await page.clock.setSystemTime(new Date("2026-10-08T23:59:59-07:00"));
     await page.goto("/tasks");
+    await page.getByTestId("task-section-todo").click();
     await expect(page.getByTestId("task-row-1")).not.toContainText("Overdue");
     await page.clock.runFor(2000);
     await expect(page.getByText("4 pending tasks · 3 overdue")).toBeVisible();
@@ -108,10 +112,11 @@ test.describe("task list carry-forward", () => {
   test("overdue label stays visible on a phone-sized screen", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/tasks");
+    await page.getByTestId("task-section-todo").click();
     await expect(page.getByText("Overdue · from yesterday", { exact: true })).toBeVisible();
   });
 
-  test("groups existing actionable task records once and keeps invoice-task completion separate", async ({ page }) => {
+  test("opens one large category at a time, preserving task links and completion rules", async ({ page }) => {
     tasks = [
       task(11, "2026-10-07", "high"),
       task(12, "2026-10-09"),
@@ -129,26 +134,44 @@ test.describe("task list carry-forward", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/tasks");
 
-    await expect(page.getByTestId("task-section-quotes")).toContainText("1 pending · 1 overdue");
+    await expect(page.getByTestId("task-section-quotes")).toContainText("1 pending");
     await expect(page.getByTestId("task-section-invoices")).toContainText("1 pending");
-    await expect(page.getByTestId("task-section-certificates")).toContainText("1 pending · 1 overdue");
+    await expect(page.getByTestId("task-section-certificates")).toContainText("1 pending");
     await expect(page.getByTestId("task-section-todo")).toContainText("1 pending");
-    expect(await page.locator('[data-testid^="task-row-"]').count()).toBe(4);
-    await expect(page.getByTestId("task-row-12")).toHaveAttribute("data-testid", "task-row-12");
+    expect(await page.locator('[data-testid^="task-row-"]').count()).toBe(0);
+    const tile = page.getByTestId("task-section-invoices");
+    expect((await tile.boundingBox())?.height).toBeGreaterThanOrEqual(150);
+    await tile.click();
+    await expect(page.getByTestId("task-panel-invoices")).toBeVisible();
+    expect(await page.locator('[data-testid^="task-row-"]').count()).toBe(1);
     await expect(page.getByTestId("task-row-12").getByRole("link", { name: "Open invoices area" })).toHaveAttribute("href", "/invoices");
-    await expect(page.getByTestId("task-row-13").getByRole("link", { name: "Open job 91" })).toHaveAttribute("href", "/jobs/91");
 
     await page.getByTestId("task-row-12").getByTitle("Mark complete", { exact: true }).click();
-    await expect(page.getByTestId("task-section-invoices")).toContainText("0 pending");
     expect(tasks.find((item) => item.id === 12)?.status).toBe("completed");
+    await page.getByTestId("back-to-task-categories").click();
+    await expect(page.getByTestId("task-section-invoices")).toContainText("0 pending");
+
+    await page.getByTestId("task-section-todo").click();
+    await expect(page.getByTestId("task-row-13").getByRole("link", { name: "Open job 91" })).toHaveAttribute("href", "/jobs/91");
+    await page.getByLabel("Search to-do list tasks").fill("not here");
+    await expect(page.getByText("No tasks match your search.")).toBeVisible();
+    await page.getByLabel("Search to-do list tasks").fill("customer");
+    await expect(page.getByTestId("task-row-13")).toBeVisible();
+    await page.getByTestId("back-to-task-categories").click();
+    await page.getByTestId("task-section-certificates").click();
+    await expect(page.getByTestId("task-row-14")).toContainText("EICR");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });
 
-  test("shows all four honest empty sections when there are no task records", async ({ page }) => {
+  test("shows four selectable zero-count categories when there are no tasks", async ({ page }) => {
     tasks = [];
     await page.goto("/tasks");
     for (const section of ["quotes", "invoices", "certificates", "todo"]) {
       await expect(page.getByTestId(`task-section-${section}`)).toContainText("0 pending");
-      await expect(page.getByTestId(`task-section-${section}`)).toContainText("No pending");
     }
+    await page.getByTestId("task-section-quotes").click();
+    await expect(page.getByText("No pending quotes tasks.")).toBeVisible();
+    await page.getByTestId("back-to-task-categories").click();
+    await expect(page.getByTestId("task-categories")).toBeVisible();
   });
 });

@@ -27,7 +27,7 @@ test.beforeEach(async ({ page }) => {
 
 test("counts only pending tasks and follows completion/reopening through the shared query", async ({ page }) => {
   await page.goto("/tasks");
-  const nav = page.getByRole("link", { name: /Daily Tasks/ });
+  const nav = page.getByRole("link", { name: /Tasks/ });
   await expect(nav.getByLabel("2 pending tasks")).toHaveText("2");
   await page.getByTestId("task-row-1").getByTitle("Mark complete", { exact: true }).click();
   await expect(nav.getByLabel("1 pending task", { exact: true })).toHaveText("1");
