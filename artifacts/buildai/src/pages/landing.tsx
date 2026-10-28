@@ -98,15 +98,15 @@ export default function Landing() {
           <a href="#faq" className="hover:text-white transition-colors">FAQ</a>
         </nav>
         <div className="flex items-center gap-2 md:gap-4">
-          <Link href="/dashboard" className="hidden md:inline text-sm font-medium text-white/70 hover:text-white transition-colors">
+          <Link href="/dashboard" className="hidden md:inline-flex min-h-12 items-center rounded-xl px-3 text-base font-semibold text-white/70 hover:bg-white/10 hover:text-white transition-colors">
             Login
           </Link>
           <Link href="/dashboard">
-            <Button className="font-bold bg-[#36C6D5] hover:bg-[#2fb3c1] text-[#0D171C] border-0">Get Started</Button>
+            <Button className="min-h-12 rounded-xl px-5 text-base font-bold bg-[#36C6D5] hover:bg-[#2fb3c1] text-[#0D171C] border-0">Get Started</Button>
           </Link>
           <button
             type="button"
-            className="md:hidden flex h-11 w-11 items-center justify-center rounded-md text-white/80 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#36C6D5]"
+            className="md:hidden flex h-12 w-12 items-center justify-center rounded-xl text-white/80 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#36C6D5]"
             aria-label={mobileNavOpen ? "Close navigation menu" : "Open navigation menu"}
             aria-expanded={mobileNavOpen}
             aria-controls="mobile-navigation"
@@ -128,11 +128,11 @@ export default function Landing() {
               }
             }}
           >
-            <a href="#features" onClick={handleMobileNavClick} className="block rounded-md px-3 py-3 hover:bg-white/10 hover:text-white">Features</a>
-            <a href="#how-it-works" onClick={handleMobileNavClick} className="block rounded-md px-3 py-3 hover:bg-white/10 hover:text-white">How it Works</a>
-            <a href="#pricing" onClick={handleMobileNavClick} className="block rounded-md px-3 py-3 hover:bg-white/10 hover:text-white">Pricing</a>
-            <a href="#faq" onClick={handleMobileNavClick} className="block rounded-md px-3 py-3 hover:bg-white/10 hover:text-white">FAQ</a>
-            <Link href="/dashboard" className="block rounded-md px-3 py-3 hover:bg-white/10 hover:text-white">Login</Link>
+            <a href="#features" onClick={handleMobileNavClick} className="block min-h-12 rounded-xl px-4 py-3 text-base hover:bg-white/10 hover:text-white">Features</a>
+            <a href="#how-it-works" onClick={handleMobileNavClick} className="block min-h-12 rounded-xl px-4 py-3 text-base hover:bg-white/10 hover:text-white">How it Works</a>
+            <a href="#pricing" onClick={handleMobileNavClick} className="block min-h-12 rounded-xl px-4 py-3 text-base hover:bg-white/10 hover:text-white">Pricing</a>
+            <a href="#faq" onClick={handleMobileNavClick} className="block min-h-12 rounded-xl px-4 py-3 text-base hover:bg-white/10 hover:text-white">FAQ</a>
+            <Link href="/dashboard" className="block min-h-12 rounded-xl px-4 py-3 text-base hover:bg-white/10 hover:text-white">Login</Link>
           </nav>
         )}
       </header>
@@ -173,7 +173,7 @@ export default function Landing() {
 
               <div className="flex flex-col sm:flex-row gap-4">
                 <Link href="/dashboard">
-                  <Button size="lg" className="w-full sm:w-auto text-lg h-14 px-8 font-bold gap-2 bg-[#36C6D5] hover:bg-[#2fb3c1] text-[#0D171C] border-0">
+                  <Button size="lg" className="w-full sm:w-auto min-h-14 rounded-xl text-lg h-14 px-8 font-bold gap-2 bg-[#36C6D5] hover:bg-[#2fb3c1] text-[#0D171C] border-0">
                     Start Your Free Trial <ArrowRight size={20} />
                   </Button>
                 </Link>
@@ -181,7 +181,7 @@ export default function Landing() {
                   size="lg"
                   variant="outline"
                   onClick={() => setDemoOpen(true)}
-                  className="w-full sm:w-auto text-lg h-14 px-8 bg-white/5 border-white/20 text-white hover:bg-white/10 hover:text-white gap-2"
+                  className="w-full sm:w-auto min-h-14 rounded-xl text-lg h-14 px-8 bg-white/5 border-white/20 text-white hover:bg-white/10 hover:text-white gap-2"
                 >
                   <Play size={18} className="shrink-0" />
                   Hear a Demo Call
