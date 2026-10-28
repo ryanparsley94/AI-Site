@@ -90,7 +90,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           <BrandLogo className="h-10 w-auto" />
         </Link>
         {onClose && (
-          <button onClick={onClose} className="rounded-sm p-1.5 text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground md:hidden" aria-label="Close menu" data-testid="button-close-sidebar">
+          <button onClick={onClose} className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground md:hidden" aria-label="Close menu" data-testid="button-close-sidebar">
             <X size={19} />
           </button>
         )}
@@ -99,23 +99,23 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       <nav className="flex-1 px-3 pb-5 pt-3" aria-label="Main navigation">
         {navGroups.map((group) => (
           <div key={group.title} className="mb-4" data-testid={`nav-group-${group.title.toLowerCase().replaceAll(/[^a-z]+/g, "-")}`}>
-            <p className="mb-1.5 px-3 pt-2 text-[9px] font-semibold uppercase tracking-[.16em] text-sidebar-foreground/40">{group.title}</p>
-            <div className="space-y-0.5">
+            <p className="mb-1.5 px-3 pt-2 text-[11px] font-semibold uppercase tracking-[.16em] text-sidebar-foreground/40">{group.title}</p>
+            <div className="space-y-1">
               {group.items.map((item) => {
                 const isActive = location === item.href || location.startsWith(`${item.href}/`);
                 const badgeCount = item.href === "/tasks" ? pendingTaskCount : item.href === "/calls" ? unreviewedCount : item.href === "/assistants" ? pendingMarketingCount : 0;
                 return (
                   <Link key={item.href} href={item.href} onClick={onClose} data-testid={`nav-${item.label.toLowerCase().replaceAll(" ", "-")}`}
                     className={cn(
-                      "relative flex items-center gap-3 rounded-sm px-3 py-[9px] text-[13px] font-medium transition-colors",
+                      "relative flex min-h-12 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-sidebar-primary transition-colors",
                       isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground/65 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
                     )}>
-                    <item.icon size={16} strokeWidth={1.8} className={isActive ? "text-sidebar-primary" : "opacity-75"} />
+                    <item.icon size={19} strokeWidth={1.8} className={isActive ? "text-sidebar-primary" : "opacity-75"} />
                     <span className="flex-1">{item.label}</span>
                     {badgeCount > 0 && <span aria-label={item.href === "/assistants" ? `${badgeCount} pending marketing ${badgeCount === 1 ? "draft" : "drafts"}` : item.href === "/tasks" ? `${badgeCount} pending tasks` : `${badgeCount} unreviewed calls`}
                       data-testid={`badge-${item.label.toLowerCase().replaceAll(" ", "-")}`}
                       className={cn(
-                        "ml-auto flex h-[18px] min-w-[18px] items-center justify-center rounded-sm px-1 text-[10px] font-semibold leading-none",
+                        "ml-auto flex h-6 min-w-6 items-center justify-center rounded-full px-1.5 text-xs font-semibold leading-none",
                         item.href === "/assistants" ? "bg-red-600 text-white" : "bg-primary/15 text-primary",
                       )}>
                       {item.href === "/calls" && badgeCount > 99 ? "99+" : badgeCount}
@@ -129,12 +129,12 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       </nav>
       <div className="mt-auto border-t border-sidebar-border p-3">
         <Link href="/business-setup" onClick={onClose} data-testid="link-sidebar-pilot-setup"
-          className="block rounded-sm border border-sidebar-border/80 bg-sidebar-accent/35 px-3 py-3 transition-colors hover:bg-sidebar-accent/70">
+          className="block rounded-xl border border-sidebar-border/80 bg-sidebar-accent/35 px-3 py-3 transition-colors hover:bg-sidebar-accent/70">
           <div className="mb-1.5 flex items-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-sidebar-primary/70" />
             <span className="text-[11px] font-semibold">Business setup</span>
           </div>
-          <p className="text-[10px] leading-relaxed text-sidebar-foreground/50">Company profile, phone and email connections.</p>
+          <p className="text-xs leading-relaxed text-sidebar-foreground/65">Company profile, phone and email connections.</p>
         </Link>
       </div>
     </div>
