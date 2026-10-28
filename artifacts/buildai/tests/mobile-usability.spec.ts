@@ -60,11 +60,13 @@ test.describe("responsive CREWON daily workflow", () => {
   test("mobile quick navigation exposes core daily screens with touch-sized links", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/sales");
-    for (const label of ["home", "jobs", "scheduler", "sales", "more"]) {
+    for (const label of ["home", "jobs", "scheduler", "tasks", "more"]) {
       const link = page.getByTestId(`mobile-nav-${label}`);
       await expect(link).toBeVisible();
       expect((await link.boundingBox())?.height).toBeGreaterThanOrEqual(58);
     }
+    await page.getByTestId("mobile-nav-tasks").click();
+    await expect(page.getByTestId("task-categories")).toBeVisible();
     await page.getByTestId("mobile-nav-scheduler").click();
     await expect(page.getByTestId("page-schedule")).toBeVisible();
     await page.getByTestId("mobile-nav-more").click();
