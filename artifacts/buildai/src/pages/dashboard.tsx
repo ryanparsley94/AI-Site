@@ -15,6 +15,7 @@ import {
   ArrowRight,
   ArrowUpRight,
   Bot,
+  BriefcaseBusiness,
   CalendarDays,
   Check,
   ChevronRight,
@@ -24,7 +25,6 @@ import {
   Mail,
   Phone,
   PhoneMissed,
-  Plus,
   ReceiptText,
   Settings2,
   ShieldCheck,
@@ -83,16 +83,17 @@ function Metric({
   return (
     <Link
       href={href}
-      className="group min-w-0 border-r border-white/8 px-4 py-4 last:border-r-0 hover:bg-white/[.025] sm:px-5"
+      data-testid={`metric-${label.toLowerCase().replaceAll(" ", "-")}`}
+      className="group min-w-0 rounded-md border border-border/80 bg-card/80 px-3.5 py-3 transition-colors hover:border-primary/45 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:px-4 sm:py-3.5"
     >
       <div className="flex items-center justify-between gap-3">
         <p className="text-[10px] font-semibold uppercase tracking-[.18em] text-muted-foreground">{label}</p>
         <ArrowUpRight size={13} className="text-muted-foreground/50 transition-colors group-hover:text-primary" />
       </div>
-      <p className={`mt-2 font-mono text-2xl font-semibold tracking-[-.04em] ${alert ? "text-amber-300" : "text-foreground"}`}>
+      <p className={`mt-1.5 font-mono text-xl font-semibold tracking-[-.04em] sm:text-2xl ${alert ? "text-amber-300" : "text-foreground"}`}>
         {value}
       </p>
-      <p className="mt-1 truncate text-xs text-muted-foreground">{meta}</p>
+      <p className="mt-0.5 truncate text-[11px] text-muted-foreground sm:text-xs">{meta}</p>
     </Link>
   );
 }
@@ -290,18 +291,18 @@ export default function Dashboard() {
   return (
     <main className="crew-control-centre min-h-[100dvh] bg-background" data-testid="page-dashboard">
       <div className="border-b border-white/8 bg-[radial-gradient(circle_at_85%_-20%,rgba(54,198,213,.12),transparent_32%)]">
-        <div className="mx-auto max-w-[1500px] px-4 pb-6 pt-5 sm:px-6 lg:px-8">
-          <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+        <div className="mx-auto max-w-[1500px] px-4 pb-4 pt-3 sm:px-6 sm:pb-5 lg:px-8">
+          <div className="flex flex-col gap-3">
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-mono text-[10px] font-semibold uppercase tracking-[.2em] text-primary">CREWON // CONTROL CENTRE</span>
                 <span className="text-border">/</span>
                 <span className="text-xs text-muted-foreground">{companyQuery.isLoading ? "Loading workspace…" : company?.name || "Business workspace"}</span>
               </div>
-              <h1 className="mt-3 font-serif text-3xl font-semibold tracking-[-.055em] text-foreground sm:text-[2.3rem]">
+              <h1 className="mt-2 font-serif text-2xl font-semibold tracking-[-.055em] text-foreground sm:text-[2rem]">
                 Run the business from here.
               </h1>
-              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
+              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-muted-foreground sm:text-xs">
                 <span>{londonDate.format(new Date())}</span>
                 <span className="hidden h-3 w-px bg-border sm:block" />
                 <span className="inline-flex items-center gap-2">
@@ -315,18 +316,58 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              <Link href="/jobs" className="inline-flex min-h-11 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90">
-                <Plus size={16} /> New job
+            <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
+              <Link
+                href="/jobs"
+                data-testid="quick-action-new-job"
+                className="group flex min-h-[142px] min-w-0 flex-col justify-between overflow-hidden rounded-md border border-primary/30 bg-[linear-gradient(145deg,rgba(29,164,181,.26),rgba(25,43,53,.92)_72%)] p-3.5 text-foreground transition duration-200 hover:-translate-y-0.5 hover:border-primary/70 hover:bg-[linear-gradient(145deg,rgba(29,164,181,.34),rgba(25,43,53,.96)_72%)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:min-h-[154px] sm:p-4"
+              >
+                <span className="flex h-10 w-10 items-center justify-center rounded-md border border-primary/35 bg-primary/15 text-primary transition-colors group-hover:bg-primary/25">
+                  <BriefcaseBusiness size={21} strokeWidth={1.9} aria-hidden="true" />
+                </span>
+                <span className="flex items-end justify-between gap-2">
+                  <span className="min-w-0 text-sm font-semibold tracking-[-.02em] sm:text-base">New Job</span>
+                  <ArrowUpRight size={16} className="shrink-0 text-primary/80 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" aria-hidden="true" />
+                </span>
               </Link>
-              <Link href="/quotes" className="inline-flex min-h-11 items-center gap-2 rounded-md border border-border bg-card/60 px-4 text-sm font-medium hover:border-primary/50">
-                <FileText size={15} /> Quote
+              <Link
+                href="/quotes"
+                data-testid="quick-action-create-quote"
+                className="group flex min-h-[142px] min-w-0 flex-col justify-between overflow-hidden rounded-md border border-border bg-card/90 p-3.5 text-foreground transition duration-200 hover:-translate-y-0.5 hover:border-primary/60 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:min-h-[154px] sm:p-4"
+              >
+                <span className="flex h-10 w-10 items-center justify-center rounded-md border border-primary/25 bg-primary/10 text-primary transition-colors group-hover:bg-primary/20">
+                  <FileText size={21} strokeWidth={1.9} aria-hidden="true" />
+                </span>
+                <span className="flex items-end justify-between gap-2">
+                  <span className="min-w-0 text-sm font-semibold tracking-[-.02em] sm:text-base">Create Quote</span>
+                  <ArrowUpRight size={16} className="shrink-0 text-primary/80 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" aria-hidden="true" />
+                </span>
               </Link>
-              <Link href="/invoices" className="inline-flex min-h-11 items-center gap-2 rounded-md border border-border bg-card/60 px-4 text-sm font-medium hover:border-primary/50">
-                <ReceiptText size={15} /> Invoice
+              <Link
+                href="/invoices"
+                data-testid="quick-action-invoice"
+                className="group flex min-h-[142px] min-w-0 flex-col justify-between overflow-hidden rounded-md border border-border bg-card/90 p-3.5 text-foreground transition duration-200 hover:-translate-y-0.5 hover:border-primary/60 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:min-h-[154px] sm:p-4"
+              >
+                <span className="flex h-10 w-10 items-center justify-center rounded-md border border-primary/25 bg-primary/10 text-primary transition-colors group-hover:bg-primary/20">
+                  <ReceiptText size={21} strokeWidth={1.9} aria-hidden="true" />
+                </span>
+                <span className="flex items-end justify-between gap-2">
+                  <span className="min-w-0 text-sm font-semibold tracking-[-.02em] sm:text-base">Invoice</span>
+                  <ArrowUpRight size={16} className="shrink-0 text-primary/80 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" aria-hidden="true" />
+                </span>
               </Link>
-              <Link href="/calls" className="inline-flex min-h-11 items-center gap-2 rounded-md border border-border bg-card/60 px-4 text-sm font-medium hover:border-primary/50">
-                <Phone size={15} /> Enquiries
+              <Link
+                href="/calls"
+                data-testid="quick-action-enquiries"
+                className="group flex min-h-[142px] min-w-0 flex-col justify-between overflow-hidden rounded-md border border-border bg-card/90 p-3.5 text-foreground transition duration-200 hover:-translate-y-0.5 hover:border-primary/60 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:min-h-[154px] sm:p-4"
+              >
+                <span className="flex h-10 w-10 items-center justify-center rounded-md border border-primary/25 bg-primary/10 text-primary transition-colors group-hover:bg-primary/20">
+                  <Phone size={21} strokeWidth={1.9} aria-hidden="true" />
+                </span>
+                <span className="flex items-end justify-between gap-2">
+                  <span className="min-w-0 text-sm font-semibold tracking-[-.02em] sm:text-base">Enquiries</span>
+                  <ArrowUpRight size={16} className="shrink-0 text-primary/80 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" aria-hidden="true" />
+                </span>
               </Link>
             </div>
           </div>
@@ -334,7 +375,7 @@ export default function Dashboard() {
       </div>
 
       <div className="mx-auto max-w-[1500px] px-4 pb-12 sm:px-6 lg:px-8">
-        <section className="-mt-px grid overflow-hidden border border-border bg-card/80 shadow-[0_18px_60px_rgba(0,0,0,.12)] sm:grid-cols-2 xl:grid-cols-4">
+        <section className="mt-3 grid grid-cols-2 gap-2.5 sm:mt-4 sm:gap-3 xl:grid-cols-4" aria-label="Live business metrics">
           <Metric
             label="Calls today"
             value={summaryQuery.isLoading ? "—" : String(summary?.callsToday ?? 0)}
