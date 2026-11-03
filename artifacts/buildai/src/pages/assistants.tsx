@@ -507,7 +507,7 @@ function PhoneFormFields({
                 <option key={persona.id} value={persona.id}>{persona.label}</option>
               ))}
             </select>
-            <p className="text-xs text-muted-foreground">{selectedPersona.description} Preview uses the selected stock OpenAI voice. Realtime uses the saved persona, or an approved custom OpenAI voice when enabled. If a call falls back to Twilio Gather, the same persona maps to a distinct Twilio Google Chirp 3 en-GB voice. Regional accents are not guaranteed.</p>
+            <p className="text-xs text-muted-foreground">{selectedPersona.description} Preview uses the ElevenLabs voice mapped to this saved persona. Map only voice IDs you have listened to and confirmed are appropriate British English. Existing inbound Twilio calls remain on the current provider until their ElevenAgents telephony path is configured and validated.</p>
           </div>
           <div className="flex items-end">
             <Button type="button" variant="outline" disabled={previewing || !assistantId} onClick={playRealtimePreview} className="min-h-12 w-full gap-2">
@@ -1612,6 +1612,7 @@ export default function Assistants() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [voiceSetup, setVoiceSetup] = useState<{ openAiApiKey: boolean; twilioAuthToken: boolean; voicePublicBaseUrl: boolean } | null>(null);
+  const [elevenLabsSetup, setElevenLabsSetup] = useState<{ configured: boolean; voiceMapConfigured: boolean } | null>(null);
   const [telephonyCheck, setTelephonyCheck] = useState<{
     configuredNumber: string | null;
     accountAuthentication: string;
@@ -1631,6 +1632,9 @@ export default function Assistants() {
     fetch(`${base}/api/assistants/realtime-status`).then(r => r.ok ? r.json() : null)
       .then(data => setVoiceSetup(data))
       .catch(() => setVoiceSetup(null));
+    fetch(`${base}/api/assistants/elevenlabs-status`).then(r => r.ok ? r.json() : null)
+      .then(data => setElevenLabsSetup(data))
+      .catch(() => setElevenLabsSetup(null));
   }, []);
   const checkTelephony = async () => {
     setCheckingTelephony(true);
@@ -1711,6 +1715,7 @@ export default function Assistants() {
               <li>{voiceSetup?.openAiApiKey ? "Ready" : "Needed"} · Add <code className="rounded bg-muted px-1">OPENAI_API_KEY</code> in Replit Secrets for voice previews and live calls.</li>
               <li>{voiceSetup?.twilioAuthToken ? "Ready" : "Needed"} · Add <code className="rounded bg-muted px-1">TWILIO_AUTH_TOKEN</code> in Replit Secrets to verify Twilio requests and secure the media stream.</li>
               <li>{voiceSetup?.voicePublicBaseUrl ? "Ready" : "Needed"} · Set <code className="rounded bg-muted px-1">VOICE_PUBLIC_BASE_URL</code> to this app’s public HTTPS base URL.</li>
+              <li>{elevenLabsSetup?.configured ? "Ready" : "Not connected"} · Add <code className="rounded bg-muted px-1">ELEVENLABS_API_KEY</code>, <code className="rounded bg-muted px-1">ELEVENLABS_AGENT_ID</code>, and the verified voice map for ElevenAgents demos and previews.</li>
             </ul>
             <p className="mt-2 text-muted-foreground">Secret values stay server-side and are never shown. Configure the Twilio number’s voice webhook to POST to <code>/api/voice/incoming</code>.</p>
             <div className="mt-3 flex flex-wrap items-center gap-3">

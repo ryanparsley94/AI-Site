@@ -77,44 +77,18 @@ test("permission denied is visible and a rapid release never sends", async ({ pa
   expect(commands).toBe(0);
 });
 
-test("embedded browser demo explains microphone denial and offers standalone open without starting Realtime", async ({ page }) => {
+test("embedded browser demo stays disabled until the ElevenAgents connection is ready", async ({ page }) => {
   let realtimeStarts = 0;
-  await page.addInitScript(() => {
-    Object.defineProperty(navigator, "mediaDevices", {
-      configurable: true,
-      value: { getUserMedia: async () => { throw new DOMException("Denied by embedded browser", "NotAllowedError"); } },
-    });
-  });
-  await page.route("**/api/public-demo/website-preview", route => route.fulfill({
-    json: { preview: { companyName: "Parsley Electrical", trade: "Electrical" }, source: "parsleyelectrical.co.uk" },
-  }));
-  await page.route("**/api/public-demo/realtime-session", route => {
+  await page.route("**/api/public-demo/elevenlabs-status", route => route.fulfill({ json: { configured: false } }));
+  await page.route("**/api/public-demo/elevenlabs-session", route => {
     realtimeStarts++;
-    return route.fulfill({
-      json: {
-        clientSecret: "test-only",
-        demoId: "test-demo",
-        receptionistName: "Edward",
-        assistantId: 7,
-        voice: "cedar",
-        openingGreeting: "Hello, you've reached Parsley Electrical. How can I help?",
-      },
-    });
+    return route.fulfill({ status: 503, json: { error: "not connected" } });
   });
   await page.goto("/");
-  await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("button", { name: "Hear a Demo Call" }).click();
-  await page.getByRole("button", { name: /Talk in your browser/ }).click();
-  await page.getByTestId("input-business-website").fill("https://www.parsleyelectrical.co.uk");
-  await page.getByTestId("button-preview-website").click();
-  await page.getByRole("checkbox").check();
-  await page.getByRole("button", { name: "Meet Edward" }).click();
-  await page.getByTestId("button-start-live-call").click();
-  await expect(page.getByTestId("status-live-demo-error")).toContainText("browser or embedded preview did not grant microphone access");
-  await expect(page.getByTestId("status-live-demo-error")).toContainText("Nothing was recorded and no call started");
-  const standalone = page.getByRole("link", { name: "Open standalone demo" });
-  await expect(standalone).toHaveAttribute("target", "_blank");
-  await expect(standalone).toHaveAttribute("href", /https?:/);
+  const browserDemo = page.getByRole("button", { name: /Talk in your browser/ });
+  await expect(browserDemo).toBeDisabled();
+  await expect(page.getByRole("status")).toContainText("Live browser demo is disabled");
   expect(realtimeStarts).toBe(0);
 });
 
@@ -169,16 +143,11 @@ test("generated demo sample is reused by audio replay and never falls back to br
   expect(browserSpeech).toBe(0);
 });
 
-test("demo preview and callback use the receptionist's saved voice without a public voice override", async ({ page }) => {
+test("demo preview uses the selected mapped voice and callback stays disabled", async ({ page }) => {
   let previewUrl = "";
-  let callbackBody: Record<string, unknown> | null = null;
-  await page.route("**/api/public-demo/sample-audio?**", async route => {
+  await page.route("**/api/public-demo/voice-preview?**", async route => {
     previewUrl = route.request().url();
-    await route.fulfill({ status: 200, contentType: "audio/wav", body: Buffer.from("RIFFtestWAVE") });
-  });
-  await page.route("**/api/public-demo/phone-call", async route => {
-    callbackBody = route.request().postDataJSON();
-    await route.fulfill({ status: 202, json: { demoId: "test-demo", status: "queued", message: "Call requested for Sophie using the Edward voice.", assistantId: 7, assistantName: "Sophie", receptionistName: "Sophie", voice: "cedar" } });
+    await route.fulfill({ status: 200, contentType: "audio/mpeg", body: Buffer.from("sample") });
   });
   await page.goto("/");
   await page.getByRole("button", { name: "Hear a Demo Call" }).click();
@@ -186,14 +155,8 @@ test("demo preview and callback use the receptionist's saved voice without a pub
   await page.getByRole("button", { name: "Preview selected voice" }).click();
   await expect(page.locator('audio[aria-label="Voice preview for Sophie, Edward"]')).toBeVisible();
   expect(new URL(previewUrl).searchParams.get("assistantId")).toBe("7");
-  expect(new URL(previewUrl).searchParams.has("voice")).toBe(false);
-  expect(new URL(previewUrl).searchParams.get("receptionistName")).toBe("Sophie");
-  await page.getByRole("button", { name: "Get a demo call" }).click();
-  await page.getByLabel("Your phone number (international format)").fill("+447700900123");
-  await page.getByRole("checkbox").check();
-  await page.getByRole("button", { name: "Call me now" }).click();
-  await expect.poll(() => callbackBody).toMatchObject({ assistantId: 7, receptionistName: "Sophie", consent: true });
-  expect(callbackBody).not.toHaveProperty("voice");
+  expect(new URL(previewUrl).searchParams.get("voice")).toBe("cedar");
+  await expect(page.getByRole("button", { name: /Get a demo call/ })).toBeDisabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.setViewportSize({ width: 1440, height: 960 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);

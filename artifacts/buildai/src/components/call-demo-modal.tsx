@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { Conversation as ElevenLabsConversation } from "@elevenlabs/client";
 import {
   AlertCircle, ArrowLeft, ArrowRight, AudioLines, CheckCircle2, Globe2,
   Headphones, LoaderCircle, Mic, MicOff, Phone, RotateCcw, ShieldCheck, Sparkles, UserRound, X,
@@ -25,8 +26,10 @@ type CallStatus = "idle" | "connecting" | "live" | "ending" | "error";
 type DemoMode = "choose" | "sample" | "browser" | "phone";
 type SampleFailure = { category: string | null; type: string | null; code: string | null; requestId: string | null };
 type DemoBot = { id: number; name: string; defaultVoice: string };
+type DemoVoice = { id: string; label: string; description: string };
 type DemoOptions = {
   bots: DemoBot[];
+  voices: DemoVoice[];
   displayNames: string[];
 };
 
@@ -69,11 +72,6 @@ function profileRows(profile: BusinessProfile) {
   return entries.map(([label, value]) => ({ label, value: readable(value) })).filter((row) => row.value);
 }
 
-function eventText(event: Record<string, unknown>) {
-  return typeof event.transcript === "string" ? event.transcript :
-    typeof event.text === "string" ? event.text : "";
-}
-
 function formatField(value?: string) {
   return value?.trim() || "Not shared on this call";
 }
@@ -95,6 +93,8 @@ export function CallDemoModal({
   const [voicePreviewUrl, setVoicePreviewUrl] = useState("");
   const [voicePreviewLoading, setVoicePreviewLoading] = useState(false);
   const [demoOptions, setDemoOptions] = useState<DemoOptions | null>(null);
+  const [voiceOverride, setVoiceOverride] = useState("");
+  const [elevenAgentsReady, setElevenAgentsReady] = useState(false);
   const [selectedAssistantId, setSelectedAssistantId] = useState("");
   const [selectedDisplayName, setSelectedDisplayName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -115,15 +115,10 @@ export function CallDemoModal({
   const [livePilotConsent, setLivePilotConsent] = useState(false);
   const [availableSlots, setAvailableSlots] = useState<AvailableSlot[]>([]);
   const [micReady, setMicReady] = useState(false);
-  const [audioPlaybackBlocked, setAudioPlaybackBlocked] = useState(false);
   const [embeddedContext, setEmbeddedContext] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
-  const selectedVoice = demoOptions?.bots.find((bot) => String(bot.id) === selectedAssistantId)?.defaultVoice ?? "cedar";
+  const selectedVoice = voiceOverride || demoOptions?.bots.find((bot) => String(bot.id) === selectedAssistantId)?.defaultVoice || "cedar";
 
-  const peerRef = useRef<RTCPeerConnection | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const channelRef = useRef<RTCDataChannel | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const transcriptRef = useRef<TranscriptItem[]>([]);
   const demoIdRef = useRef<string | null>(null);
   const receptionistNameRef = useRef(RECEPTIONIST_NAME);
@@ -131,6 +126,7 @@ export function CallDemoModal({
   const openingGreetingSentRef = useRef(false);
   const itemIndexesRef = useRef<Record<string, number>>({});
   const callStartedAtRef = useRef<number | null>(null);
+  const elevenLabsSessionRef = useRef<{ endSession(): Promise<void>; setMicMuted(isMuted: boolean): void } | null>(null);
 
   useEffect(() => {
     try { setEmbeddedContext(window.self !== window.top); }
@@ -139,6 +135,10 @@ export function CallDemoModal({
 
   useEffect(() => {
     if (!open) return;
+    void fetch(apiPath("/api/public-demo/elevenlabs-status"))
+      .then((response) => response.ok ? response.json() : null)
+      .then((body) => setElevenAgentsReady(body?.configured === true && body?.browserDemoEnabled === true))
+      .catch(() => setElevenAgentsReady(false));
     void fetch(apiPath("/api/public-demo/options"))
       .then(async (response) => {
         const body = await response.json() as DemoOptions & { error?: string };
@@ -148,6 +148,7 @@ export function CallDemoModal({
         if (bot) {
           setSelectedAssistantId(String(bot.id));
           setSelectedDisplayName(bot.name);
+          setVoiceOverride(bot.defaultVoice);
         }
       })
       .catch((caught) => setError(caught instanceof Error ? caught.message : "Demo voice choices are unavailable."));
@@ -163,19 +164,9 @@ export function CallDemoModal({
   }, [selectedAssistantId, selectedVoice, selectedDisplayName]);
 
   const closeConnection = useCallback(() => {
-    channelRef.current?.close();
-    channelRef.current = null;
-    peerRef.current?.getSenders().forEach((sender) => sender.track?.stop());
-    peerRef.current?.close();
-    peerRef.current = null;
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-    streamRef.current = null;
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.srcObject = null;
-    }
+    void elevenLabsSessionRef.current?.endSession().catch(() => undefined);
+    elevenLabsSessionRef.current = null;
     setMicReady(false);
-    setAudioPlaybackBlocked(false);
   }, []);
 
   const reset = useCallback(() => {
@@ -303,7 +294,7 @@ export function CallDemoModal({
     setVoicePreviewLoading(true);
     setError("");
     try {
-      const response = await fetch(apiPath(`/api/public-demo/sample-audio?assistantId=${encodeURIComponent(selectedAssistantId)}&receptionistName=${encodeURIComponent(selectedDisplayName)}`));
+      const response = await fetch(apiPath(`/api/public-demo/voice-preview?assistantId=${encodeURIComponent(selectedAssistantId)}&voice=${encodeURIComponent(selectedVoice)}`));
       if (!response.ok) {
         const body = await response.json().catch(() => ({})) as { error?: string };
         throw new Error(body.error || `Voice preview returned ${response.status}.`);
@@ -380,149 +371,21 @@ export function CallDemoModal({
     itemIndexesRef.current = {};
     receptionistNameRef.current = selectedDisplayName || RECEPTIONIST_NAME;
     setReceptionistName(selectedDisplayName || RECEPTIONIST_NAME);
-    let stream: MediaStream | null = null;
     try {
       if (!window.isSecureContext) {
         throw new Error("Microphone access requires a secure HTTPS page. Open the standalone demo in Safari or Chrome.");
       }
-      if (!navigator.mediaDevices?.getUserMedia || !window.RTCPeerConnection) {
+      if (!navigator.mediaDevices?.getUserMedia) {
         throw new Error("Live audio isn't supported in this browser. Try a current version of Chrome, Safari or Edge.");
       }
-      // Permission is requested only after this explicit user action.
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
-      setMicReady(true);
-
-      const peer = new RTCPeerConnection();
-      peerRef.current = peer;
-      peer.addTrack(stream.getAudioTracks()[0], stream);
-      peer.ontrack = (event) => {
-        if (audioRef.current) {
-          audioRef.current.srcObject = event.streams[0];
-          void audioRef.current.play().catch(() => {
-            setAudioPlaybackBlocked(true);
-            setError("The call connected, but your browser paused the receptionist audio. Use Enable audio to resume playback.");
-          });
-        }
-      };
-      peer.onconnectionstatechange = () => {
-        if (peer.connectionState === "failed" || peer.connectionState === "disconnected") {
-          setCallStatus("error");
-          setError("The live audio connection ended unexpectedly. Your microphone has been closed. Check your connection, then restart the demo.");
-          closeConnection();
-        }
-      };
-      peer.oniceconnectionstatechange = () => {
-        if (peer.iceConnectionState === "failed") {
-          setCallStatus("error");
-          setError("The audio network connection failed. Check Wi-Fi or mobile data, then restart the demo.");
-          closeConnection();
-        }
-      };
-
-      const channel = peer.createDataChannel("oai-events");
-      channelRef.current = channel;
-      channel.onmessage = async (message) => {
-        let event: Record<string, unknown>;
-        try { event = JSON.parse(message.data) as Record<string, unknown>; } catch { return; }
-        if (event.type === "error") {
-          const eventError = event.error as { code?: string } | undefined;
-          setError(`The live receptionist had a Realtime service error${eventError?.code ? ` (${eventError.code})` : ""}. You can ask again; if audio stays silent, end and restart the demo.`);
-          return;
-        }
-        const itemId = typeof event.item_id === "string" ? event.item_id : undefined;
-        if (event.type === "conversation.item.input_audio_transcription.completed") {
-          appendTranscript("caller", eventText(event), itemId, true);
-        } else if (event.type === "response.output_audio_transcript.delta") {
-          appendTranscript("receptionist", eventText(event), itemId);
-        } else if (event.type === "response.output_audio_transcript.done") {
-          appendTranscript("receptionist", eventText(event), itemId, true);
-        } else if (event.type === "response.audio_transcript.done") {
-          appendTranscript("receptionist", eventText(event), itemId, true);
-        } else if (event.type === "response.audio.delta") {
-          setCallStatus("live");
-        } else if (event.type === "input_audio_buffer.speech_started") {
-          // Live turn feedback; transcription arrives via the completed event.
-        } else if (event.type === "response.function_call_arguments.done" &&
-          (event.name === "get_available_appointments" || event.name === "book_appointment")) {
-          const callId = typeof event.call_id === "string" ? event.call_id : "";
-          let output: unknown;
-          try {
-            const args = JSON.parse(String(event.arguments || "{}")) as Record<string, string>;
-            const demoId = demoIdRef.current;
-            if (!demoId) throw new Error("The pilot session has expired.");
-            if (event.name === "get_available_appointments") {
-              const result = await postJson<{ slots: AvailableSlot[] }>("/api/public-demo/appointments/available", { demoId });
-              setAvailableSlots(result.slots);
-              output = { status: "ok", slots: result.slots, instruction: "Offer only these exact returned appointment slots." };
-            } else {
-              const result = await postJson<{ status: string; jobId: number; slot: string }>("/api/public-demo/appointments/book", {
-                demoId, slotIso: args.slot_iso, callerName: args.caller_name,
-                callerPhone: args.caller_phone, serviceDescription: args.service_description, address: args.address,
-              });
-              setBooking(result);
-              setDemoSlot(result.slot);
-              output = { ...result, instruction: "The real Parsley Electrical appointment is booked. Confirm this exact time." };
-            }
-          } catch (caught) {
-            output = { status: "error", message: caught instanceof Error ? caught.message : "The live booking request failed. Do not say a time is booked." };
-          }
-          if (callId && channel.readyState === "open") {
-            channel.send(JSON.stringify({
-              type: "conversation.item.create",
-              item: { type: "function_call_output", call_id: callId, output: JSON.stringify(output) },
-            }));
-            channel.send(JSON.stringify({ type: "response.create" }));
-          }
-        }
-      };
-      channel.onclose = () => {
-        setCallStatus((current) => {
-          if (current === "live" || current === "connecting") {
-            setError("The live conversation channel closed. Restart the demo if you would like to continue.");
-            return "error";
-          }
-          return current;
-        });
-      };
-      channel.onerror = () => {
-        setCallStatus("error");
-        setError("The live conversation channel hit a connection error. Check your connection and restart the demo.");
-      };
-      channel.onopen = () => {
-        if (openingGreetingSentRef.current) return;
-        openingGreetingSentRef.current = true;
-        channel.send(JSON.stringify({
-          type: "response.create",
-          response: {
-              instructions: `Say exactly this saved receptionist greeting once, then listen: "${openingGreetingRef.current}". Do not add another greeting.`,
-          },
-        }));
-      };
-
-      const offer = await peer.createOffer();
-      await peer.setLocalDescription(offer);
-      if (peer.iceGatheringState !== "complete") {
-        await new Promise<void>((resolve) => {
-          let timeout = 0;
-          const finishGathering = () => {
-            window.clearTimeout(timeout);
-            peer.removeEventListener("icegatheringstatechange", onGatheringComplete);
-            resolve();
-          };
-          const onGatheringComplete = () => {
-            if (peer.iceGatheringState !== "complete") return;
-            finishGathering();
-          };
-          timeout = window.setTimeout(finishGathering, 2000);
-          peer.addEventListener("icegatheringstatechange", onGatheringComplete);
-        });
-      }
-      const answer = await postJson<{ clientSecret: string; demoId: string; receptionistName: string; assistantId: number; voice: string; businessName: string; openingGreeting: string; model: string }>(
-        "/api/public-demo/realtime-session",
+      const permissionCheck = await navigator.mediaDevices.getUserMedia({ audio: true });
+      permissionCheck.getTracks().forEach((track) => track.stop());
+      const answer = await postJson<{ signedUrl: string; demoId: string; receptionistName: string; assistantId: number; voice: string; voiceId: string; businessName: string; openingGreeting: string; prompt: string }>(
+        "/api/public-demo/elevenlabs-session",
         {
           profile,
           assistantId: Number(selectedAssistantId),
+          voice: selectedVoice,
           receptionistName: selectedDisplayName,
           consent: livePilotConsent,
           websiteFacts: profile,
@@ -531,32 +394,42 @@ export function CallDemoModal({
       if (answer.assistantId !== Number(selectedAssistantId) || answer.voice !== selectedVoice || answer.receptionistName !== selectedDisplayName) {
         throw new Error("The live session did not confirm the selected receptionist and voice.");
       }
-      if (!answer.clientSecret || !answer.demoId || !answer.openingGreeting) throw new Error("The live demo service returned an incomplete session.");
+      if (!answer.signedUrl || !answer.demoId || !answer.openingGreeting || !answer.prompt) throw new Error("The ElevenAgents service returned an incomplete private session.");
       demoIdRef.current = answer.demoId;
       receptionistNameRef.current = answer.receptionistName;
       openingGreetingRef.current = answer.openingGreeting;
-      openingGreetingSentRef.current = false;
       setReceptionistName(answer.receptionistName);
-      const sdp = peer.localDescription?.sdp ?? offer.sdp;
-      const realtimeResponse = await fetch(`https://api.openai.com/v1/realtime/calls?model=${encodeURIComponent(answer.model)}`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${answer.clientSecret}`,
-          "Content-Type": "application/sdp",
+      const session = await ElevenLabsConversation.startSession({
+        signedUrl: answer.signedUrl,
+        connectionType: "websocket",
+        overrides: {
+          agent: {
+            prompt: { prompt: answer.prompt },
+            firstMessage: answer.openingGreeting,
+            language: "en",
+          },
+          tts: { voiceId: answer.voiceId },
         },
-        body: sdp,
+        onConnect: () => {
+          setMicReady(true);
+          setCallStatus("live");
+        },
+        onDisconnect: () => {
+          setMicReady(false);
+          setCallStatus((current) => current === "ending" ? "ending" : current === "live" ? "error" : current);
+        },
+        onError: (message) => {
+          setError(`ElevenAgents conversation error: ${message}`);
+          setCallStatus("error");
+          setMicReady(false);
+        },
+        onMessage: (message) => {
+          const role = message.role === "user" || message.source === "user" ? "caller" : "receptionist";
+          appendTranscript(role, message.message, String(message.event_id), true);
+        },
       });
-      if (!realtimeResponse.ok) {
-        const requestId = realtimeResponse.headers.get("x-request-id");
-        const body = await realtimeResponse.json().catch(() => null) as { error?: { code?: string } } | null;
-        const code = body?.error?.code;
-        throw new Error(`OpenAI Realtime audio negotiation failed (HTTP ${realtimeResponse.status}${code ? `, ${code}` : ""}${requestId ? `, reference ${requestId}` : ""}). Check voice/model access and retry; this does not indicate that your API key is invalid.`);
-      }
-      const sdpAnswer = await realtimeResponse.text();
-      if (!sdpAnswer) throw new Error("OpenAI Realtime returned an empty audio connection.");
-      await peer.setRemoteDescription({ type: "answer", sdp: sdpAnswer });
+      elevenLabsSessionRef.current = session;
     } catch (caught) {
-      stream?.getTracks().forEach((track) => track.stop());
       closeConnection();
       setCallStatus("error");
       const permissionError = caught instanceof DOMException &&
@@ -590,18 +463,6 @@ export function CallDemoModal({
     } catch (caught) {
       setCallStatus("error");
       setError(caught instanceof Error ? caught.message : "We couldn't prepare the enquiry summary. Please retry.");
-    }
-  }
-
-  async function retryCallAudio() {
-    if (!audioRef.current) return;
-    try {
-      await audioRef.current.play();
-      setAudioPlaybackBlocked(false);
-      setError("");
-    } catch {
-      setAudioPlaybackBlocked(true);
-      setError("Audio is still blocked by the browser. Check site sound permissions and tap Enable audio again.");
     }
   }
 
@@ -640,7 +501,7 @@ export function CallDemoModal({
               </div>
             </div>
             <p id="call-demo-description" className="mt-3 text-xs leading-relaxed text-white/55">
-              A live OpenAI Realtime conversation using Parsley’s saved training and reviewed website profile.
+              A live ElevenAgents conversation using Parsley’s saved training and reviewed website profile.
             </p>
             <ol aria-label="Demo steps" className="mt-4 grid grid-cols-3 gap-2">
               {[
@@ -683,6 +544,7 @@ export function CallDemoModal({
                           setSelectedAssistantId(event.target.value);
                           if (bot) {
                             setSelectedDisplayName(bot.name);
+                            setVoiceOverride(bot.defaultVoice);
                           }
                         }} className="mt-1.5 h-10 w-full rounded-lg border border-white/15 bg-[#0b1418] px-2.5 text-sm text-white">
                           {demoOptions.bots.map((bot) => <option key={bot.id} value={bot.id}>{bot.name} · Parsley Electrical</option>)}
@@ -695,14 +557,14 @@ export function CallDemoModal({
                         </select>
                       </label>
                       <label className="block text-xs font-semibold text-white/65">
-                        Saved receptionist voice
-                        <p className="mt-1.5 rounded-lg border border-white/15 bg-[#0b1418] px-2.5 py-2 text-sm text-white">
-                          {getReceptionistVoicePersona(selectedVoice).label}
-                        </p>
+                        Demo voice
+                        <select aria-label="Demo voice" value={selectedVoice} onChange={(event) => setVoiceOverride(event.target.value)} className="mt-1.5 h-10 w-full rounded-lg border border-white/15 bg-[#0b1418] px-2.5 text-sm text-white">
+                          {(demoOptions.voices ?? []).map((voice) => <option key={voice.id} value={voice.id}>{voice.label}</option>)}
+                        </select>
                       </label>
                     </div>
                     <p className="mt-2 text-[11px] leading-relaxed text-white/45">
-                      {getReceptionistVoicePersona(selectedVoice).description} The preview and demo use this receptionist’s saved voice; it is not changed from this screen. Standard OpenAI voices are prompt-guided, not guaranteed regional accents. The demo uses Realtime; a Twilio Gather fallback uses its Twilio voice instead.
+                      {getReceptionistVoicePersona(selectedVoice).description} The browser demo uses the ElevenLabs voice mapped to this saved receptionist voice. Accent quality depends on the voice IDs configured and verified in your ElevenLabs account.
                     </p>
                     <div className="mt-3 flex flex-wrap items-center gap-3">
                       <Button type="button" variant="outline" onClick={() => void previewSelectedVoice()} disabled={!selectedAssistantId || voicePreviewLoading} className="h-9 border-[#36C6D5]/40 text-xs text-[#8be2e9]">
@@ -720,17 +582,18 @@ export function CallDemoModal({
                 <p className="text-xs font-semibold uppercase tracking-[.14em] text-[#36C6D5]">Choose a demo</p>
                 <h2 id="demo-mode-heading" className="mt-1 text-xl font-bold">Three ways to try CREWON</h2>
                 <div className="mt-4 grid gap-3">
-                  <button type="button" disabled={!demoOptions} onClick={() => { setDemoMode("browser"); setStage("profile"); }} className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[.03] p-4 text-left hover:border-[#36C6D5]/50 disabled:opacity-50">
+                  <button type="button" disabled={!demoOptions || !elevenAgentsReady} onClick={() => { setDemoMode("browser"); setStage("profile"); }} className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[.03] p-4 text-left hover:border-[#36C6D5]/50 disabled:opacity-50">
                     <Mic className="mt-0.5 text-[#36C6D5]" size={19} />
-                    <span><strong className="block text-sm">Talk in your browser</strong><span className="mt-1 block text-xs text-white/50">Interactive two-way OpenAI Realtime conversation. Speech transcript appears live when available.</span></span>
+                    <span><strong className="block text-sm">Talk in your browser</strong><span className="mt-1 block text-xs text-white/50">Interactive ElevenAgents conversation with natural turn-taking and live transcript.</span></span>
                   </button>
+                  {!elevenAgentsReady && <p className="rounded-lg border border-amber-300/15 bg-amber-200/[.04] p-3 text-xs text-amber-100/70" role="status">Live browser demo is disabled until ElevenLabs is connected and the public demo is isolated to fictional data without writing callers into a real CRM.</p>}
                   <button type="button" disabled={!demoOptions} onClick={() => { setDemoMode("sample"); if (!sampleRequestMade) void playSample(); }} className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[.03] p-4 text-left hover:border-[#36C6D5]/50 disabled:opacity-50">
                     <Headphones className="mt-0.5 text-[#36C6D5]" size={19} />
                     <span><strong className="block text-sm">Hear a sample</strong><span className="mt-1 block text-xs text-white/50">A generated, dramatized audio example—not a live conversation or real customer recording.</span></span>
                   </button>
-                  <button type="button" disabled={!demoOptions} onClick={() => setDemoMode("phone")} className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[.03] p-4 text-left hover:border-[#36C6D5]/50 disabled:opacity-50">
+                  <button type="button" disabled className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[.03] p-4 text-left opacity-50">
                     <Phone className="mt-0.5 text-[#36C6D5]" size={19} />
-                    <span><strong className="block text-sm">Get a demo call</strong><span className="mt-1 block text-xs text-white/50">A consented Twilio callback using the selected bot and its saved receptionist voice.</span></span>
+                    <span><strong className="block text-sm">Get a demo call · unavailable</strong><span className="mt-1 block text-xs text-white/50">Disabled until phone ownership verification, ElevenAgents Twilio routing, and CRM follow-up are connected.</span></span>
                   </button>
                 </div>
               </section>
@@ -845,7 +708,7 @@ export function CallDemoModal({
                     </div>
                     <label className="mt-4 flex items-start gap-2.5 rounded-xl border border-amber-300/20 bg-amber-200/[.05] p-3 text-xs leading-relaxed text-amber-100/80">
                       <input type="checkbox" checked={livePilotConsent} onChange={(event) => setLivePilotConsent(event.target.checked)} className="mt-0.5 accent-[#36C6D5]" />
-                      I understand this call may save my details to Parsley Electrical’s CrewOn office and may book a real appointment if I confirm one.
+                      I consent to live AI transcription and saving this transcript and enquiry to Parsley Electrical’s CREWON office. No audio recording is saved; the team confirms availability.
                     </label>
                     <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
                       <Button type="button" variant="ghost" onClick={() => { setProfile(null); setError(""); }} className="text-white/65 hover:bg-white/5 hover:text-white" data-testid="button-change-website">
@@ -871,7 +734,7 @@ export function CallDemoModal({
                   </div>
                   <h2 id="call-heading" className="mt-4 text-xl font-bold">{callStatus === "live" ? "You’re live with the Parsley receptionist" : "Have a real conversation"}</h2>
                   <p className="mx-auto mt-1.5 max-w-sm text-sm leading-relaxed text-white/55">
-                    {callStatus === "live" ? "Speak naturally. The receptionist can answer from saved training and the website profile." : "This connects to OpenAI Realtime. Your microphone starts only after you tap below; no synthetic browser voice is used."}
+                    {callStatus === "live" ? "Speak naturally. The receptionist can answer from saved training and the website profile." : "This connects to a private ElevenAgents session. Microphone access is requested only after you tap below."}
                   </p>
                   {(embeddedContext || callStatus === "error") && (
                     <div className="mx-auto mt-3 max-w-md rounded-lg border border-[#36C6D5]/25 bg-[#36C6D5]/[.06] p-3 text-left text-xs leading-relaxed text-white/70" role="note">
@@ -906,13 +769,7 @@ export function CallDemoModal({
                   </div>
                 <p className="mb-3 text-center text-[10px] text-white/35">Transcript is based on speech-recognition events and may be incomplete. The recorded sample has no interactive transcript.</p>
 
-                <audio ref={audioRef} autoPlay playsInline className="sr-only" aria-label="Receptionist audio" />
                 <div className="flex flex-col items-center gap-3">
-                  {audioPlaybackBlocked && (
-                    <Button type="button" variant="outline" onClick={() => void retryCallAudio()} className="h-10 gap-2 border-[#36C6D5]/40 text-[#8be2e9]">
-                      <AudioLines size={16} /> Enable audio
-                    </Button>
-                  )}
                   {callStatus === "idle" || callStatus === "error" ? (
                     <Button type="button" onClick={startCall} className="h-12 w-full gap-2 rounded-xl bg-[#36C6D5] font-bold text-[#0D171C] hover:bg-[#58d3de] sm:w-auto sm:min-w-56" data-testid="button-start-live-call">
                       <Mic size={17} /> Start live call
@@ -995,7 +852,7 @@ export function CallDemoModal({
           </main>
 
           <footer className="flex shrink-0 items-center justify-between gap-2 border-t border-white/8 bg-[#0b1418] px-4 py-3 sm:px-6">
-            <span className="text-[10px] leading-relaxed text-white/35">OpenAI Realtime · live Parsley pilot · CRM records</span>
+            <span className="text-[10px] leading-relaxed text-white/35">ElevenAgents · live Parsley pilot · CRM records</span>
             <span className="inline-flex items-center gap-1.5 text-[10px] font-medium text-white/40"><ShieldCheck size={12} /> Consent required · no SMS/email sent</span>
           </footer>
         </div>

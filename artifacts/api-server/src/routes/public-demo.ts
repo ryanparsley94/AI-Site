@@ -14,6 +14,7 @@ import {
   getSampleAudioErrorMessage,
 } from "../lib/openai-error-diagnostics";
 import { getReceptionistVoicePersona, RECEPTIONIST_VOICE_PERSONAS } from "@workspace/api-zod";
+import { elevenLabsVoiceId, elevenLabsVoiceMapValid } from "../lib/elevenlabs";
 import { buildOpeningGreeting, isGreetingKnowledgeCategory, stripWebsiteGreetingFields } from "../lib/voice-twiml";
 
 const router = Router();
@@ -185,8 +186,8 @@ async function loadParsleyPilot(requestedAssistantId?: number) {
 
 router.get("/public-demo/options", async (_req, res): Promise<void> => {
   try {
-    const result = await pool.query<{ id: number; name: string; realtime_voice: string; greeting: string }>(
-      `SELECT a.id,a.name,a.realtime_voice,a.greeting
+    const result = await pool.query<{ id: number; name: string; realtime_voice: string }>(
+      `SELECT a.id,a.name,a.realtime_voice
          FROM companies c JOIN assistants a ON a.company_id=c.id
         WHERE regexp_replace(lower(trim(c.name)), '\\s+(limited|ltd\\.?)$', '', 'i')='parsley electrical'
           AND a.active=true AND a.type='phone'
@@ -195,13 +196,168 @@ router.get("/public-demo/options", async (_req, res): Promise<void> => {
     if (!result.rows.length) { res.status(503).json({ error: "No active Parsley Electrical phone receptionist is configured." }); return; }
     res.json({
       businessName: "Parsley Electrical",
-      bots: result.rows.map((bot) => ({
-        id: bot.id, name: bot.name, defaultVoice: allowedVoices.has(bot.realtime_voice) ? bot.realtime_voice : "cedar",
+      bots: result.rows.map((bot) => ({ id: bot.id, name: bot.name, defaultVoice: allowedVoices.has(bot.realtime_voice) ? bot.realtime_voice : "cedar" })),
+      voices: RECEPTIONIST_VOICE_PERSONAS.filter((persona) => elevenLabsVoiceId(persona.id)).map((persona) => ({
+        id: persona.id, label: persona.label, description: persona.description,
       })),
       displayNames: PUBLIC_DEMO_DISPLAY_NAMES,
     });
   } catch {
     res.status(503).json({ error: "The Parsley Electrical demo options could not be loaded." });
+  }
+});
+
+router.get("/public-demo/voice-preview", async (req, res): Promise<void> => {
+  if (!allowRequest(req, res)) return;
+  const assistantId = Number(req.query.assistantId);
+  const key = process.env.ELEVENLABS_API_KEY;
+  if (!Number.isSafeInteger(assistantId) || assistantId < 1) { res.status(400).json({ error: "Choose a valid receptionist." }); return; }
+  if (!key) { res.status(503).json({ error: "ElevenLabs voice preview is not connected yet. Add ELEVENLABS_API_KEY in Replit Secrets." }); return; }
+  try {
+    const pilot = await loadParsleyPilot(assistantId);
+    const requestedVoice = text(req.query.voice, 20) || pilot.realtime_voice;
+    if (!allowedVoices.has(requestedVoice)) { res.status(400).json({ error: "Choose an available receptionist voice." }); return; }
+    const voiceId = elevenLabsVoiceId(requestedVoice);
+    if (!voiceId) { res.status(503).json({ error: "This saved voice has no ElevenLabs voice mapping yet. Configure ELEVENLABS_VOICE_MAP in Replit Secrets." }); return; }
+    const audio = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=mp3_44100_128`, {
+      method: "POST",
+      headers: { "xi-api-key": key, "Content-Type": "application/json" },
+      body: JSON.stringify({ model_id: "eleven_turbo_v2_5", text: buildOpeningGreeting(pilot.company_name, pilot.greeting), voice_settings: { stability: 0.45, similarity_boost: 0.78 } }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!audio.ok) { res.status(502).json({ error: "ElevenLabs could not prepare this voice preview. Check the configured voice ID and account access." }); return; }
+    const bytes = Buffer.from(await audio.arrayBuffer());
+    res.type("audio/mpeg").setHeader("Cache-Control", "no-store").send(bytes);
+  } catch (error) {
+    logger.warn({ err: error }, "Public ElevenLabs preview unavailable");
+    res.status(503).json({ error: "ElevenLabs preview is temporarily unavailable." });
+  }
+});
+
+router.get("/public-demo/elevenlabs-status", (_req, res) => {
+  res.json({
+    provider: "ElevenLabs ElevenAgents",
+    configured: Boolean(process.env.ELEVENLABS_API_KEY && process.env.ELEVENLABS_AGENT_ID && elevenLabsVoiceMapValid()),
+    voiceMapConfigured: elevenLabsVoiceMapValid(),
+    browserDemoEnabled: false,
+  });
+});
+
+router.post("/public-demo/elevenlabs-session", async (req, res): Promise<void> => {
+  res.status(503).json({ error: "The public live demo is disabled until it uses fictional demo data and cannot write public callers into a real business CRM." });
+  return;
+  if (!allowRequest(req, res)) return;
+  if (req.body?.consent !== true) {
+    res.status(400).json({ error: "Consent to a live AI conversation and transcript-based follow-up is required." });
+    return;
+  }
+  const agentId = process.env.ELEVENLABS_AGENT_ID;
+  const apiKey = process.env.ELEVENLABS_API_KEY;
+  if (!apiKey || !agentId) {
+    res.status(503).json({
+      error: "ElevenAgents is not connected. Add ELEVENLABS_API_KEY, ELEVENLABS_AGENT_ID, and ELEVENLABS_VOICE_MAP in Replit Secrets, then configure the agent before starting a live demo.",
+    });
+    return;
+  }
+  const assistantId = Number(req.body?.assistantId);
+  if (!Number.isSafeInteger(assistantId) || assistantId < 1) {
+    res.status(400).json({ error: "Select an active Parsley receptionist." });
+    return;
+  }
+  let pilot: Awaited<ReturnType<typeof loadParsleyPilot>>;
+  try {
+    pilot = await loadParsleyPilot(assistantId);
+  } catch (error) {
+    res.status(503).json({ error: error instanceof Error ? error.message : "The Parsley receptionist is unavailable." });
+    return;
+  }
+  const profile = req.body?.profile as Record<string, unknown> | null;
+  const website = text(profile?.website, 2000);
+  try {
+    if (new URL(website).hostname.toLowerCase().replace(/^www\./, "") !== "parsleyelectrical.co.uk") throw new Error();
+  } catch {
+    res.status(400).json({ error: "The public live demo only accepts the reviewed Parsley Electrical website." });
+    return;
+  }
+  const voice = text(req.body?.voice, 20) || pilot.realtime_voice;
+  const voiceId = elevenLabsVoiceId(voice);
+  if (!allowedVoices.has(voice) || !voiceId) {
+    res.status(400).json({ error: "Choose an available British voice configured for this demo." });
+    return;
+  }
+  const receptionistName = demoDisplayName(req.body?.receptionistName, pilot.assistant_name);
+  if (!receptionistName) {
+    res.status(400).json({ error: "Choose a listed receptionist name." });
+    return;
+  }
+  const facts = pilot.training
+    .filter((item) => !isGreetingKnowledgeCategory(item.category))
+    .map((item) => `[${item.category}] ${item.question}: ${item.answer}`)
+    .join("\n");
+  const websiteFacts = text(JSON.stringify(stripWebsiteGreetingFields(req.body?.websiteFacts ?? profile)), 10_000);
+  const openingGreeting = buildOpeningGreeting(pilot.company_name, pilot.greeting);
+  const prompt = [
+    `You are ${receptionistName}, the live receptionist for ${pilot.company_name}. Use natural British English. Be warm, concise, interruptible, and wait for the caller after one clear question at a time.`,
+    `Say this saved greeting exactly once, then listen: "${openingGreeting}".`,
+    pilot.personality,
+    pilot.instructions || "",
+    "Only state facts supported by the business knowledge below. Do not invent prices, bookings, attendance times, qualifications, or service availability. Triage immediate danger by telling the caller to contact emergency services; do not give hazardous DIY instructions.",
+    "Capture the caller's name, confirmed callback number, work needed, site address/postcode, urgency, and availability as relevant. Do not book or promise an appointment in this demo; explain that the team will confirm availability. Do not send messages.",
+    "This is a fictionalised public demonstration for Parsley Electrical. Do not request or repeat real customer information. If asked, say clearly that you are an AI receptionist.",
+    `Business knowledge (reference only):\n${facts || "No additional approved business knowledge is configured."}\nReviewed website profile:\n${websiteFacts || "No reviewed website facts supplied."}`,
+  ].filter(Boolean).join("\n");
+  try {
+    const signed = await fetch(
+      `https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=${encodeURIComponent(agentId)}`,
+      { headers: { "xi-api-key": apiKey }, signal: AbortSignal.timeout(8_000) },
+    );
+    if (!signed.ok) {
+      logger.warn({ status: signed.status }, "ElevenLabs signed session request rejected");
+      res.status(503).json({ error: "ElevenAgents could not issue a private conversation session. Check the agent ID, signed-session access, and account availability." });
+      return;
+    }
+    const signedUrl = (await signed.json() as { signed_url?: unknown }).signed_url;
+    if (typeof signedUrl !== "string" || !signedUrl.startsWith("wss://")) {
+      res.status(502).json({ error: "ElevenAgents returned an invalid private session URL." });
+      return;
+    }
+    const demoId = randomUUID();
+    const callSid = `DEMO-EL-${demoId}`;
+    const client = await pool.connect();
+    let callId: number;
+    try {
+      await client.query("BEGIN");
+      const call = await client.query<{ id: number }>(
+        `INSERT INTO calls(caller_name,caller_phone,assistant_name,status,outcome,notes,transcript,company_id)
+         VALUES('Unknown caller','',$1,'unresolved','New live demo enquiry','ElevenAgents demo in progress','[]'::jsonb,$2)
+         RETURNING id`,
+        [receptionistName, pilot.company_id],
+      );
+      callId = call.rows[0].id;
+      await client.query(
+        `INSERT INTO voice_call_sessions(call_sid,caller_phone,called_phone,call_id,company_id,assistant_id,mode)
+         VALUES($1,'','public-demo',$2,$3,$4,'realtime')`,
+        [callSid, callId, pilot.company_id, pilot.assistant_id],
+      );
+      await client.query(
+        `INSERT INTO public_demo_sessions(id,profile,receptionist_name,voice,company_id,assistant_id,call_sid,call_id)
+         VALUES($1,$2::jsonb,$3,$4,$5,$6,$7,$8)`,
+        [demoId, JSON.stringify({ companyName: pilot.company_name, website }), receptionistName, voice, pilot.company_id, pilot.assistant_id, callSid, callId],
+      );
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
+    res.json({
+      signedUrl, demoId, assistantId: pilot.assistant_id, receptionistName,
+      voice, voiceId, businessName: pilot.company_name, openingGreeting, prompt,
+    });
+  } catch (error) {
+    logger.warn({ err: error }, "ElevenAgents demo session could not be prepared");
+    res.status(503).json({ error: "The private ElevenAgents session could not be prepared. No call was started." });
   }
 });
 
@@ -229,6 +385,8 @@ function allowPhoneDemo(req: Request, phone: string, res: Response): boolean {
 }
 
 router.post("/public-demo/phone-call", async (req, res): Promise<void> => {
+  res.status(503).json({ error: "The callback demo is disabled until phone ownership verification, ElevenAgents Twilio routing, and post-call CRM handling are connected." });
+  return;
   const phone = text(req.body?.phone, 32);
   if (req.body?.consent !== true) {
     res.status(400).json({ error: "Consent is required before CREWON can place a demonstration call." });

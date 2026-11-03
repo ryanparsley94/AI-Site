@@ -3,6 +3,8 @@ import { eq, and } from "drizzle-orm";
 import { db, pool, assistantsTable, assistantTrainingTable } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { getReceptionistVoicePersona, RECEPTIONIST_VOICE_PERSONAS } from "@workspace/api-zod";
+import { elevenLabsVoiceId } from "../lib/elevenlabs";
+import { elevenLabsVoiceMapValid } from "../lib/elevenlabs";
 import {
   ListAssistantsResponse,
   CreateAssistantBody,
@@ -28,6 +30,13 @@ import {
 } from "@workspace/api-zod";
 
 const router = Router();
+
+router.get("/assistants/elevenlabs-status", (_req, res) => {
+  res.json({
+    configured: Boolean(process.env.ELEVENLABS_API_KEY && process.env.ELEVENLABS_AGENT_ID && elevenLabsVoiceMapValid()),
+    voiceMapConfigured: elevenLabsVoiceMapValid(),
+  });
+});
 
 async function currentCompanyId(): Promise<number> {
   const company = await pool.query<{ id: number }>(
@@ -129,7 +138,6 @@ router.post("/assistants/voice-preview", async (req, res): Promise<void> => {
   const { text } = req.body as { assistantId?: number; voice?: string; text?: string };
   const allowed = new Set<string>(RECEPTIONIST_VOICE_PERSONAS.map((persona) => persona.id));
   let voice = req.body?.voice as string | undefined;
-  let personaDirection: string | undefined;
   if (req.body?.assistantId !== undefined) {
     const assistantId = Number(req.body.assistantId);
     if (!Number.isSafeInteger(assistantId) || assistantId < 1) { res.status(400).json({ error: "Invalid assistant id." }); return; }
@@ -141,34 +149,33 @@ router.post("/assistants/voice-preview", async (req, res): Promise<void> => {
     if (!saved.rows[0]) { res.status(404).json({ error: "Phone assistant not found." }); return; }
     voice = voice ?? saved.rows[0].realtime_voice;
     if (!allowed.has(voice)) { res.status(400).json({ error: "Invalid voice" }); return; }
-    const persona = RECEPTIONIST_VOICE_PERSONAS.find((item) => item.id === voice);
-    if (!persona) { res.status(409).json({ error: "Save a supported receptionist voice before previewing." }); return; }
-    personaDirection = persona.direction;
+    if (!RECEPTIONIST_VOICE_PERSONAS.some((item) => item.id === voice)) { res.status(409).json({ error: "Save a supported receptionist voice before previewing." }); return; }
   }
   if (!voice || !allowed.has(voice)) {
     res.status(400).json({ error: "Invalid voice" });
     return;
   }
-  if (!process.env.OPENAI_API_KEY) {
-    res.status(503).json({ error: "OpenAI voice previews are not configured yet." });
+  const apiKey = process.env.ELEVENLABS_API_KEY;
+  const elevenVoiceId = elevenLabsVoiceId(voice);
+  if (!apiKey || !elevenVoiceId) {
+    res.status(503).json({ error: "ElevenLabs voice previews are not connected. Configure ELEVENLABS_API_KEY and ELEVENLABS_VOICE_MAP in Replit Secrets." });
     return;
   }
 
   const sample = (text || "Hi, thanks for calling. How can I help you today?").slice(0, 200);
   try {
-    const response = await fetch("https://api.openai.com/v1/audio/speech", {
+    const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(elevenVoiceId)}?output_format=mp3_44100_128`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        "xi-api-key": apiKey,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini-tts",
-        voice,
-        input: sample,
-        instructions: `Speak in natural British English. ${personaDirection ? `Use this subtle style cue where supported: ${personaDirection}. Do not claim an exact regional accent.` : ""} Warm, professional, conversational, concise and not salesy.`,
-        response_format: "mp3",
+        model_id: "eleven_turbo_v2_5",
+        text: sample,
+        voice_settings: { stability: 0.45, similarity_boost: 0.78 },
       }),
+      signal: AbortSignal.timeout(15_000),
     });
     if (!response.ok) {
       res.status(502).json({ error: "Voice preview provider returned an error." });
