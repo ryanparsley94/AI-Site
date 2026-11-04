@@ -239,13 +239,15 @@ router.get("/public-demo/elevenlabs-status", (_req, res) => {
     provider: "ElevenLabs ElevenAgents",
     configured: Boolean(process.env.ELEVENLABS_API_KEY && process.env.ELEVENLABS_AGENT_ID && elevenLabsVoiceMapValid()),
     voiceMapConfigured: elevenLabsVoiceMapValid(),
-    browserDemoEnabled: false,
+    browserDemoEnabled: process.env.ELEVENLABS_PUBLIC_DEMO_READY === "true",
   });
 });
 
 router.post("/public-demo/elevenlabs-session", async (req, res): Promise<void> => {
-  res.status(503).json({ error: "The public live demo is disabled until it uses fictional demo data and cannot write public callers into a real business CRM." });
-  return;
+  if (process.env.ELEVENLABS_PUBLIC_DEMO_READY !== "true") {
+    res.status(503).json({ error: "The public live demo is disabled until it uses fictional demo data and cannot write public callers into a real business CRM." });
+    return;
+  }
   if (!allowRequest(req, res)) return;
   if (req.body?.consent !== true) {
     res.status(400).json({ error: "Consent to a live AI conversation and transcript-based follow-up is required." });
@@ -385,8 +387,10 @@ function allowPhoneDemo(req: Request, phone: string, res: Response): boolean {
 }
 
 router.post("/public-demo/phone-call", async (req, res): Promise<void> => {
-  res.status(503).json({ error: "The callback demo is disabled until phone ownership verification, ElevenAgents Twilio routing, and post-call CRM handling are connected." });
-  return;
+  if (process.env.TWILIO_VERIFIED_CALLBACK_READY !== "true") {
+    res.status(503).json({ error: "The callback demo is disabled until phone ownership verification, ElevenAgents Twilio routing, and post-call CRM handling are connected." });
+    return;
+  }
   const phone = text(req.body?.phone, 32);
   if (req.body?.consent !== true) {
     res.status(400).json({ error: "Consent is required before CREWON can place a demonstration call." });
