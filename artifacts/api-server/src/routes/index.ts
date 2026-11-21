@@ -25,6 +25,7 @@ import businessSetupRouter from "./business-setup";
 import voiceRouter, { phoneRouter } from "./voice";
 import { adminOnly } from "../lib/adminAuth";
 import publicDemoRouter from "./public-demo";
+import elevenLabsPilotRouter from "./elevenlabs-pilot";
 
 const router: IRouter = Router();
 
@@ -68,5 +69,6 @@ router.use(importsRouter);
 router.use(billingRouter);
 router.use(businessSetupRouter);
 router.use(voiceRouter);
+router.use(elevenLabsPilotRouter);
 
 export default router;
