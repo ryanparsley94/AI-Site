@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "wouter";
 import {
   useListAssistants,
   useCreateAssistant,
@@ -1697,6 +1698,11 @@ export default function Assistants() {
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            <Link href="/assistants/elevenlabs-pilot"
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border-2 border-primary/40 px-4 text-sm font-bold text-primary hover:bg-primary/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              data-testid="open-elevenlabs-pilot">
+              <Volume2 size={19} /> ElevenLabs Pilot
+            </Link>
             <Button variant="outline" className="gap-2" onClick={() => setIsDemoOpen(true)}>
               <Play size={14} /> Watch Demo Call
             </Button>

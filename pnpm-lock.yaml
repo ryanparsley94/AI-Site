@@ -243,9 +243,6 @@ importers:
 
   artifacts/buildai:
     dependencies:
-      '@elevenlabs/client':
-        specifier: ^1.33.0
-        version: 1.33.0
       jspdf:
         specifier: ^4.2.1
         version: 4.2.1
@@ -256,6 +253,12 @@ importers:
         specifier: ^1.9.4
         version: 1.9.4
     devDependencies:
+      '@elevenlabs/client':
+        specifier: ^1.37.1
+        version: 1.37.1(@types/dom-mediacapture-record@1.0.22)
+      '@elevenlabs/react':
+        specifier: ^1.23.1
+        version: 1.23.1(@types/dom-mediacapture-record@1.0.22)(react@19.1.0)
       '@hookform/resolvers':
         specifier: ^3.10.0
         version: 3.10.0(react-hook-form@7.83.0(react@19.1.0))
@@ -361,6 +364,9 @@ importers:
       '@tanstack/react-query':
         specifier: 'catalog:'
         version: 5.101.4(react@19.1.0)
+      '@types/dom-mediacapture-record':
+        specifier: ^1.0.22
+        version: 1.0.22
       '@types/leaflet':
         specifier: ^1.9.22
         version: 1.9.22
@@ -1387,11 +1393,16 @@ packages:
     resolution: {integrity: sha512-XQsZgjm2EcVUiZQf11UBJQfmZeEmOW8DpI1gsFeln6w0ae0ii4dMQEQ0kjl6DspdWX1aGY1/loyXnP0JS06e/A==}
     engines: {node: '>=0.8.0'}
 
-  '@elevenlabs/client@1.33.0':
-    resolution: {integrity: sha512-znhm7bhxSnFjDt58HTjuszLhskV9tPmvVUZugsQqFNKxSBuEe/feATebD6SJRUfdxEcFO63aq9JF5BlF5b+rww==}
+  '@elevenlabs/client@1.37.1':
+    resolution: {integrity: sha512-4WvfsriJq9pj+nedoseL/bivAhgeXqE1aqvujbNH2+uz04Qi1+oGetsr+49shNSupcauN1nIUdEa21+wg+U/Og==}
 
-  '@elevenlabs/types@0.27.0':
-    resolution: {integrity: sha512-bWCdooFVRECdbYPFf0B+ISZ970dBdsbd42DUGCbXHARsJ4F/IAJdxETsm6968ct0zQQstYAeYxArVo5jh3YrpQ==}
+  '@elevenlabs/react@1.23.1':
+    resolution: {integrity: sha512-EPRmGyZ47LuUrsBT7Pk8dcv04URW+2wl41O2CsmBcmsWOPfDpPvgWGy+eNOxyQxubwKaU03uloMpeJb5cseEgw==}
+    peerDependencies:
+      react: '>=16.8.0'
+
+  '@elevenlabs/types@0.30.0':
+    resolution: {integrity: sha512-fOfe5aXbLemU59YnHiDBQ7sq5u7OuQXW/YtZizk8U+RHLFcaHIrPERFlM6qIKzLu7bG/01MW7YemSH1M2zWk2g==}
 
   '@esbuild/linux-x64@0.27.3':
     resolution: {integrity: sha512-Czi8yzXUWIQYAtL/2y6vogER8pvcsOsk5cpwL4Gk5nJqH5UZiVByIY8Eorm5R13gq+DQKYg0+JyQoytLQas4dA==}
@@ -2671,6 +2682,9 @@ packages:
 
   '@types/d3-timer@3.0.2':
     resolution: {integrity: sha512-Ps3T8E8dZDam6fUyNiMkekK3XUsaUEik+idO9/YjPtfj2qruF8tFBXS7XhtE4iIXBLxhmLjP3SXpLhVf21I9Lw==}
+
+  '@types/dom-mediacapture-record@1.0.22':
+    resolution: {integrity: sha512-mUMZLK3NvwRLcAAT9qmcK+9p7tpU2FHdDsntR3YI4+GY88XrgG4XiE7u1Q2LAN2/FZOz/tdMDC3GQCR4T8nFuw==}
 
   '@types/estree@1.0.9':
     resolution: {integrity: sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg==}
@@ -6785,14 +6799,21 @@ snapshots:
     dependencies:
       '@types/hammerjs': 2.0.46
 
-  '@elevenlabs/client@1.33.0':
+  '@elevenlabs/client@1.37.1(@types/dom-mediacapture-record@1.0.22)':
     dependencies:
-      '@elevenlabs/types': 0.27.0
-      livekit-client: 2.23.0
+      '@elevenlabs/types': 0.30.0
+      livekit-client: 2.23.0(@types/dom-mediacapture-record@1.0.22)
     transitivePeerDependencies:
       - '@types/dom-mediacapture-record'
 
-  '@elevenlabs/types@0.27.0': {}
+  '@elevenlabs/react@1.23.1(@types/dom-mediacapture-record@1.0.22)(react@19.1.0)':
+    dependencies:
+      '@elevenlabs/client': 1.37.1(@types/dom-mediacapture-record@1.0.22)
+      react: 19.1.0
+    transitivePeerDependencies:
+      - '@types/dom-mediacapture-record'
+
+  '@elevenlabs/types@0.30.0': {}
 
   '@esbuild/linux-x64@0.27.3':
     optional: true
@@ -8763,6 +8784,8 @@ snapshots:
 
   '@types/d3-timer@3.0.2': {}
 
+  '@types/dom-mediacapture-record@1.0.22': {}
+
   '@types/estree@1.0.9': {}
 
   '@types/express-serve-static-core@5.1.2':
@@ -10486,10 +10509,11 @@ snapshots:
     dependencies:
       uc.micro: 2.1.0
 
-  livekit-client@2.23.0:
+  livekit-client@2.23.0(@types/dom-mediacapture-record@1.0.22):
     dependencies:
       '@livekit/mutex': 1.1.1
       '@livekit/protocol': 1.52.1
+      '@types/dom-mediacapture-record': 1.0.22
       events: 3.3.0
       jose: 6.2.15
       loglevel: 1.9.2

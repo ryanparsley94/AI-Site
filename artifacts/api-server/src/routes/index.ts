@@ -27,6 +27,7 @@ import { adminOnly } from "../lib/adminAuth";
 import publicDemoRouter from "./public-demo";
 import telephonyRouter from "./telephony";
 import notificationsRouter from "./notifications";
+import elevenLabsPilotRouter from "./elevenlabs-pilot";
 
 const router: IRouter = Router();
 
@@ -72,5 +73,6 @@ router.use(billingRouter);
 router.use(businessSetupRouter);
 router.use(telephonyRouter);
 router.use(voiceRouter);
+router.use(elevenLabsPilotRouter);
 
 export default router;
