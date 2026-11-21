@@ -10,6 +10,7 @@ import CallDetail from '@/pages/call-detail';
 import Jobs from '@/pages/jobs';
 import JobWorkspace from '@/pages/job-workspace';
 import Assistants from '@/pages/assistants';
+import ElevenLabsPilotPage from '@/pages/elevenlabs-pilot';
 import Contacts from '@/pages/contacts';
 import Settings from '@/pages/settings';
 import Quotes from '@/pages/quotes';
@@ -76,6 +77,9 @@ function Router() {
       </Route>
       <Route path="/sales">
         <AppLayout><Sales /></AppLayout>
+      </Route>
+      <Route path="/assistants/elevenlabs-pilot">
+        <AppLayout><ElevenLabsPilotPage /></AppLayout>
       </Route>
       <Route path="/assistants">
         <AppLayout><Assistants /></AppLayout>
