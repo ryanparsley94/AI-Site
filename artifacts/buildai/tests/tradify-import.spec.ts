@@ -81,7 +81,7 @@ test("invalid customer CSV headers and unauthenticated responses do not permit w
     name: "synthetic-invalid.csv", mimeType: "text/csv", buffer: Buffer.from("Invoice Number,Amount\nINV-001,15"),
   });
   await page.getByTestId("button-import-preview-customers").click();
-  await expect(page.getByText(/Missing Customer Name or Customer column/)).toBeVisible();
+  await expect(page.getByText("Missing Customer Name or Customer column. No records were changed.", { exact: true })).toBeVisible();
   await expect(page.getByTestId("button-import-run-customers")).toBeDisabled();
   expect(writes).toBe(0);
 
