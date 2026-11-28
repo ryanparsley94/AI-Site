@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from "express";
+import { requireSingleCompanyPilot } from "../lib/single-company-pilot";
 import { eq, desc, sql } from "drizzle-orm";
 import { db, quotesTable, quoteVersionsTable, jobsTable, invoicesTable, companiesTable } from "@workspace/db";
 import {
@@ -25,6 +26,10 @@ import {
 } from "@workspace/api-zod";
 
 const router = Router();
+
+// V1 private single-business pilot: deny all quote reads and mutations if another
+// company is created. Replace with per-user tenant auth before SaaS launch.
+router.use(requireSingleCompanyPilot);
 const guarded = (handler: (req: Request, res: Response) => Promise<void>) => async (req: Request, res: Response) => {
   try { await handler(req, res); }
   catch (error) {

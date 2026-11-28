@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from "express";
+import { requireSingleCompanyPilot } from "../lib/single-company-pilot";
 import { eq, sql } from "drizzle-orm";
 import { db, quotesTable, jobsTable } from "@workspace/db";
 import {
@@ -15,6 +16,11 @@ const guarded = (fn: (req: Request, res: Response) => Promise<void>) => async (r
 };
 export const quoteSharingRouter = Router();
 export const publicQuoteRouter = Router();
+
+// Creating and rotating client links is private business data. Never select an
+// arbitrary tenant in the current shared-login pilot. Public acceptance links
+// use unguessable tokens and are deliberately not subject to this private guard.
+quoteSharingRouter.use(requireSingleCompanyPilot);
 
 quoteSharingRouter.post("/quotes/:id/acceptance-link", guarded(async (req, res) => {
   const id = quoteId(req.params.id);
