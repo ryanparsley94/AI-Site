@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test, after } from "node:test";
 import express from "express";
 import { eq, inArray } from "drizzle-orm";
-import { db, quotesTable, pool } from "@workspace/db";
+import { db, quotesTable, jobsTable, invoicesTable, pool } from "@workspace/db";
 import { blankQuoteWorkflow } from "@workspace/api-zod";
 import { financialFields } from "../src/lib/quote-workflow";
 import { quoteSharingRouter, publicQuoteRouter } from "../src/routes/quote-acceptance";
@@ -10,6 +10,8 @@ import quotesRouter from "../src/routes/quotes";
 import { adminOnly } from "../src/lib/adminAuth";
 
 const ids: number[] = [];
+const jobIds: number[] = [];
+const invoiceIds: number[] = [];
 const fixture = express();
 fixture.use(express.json());
 fixture.use("/api", publicQuoteRouter);
@@ -21,12 +23,15 @@ protectedApp.use("/api", adminOnly, quoteSharingRouter);
 const actual = protectedApp.listen(0);
 const origin = () => `http://127.0.0.1:${(server.address() as { port: number }).port}/api`;
 after(async () => {
+  // Conversion creates linked records, which must be removed before fixture quotes.
+  if (invoiceIds.length) await db.delete(invoicesTable).where(inArray(invoicesTable.id, invoiceIds));
+  if (jobIds.length) await db.delete(jobsTable).where(inArray(jobsTable.id, jobIds));
   if (ids.length) await db.delete(quotesTable).where(inArray(quotesTable.id, ids));
   server.close(); actual.close(); await pool.end();
 });
 async function create() {
   const w = blankQuoteWorkflow();
-  Object.assign(w, { customerName: "Test customer", siteAddress: "Test site", scope: "Install test fitting",
+  Object.assign(w, { customerName: "Test customer", customerPhone: "07000000000", siteAddress: "Test site", scope: "Install test fitting",
     paymentTerms: "Balance on completion", validUntil: "2099-12-31" });
   w.sections[0].items = [{ id: "fixture-line", type: "materials", description: "Test fitting", quantity: 2,
     unit: "item", costPrice: 3.25, sellPrice: 10, source: "PRIVATE SUPPLIER", sourceUrl: "https://private.invalid" }];
@@ -118,4 +123,48 @@ test("Public quote responses preserve privacy, status, locking and revision safe
   const editPage = (await request(`/public/quotes/${editedToken}`)).body;
   assert.equal((await request(`/quotes/${fourth.id}`, "PATCH", { title: "Revised scope", revision: editPage.revision })).status, 200);
   assert.equal((await request(`/public/quotes/${editedToken}`)).status, 404);
+});
+
+test("Customer-approved quote becomes one job and one invoice with original totals", async () => {
+  const quote = await create();
+  const token = await share(quote.id);
+  const publicPage = await request(`/public/quotes/${token}`);
+  assert.equal(publicPage.status, 200);
+  assert.equal(publicPage.body.total, 24);
+
+  const response = await request(`/public/quotes/${token}`, "POST", {
+    action: "accept", revision: publicPage.body.revision,
+  });
+  assert.equal(response.status, 200);
+  assert.equal(response.body.status, "accepted");
+
+  const scheduledAt = "2026-12-04T09:00:00.000Z";
+  const job = await request(`/quotes/${quote.id}/convert-job`, "POST", { scheduledAt });
+  assert.equal(job.status, 200);
+  assert.equal(job.body.status, "scheduled");
+  assert.equal(job.body.contactName, "Test customer");
+  assert.equal(job.body.estimatedValue, 24);
+  jobIds.push(job.body.id);
+
+  // Retried requests must return the same job; never duplicate work bookings.
+  const jobRetry = await request(`/quotes/${quote.id}/convert-job`, "POST", { scheduledAt });
+  assert.equal(jobRetry.status, 200);
+  assert.equal(jobRetry.body.id, job.body.id);
+
+  const invoice = await request(`/quotes/${quote.id}/convert-invoice`, "POST");
+  assert.equal(invoice.status, 200);
+  assert.equal(invoice.body.total, 24);
+  assert.equal(invoice.body.jobId, job.body.id);
+  invoiceIds.push(invoice.body.id);
+
+  // Retried conversions must not issue a second invoice number.
+  const invoiceRetry = await request(`/quotes/${quote.id}/convert-invoice`, "POST");
+  assert.equal(invoiceRetry.status, 200);
+  assert.equal(invoiceRetry.body.id, invoice.body.id);
+  assert.equal(invoiceRetry.body.invoiceNumber, invoice.body.invoiceNumber);
+
+  const [stored] = await db.select().from(quotesTable).where(eq(quotesTable.id, quote.id));
+  assert.equal(stored.jobId, job.body.id);
+  assert.equal(stored.status, "accepted");
+  assert.equal(Number(stored.totalIncVat), 24);
 });
