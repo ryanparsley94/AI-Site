@@ -124,9 +124,19 @@ function notesFromTradify(headers: string[], row: CsvRow, contactName: string): 
 }
 
 async function pilotCompanyId(): Promise<number> {
-  const company = await pool.query<{ id: number }>("SELECT id FROM companies ORDER BY id LIMIT 1");
-  if (!company.rows[0]) throw new Error("Create the business profile before importing customers.");
-  return company.rows[0].id;
+  // Temporary safety gate for the single-company Parsley Electrical pilot.
+  // This dashboard still has a shared admin session, not per-business identity.
+  // Never select the first tenant if multiple businesses exist.
+  const companies = await pool.query<{ id: number }>("SELECT id FROM companies ORDER BY id LIMIT 2");
+  if (companies.rows.length === 0) {
+    throw new Error("Create the business profile before importing customers.");
+  }
+  if (companies.rows.length !== 1) {
+    throw new Error(
+      "Customer import is disabled when multiple businesses exist. Set up per-business authentication and access controls first. No records were changed.",
+    );
+  }
+  return companies.rows[0].id;
 }
 
 async function findCustomer(
@@ -147,6 +157,10 @@ async function findCustomer(
   const phoneKey = (value: string) => value.replace(/[^0-9+]/g, "");
   const incomingPhone = phoneKey(phone);
   const incomingEmail = email.trim().toLowerCase();
+  if (!incomingPhone && !incomingEmail) {
+    // A shared name alone is insufficient to overwrite another record.
+    return null;
+  }
   const safeMatch = matches.rows.find((record) => {
     const existingPhone = phoneKey(record.phone || "");
     const existingEmail = (record.email || "").trim().toLowerCase();
