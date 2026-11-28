@@ -10,7 +10,8 @@
     "dev": "export NODE_ENV=development && pnpm run build && pnpm run start",
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test:crm-csv": "esbuild src/lib/crm-csv.test.ts --bundle --platform=node --format=esm --outfile=/tmp/crewon-crm-csv.test.mjs && node --test /tmp/crewon-crm-csv.test.mjs"
   },
   "dependencies": {
     "@replit/connectors-sdk": "^0.4.1",
