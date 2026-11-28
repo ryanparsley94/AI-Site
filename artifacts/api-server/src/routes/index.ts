@@ -28,6 +28,7 @@ import publicDemoRouter from "./public-demo";
 import telephonyRouter from "./telephony";
 import notificationsRouter from "./notifications";
 import elevenLabsPilotRouter from "./elevenlabs-pilot";
+import { singleCompanyOnly } from "../lib/single-company-only";
 
 const router: IRouter = Router();
 
@@ -52,6 +53,9 @@ router.use(publicQuoteRouter);
 
 // ── Dashboard routes ──────────────────────────────────────────────────────────
 router.use(adminOnly);
+// Stop the single-admin app from operating on a database with multiple
+// businesses until authenticated company membership is implemented.
+router.use(singleCompanyOnly);
 router.use(companyRouter);
 router.use(assistantsRouter);
 router.use(contactsRouter);

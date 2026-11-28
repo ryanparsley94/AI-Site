@@ -77,6 +77,18 @@ function normaliseHeader(value: string): string {
     .trim();
 }
 
+function requireTradifyHeaders(headers: string[], kind: "customers" | "sites") {
+  const known = new Set(headers.map(normaliseHeader));
+  const has = (...aliases: string[]) => aliases.some((name) => known.has(normaliseHeader(name)));
+
+  if (kind === "customers" && !has("Customer Name", "Customer", "Company Name", "Client Name")) {
+    throw new Error("This does not look like a Tradify customer export. Missing Customer Name or Customer column. No records were changed.");
+  }
+  if (kind === "sites" && (!has("Customer", "Customer Name") || !has("Site Name", "Site", "Customer Site Name"))) {
+    throw new Error("This does not look like a Tradify customer-sites export. Customer and Site Name columns are required. No records were changed.");
+  }
+}
+
 function rowAccessor(headers: string[], row: CsvRow) {
   const index = new Map<string, number>();
   headers.forEach((header, i) => index.set(normaliseHeader(header), i));
@@ -84,7 +96,10 @@ function rowAccessor(headers: string[], row: CsvRow) {
   const value = (...aliases: string[]): string => {
     for (const alias of aliases) {
       const found = index.get(normaliseHeader(alias));
-      if (found !== undefined) return (row[found] ?? "").trim().slice(0, 5000);
+      if (found !== undefined) {
+        const cell = (row[found] ?? "").trim();
+        if (cell) return cell.slice(0, 5000);
+      }
     }
     return "";
   };
@@ -109,9 +124,16 @@ function notesFromTradify(headers: string[], row: CsvRow, contactName: string): 
 }
 
 async function pilotCompanyId(): Promise<number> {
-  const company = await pool.query<{ id: number }>("SELECT id FROM companies ORDER BY id LIMIT 1");
-  if (!company.rows[0]) throw new Error("Create the business profile before importing customers.");
-  return company.rows[0].id;
+  const companies = await pool.query<{ id: number }>("SELECT id FROM companies ORDER BY id LIMIT 2");
+  if (companies.rows.length === 0) {
+    throw new Error("Create the business profile before importing customers.");
+  }
+  if (companies.rows.length !== 1) {
+    throw new Error(
+      "Customer import is disabled when multiple businesses exist. Set up per-business authentication and access controls first. No records were changed.",
+    );
+  }
+  return companies.rows[0].id;
 }
 
 async function findCustomer(
@@ -140,16 +162,28 @@ async function findCustomer(
     if (byEmail.rows[0]) return byEmail.rows[0];
   }
 
-  const byName = await pool.query<{ id: number }>(
-    "SELECT id FROM contacts WHERE company_id=$1 AND lower(name)=lower($2) ORDER BY id LIMIT 1",
+  const matches = await pool.query<{ id: number; phone: string; email: string | null }>(
+    `SELECT id, phone, email FROM contacts
+      WHERE company_id=$1 AND lower(btrim(name))=lower(btrim($2))
+      ORDER BY id LIMIT 100`,
     [companyId, customerName],
   );
-  return byName.rows[0] ?? null;
+  const phoneKey = (value: string) => value.replace(/[^0-9+]/g, "");
+  const incomingPhone = phoneKey(phone);
+  const incomingEmail = email.trim().toLowerCase();
+  if (!incomingPhone && !incomingEmail) return null;
+  const safeMatch = matches.rows.find((record) => {
+    const existingPhone = phoneKey(record.phone || "");
+    const existingEmail = (record.email || "").trim().toLowerCase();
+    return (!incomingPhone || !existingPhone || incomingPhone === existingPhone)
+      && (!incomingEmail || !existingEmail || incomingEmail === existingEmail);
+  });
+  return safeMatch ? { id: safeMatch.id } : null;
 }
 
 function customerFields(headers: string[], row: CsvRow) {
   const { value } = rowAccessor(headers, row);
-  const customerName = value("Customer Name", "Customer");
+  const customerName = value("Customer Name", "Customer", "Company Name", "Client Name");
   const contactName = value("Contact Name");
   const phone = value("Mobile Number", "Mobile", "Phone Number", "Phone");
   const email = value("Email Address", "Email", "Customer Email Address(es)");
@@ -160,7 +194,8 @@ function customerFields(headers: string[], row: CsvRow) {
     value("Physical Address Postal Code", "Postal Code", "Postcode"),
     value("Physical Address Country", "Country"),
   ]);
-  const notes = notesFromTradify(headers, row, contactName && contactName !== customerName ? contactName : "");
+  const structuredNotes = notesFromTradify(headers, row, contactName && contactName !== customerName ? contactName : "");
+  const notes = [value("Notes", "Customer Notes"), structuredNotes].filter(Boolean).join("\n").slice(0, 8000) || null;
   return { customerName, contactName, phone, email, address, notes };
 }
 
@@ -175,6 +210,7 @@ router.post(
       }
 
       const { headers, rows } = parseCsv(req.body);
+      requireTradifyHeaders(headers, "customers");
       const preview = req.query.preview === "true";
       const sample = rows.slice(0, 5).map((row) => customerFields(headers, row));
       const validRows = rows.filter((row) => Boolean(customerFields(headers, row).customerName)).length;
@@ -268,7 +304,7 @@ function siteFields(headers: string[], row: CsvRow) {
   const { value } = rowAccessor(headers, row);
   return {
     customerName: value("Customer", "Customer Name"),
-    siteName: value("Site Name", "Site"),
+    siteName: value("Site Name", "Site", "Customer Site Name"),
     phone: value("Phone Number", "Phone", "Mobile Number", "Mobile"),
     street: value("Physical Address Street", "Address Street", "Street", "Address"),
     city: value("Physical Address City", "City"),
@@ -290,6 +326,7 @@ router.post(
       }
 
       const { headers, rows } = parseCsv(req.body);
+      requireTradifyHeaders(headers, "sites");
       const preview = req.query.preview === "true";
       const sample = rows.slice(0, 5).map((row) => siteFields(headers, row));
       const validRows = rows.filter((row) => {
