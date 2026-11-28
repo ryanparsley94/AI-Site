@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Upload, Users, MapPin, CheckCircle2, AlertTriangle, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,6 +36,7 @@ function ImportCard({
   description: string;
   required: string;
 }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [csv, setCsv] = useState("");
   const [preview, setPreview] = useState<PreviewResult | null>(null);
@@ -86,8 +87,19 @@ function ImportCard({
         headers: { "Content-Type": "text/csv" },
         body: csv,
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Import failed");
+      const isJson = response.headers.get("content-type")?.includes("application/json");
+      const data = isJson ? await response.json() : null;
+      if (!response.ok) {
+        throw new Error(
+          data?.error ||
+          (response.status === 401 || response.status === 403
+            ? "Your session has expired. Sign in again before importing."
+            : "Import service unavailable (" + response.status + "). Please try again."),
+        );
+      }
+      if (!data || typeof data !== "object") {
+        throw new Error("CREWON did not return a valid import result. No import has been confirmed.");
+      }
 
       if (previewOnly) {
         setPreview(data as PreviewResult);
@@ -95,8 +107,9 @@ function ImportCard({
       } else {
         setResult(data as ImportResult);
         toast({
-          title:
-            kind === "customers"
+          title: data.skipped > 0
+            ? "Import finished with rows to review"
+            : kind === "customers"
               ? "Customer import complete"
               : "Site import complete",
           description:
@@ -145,54 +158,58 @@ function ImportCard({
           <p className="text-xs text-muted-foreground">{required}</p>
         </div>
 
-        <label className="block cursor-pointer">
-          <div className="flex items-center justify-between gap-4 rounded-xl border p-4 hover:bg-muted/30 transition-colors">
-            <div className="flex items-center gap-3 min-w-0">
-              <FileText
-                size={20}
-                className="text-muted-foreground shrink-0"
-              />
-              <div className="min-w-0">
-                <p className="text-sm font-medium truncate">
-                  {file?.name || "Choose Tradify CSV"}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {file
-                    ? String(Math.max(1, Math.round(file.size / 1024))) + " KB"
-                    : "CSV only · maximum 5 MB"}
-                </p>
-              </div>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="pointer-events-none gap-2"
-            >
-              <Upload size={14} /> Choose file
-            </Button>
-          </div>
+        <div className="flex items-center justify-between gap-4 rounded-xl border p-4 hover:bg-muted/30 transition-colors">
           <input
+            ref={fileInputRef}
             type="file"
             accept=".csv,text/csv"
+            aria-label={"Tradify " + kind + " CSV file"}
+            data-testid={"input-tradify-" + kind + "-csv"}
             className="sr-only"
-            onChange={(event) =>
-              void loadFile(event.target.files?.[0] ?? null)
-            }
+            onChange={(event) => {
+              const selected = event.currentTarget.files?.[0] ?? null;
+              event.currentTarget.value = "";
+              void loadFile(selected);
+            }}
           />
-        </label>
+          <div className="flex items-center gap-3 min-w-0">
+            <FileText size={20} className="text-muted-foreground shrink-0" />
+            <div className="min-w-0">
+              <p className="text-sm font-medium truncate">
+                {file?.name || "Choose Tradify CSV"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {file
+                  ? String(Math.max(1, Math.round(file.size / 1024))) + " KB"
+                  : "CSV only · maximum 5 MB"}
+              </p>
+            </div>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="shrink-0 gap-2 min-h-11"
+            data-testid={"button-choose-csv-" + kind}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Upload size={14} /> Choose file
+          </Button>
+        </div>
 
         {file && (
           <div className="flex gap-2">
             <Button
               variant="outline"
               onClick={() => void request(true)}
+              data-testid={"button-import-preview-" + kind}
               disabled={busy}
             >
               {busy ? "Checking…" : "Preview import"}
             </Button>
             <Button
               onClick={() => void request(false)}
+              data-testid={"button-import-run-" + kind}
               disabled={busy || !preview || preview.validRows === 0}
             >
               {busy ? "Importing…" : "Import " + kind}
@@ -242,6 +259,17 @@ function ImportCard({
             <p className="text-[11px] text-muted-foreground break-words">
               Columns found: {preview.headers.join(", ")}
             </p>
+            <div data-testid={"import-preview-sample-" + kind} className="rounded-lg bg-muted/20 border p-3 space-y-1">
+              <p className="text-xs font-medium">Sample records (check before importing)</p>
+              {preview.sample.slice(0, 3).map((item, index) => (
+                <p key={index} className="text-xs text-muted-foreground break-words">
+                  {String(item.customerName || "(missing customer)")}
+                  {item.siteName ? " · " + item.siteName : ""}
+                  {item.email ? " · " + item.email : ""}
+                  {item.phone ? " · " + item.phone : ""}
+                </p>
+              ))}
+            </div>
           </div>
         )}
 
