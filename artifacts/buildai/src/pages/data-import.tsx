@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Upload, Users, MapPin, CheckCircle2, AlertTriangle, FileText } from "lucide-react";
+import { Upload, Users, MapPin, CheckCircle2, AlertTriangle, FileText, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -349,6 +349,34 @@ export default function DataImport() {
             will safely skip unmatched rows.
           </p>
         </div>
+
+        <section aria-label="Customer data backup" className="rounded-xl border bg-card p-5 space-y-3">
+          <h2 className="font-semibold text-base">Back up your customer data</h2>
+          <p className="text-sm text-muted-foreground">
+            Download your CREWON customer and job-site records as CSV. These exports do not include
+            quotations, certificates, invoices or a full database backup.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <a
+              data-testid="download-crewon-customers"
+              href={import.meta.env.BASE_URL.replace(/\\/$/, "") + "/api/contacts/export/customers.csv"}
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border bg-background px-4 text-sm font-semibold hover:bg-muted"
+            >
+              <Download size={17} /> Download customers
+            </a>
+            <a
+              data-testid="download-crewon-sites"
+              href={import.meta.env.BASE_URL.replace(/\\/$/, "") + "/api/contacts/export/sites.csv"}
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border bg-background px-4 text-sm font-semibold hover:bg-muted"
+            >
+              <Download size={17} /> Download job sites
+            </a>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Contains personal information. Store exported files securely and delete unneeded copies.
+            Exports require your dashboard login and are blocked in the current multi-business prototype.
+          </p>
+        </section>
 
         <div className="grid lg:grid-cols-2 gap-6">
           <ImportCard
