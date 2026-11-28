@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { PilotCompanyError, singlePilotCompanyId } from "./single-company-pilot-policy.ts";
+import { PilotCompanyError, singlePilotCompanyId } from "./single-company-pilot-policy";
 
 test("single-company policy accepts exactly one synthetic business", () => {
   assert.equal(singlePilotCompanyId([42]), 42);

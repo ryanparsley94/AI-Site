@@ -8,7 +8,7 @@
     "test:quote-acceptance": "node test/build-quote-acceptance.mjs && node --test test/.quote-acceptance.test.mjs; result=$?; rm -f test/.quote-acceptance.test.mjs; exit $result",
     "test:admin-access": "node test/build-admin-access.mjs && node --test test/.admin-access.test.mjs; result=$?; rm -f test/.admin-access.test.mjs; exit $result",
     "test:crm-csv": "esbuild src/lib/crm-csv.test.ts --bundle --platform=node --format=esm --outfile=/tmp/crewon-crm-csv.test.mjs && node --test /tmp/crewon-crm-csv.test.mjs",
-    "test:single-company-pilot": "node --test src/lib/single-company-pilot-policy.test.ts",
+    "test:single-company-pilot": "esbuild src/lib/single-company-pilot-policy.test.ts --bundle --platform=node --format=esm --outfile=/tmp/crewon-single-company-pilot.test.mjs && node --test /tmp/crewon-single-company-pilot.test.mjs",
     "test:voice": "esbuild src/lib/voice-actions.test.ts --bundle --platform=node --format=esm --outfile=/tmp/buildai-voice-actions.test.mjs && node --test /tmp/buildai-voice-actions.test.mjs",
     "dev": "export NODE_ENV=development && pnpm run build && pnpm run start",
     "build": "node ./build.mjs",

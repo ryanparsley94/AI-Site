@@ -44,6 +44,7 @@ test("customer enquiry APIs require sign-in and the owner session can review cal
     "/calls",
     "/calls/1",
     "/contacts",
+    "/contacts/export/customers.csv",
     "/email-threads",
     "/email-threads/1",
     "/pilot/readiness",
@@ -53,6 +54,12 @@ test("customer enquiry APIs require sign-in and the owner session can review cal
     const response = await get(path);
     assert.equal(response.status, 401, `anonymous ${path} request must be denied`);
   }
+  const anonymousImport = await fetch(`${baseUrl}/imports/tradify/customers`, {
+    method: "POST",
+    headers: { "Content-Type": "text/csv" },
+    body: "Customer Name,Phone Number\nSynthetic Customer,07700900123\n",
+  });
+  assert.equal(anonymousImport.status, 401, "anonymous CSV import must be denied before database access");
 
   const incorrect = await fetch(`${baseUrl}/auth/login`, {
     method: "POST",

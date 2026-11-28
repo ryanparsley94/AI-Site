@@ -90,7 +90,7 @@ test("invalid customer CSV headers and unauthenticated responses do not permit w
     name: "synthetic-valid.csv", mimeType: "text/csv", buffer: Buffer.from(customerCsv),
   });
   await page.getByTestId("button-import-preview-customers").click();
-  await expect(page.getByText(/session has expired|Sign in/i)).toBeVisible();
+  await expect(page.getByText(/Unauthorized.*admin session required/i)).toBeVisible();
   expect(writes).toBe(0);
 });
 

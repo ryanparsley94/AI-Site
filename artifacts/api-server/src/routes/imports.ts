@@ -1,6 +1,7 @@
 import { Router, text as textBody } from "express";
 import { pool } from "@workspace/db";
 import { logger } from "../lib/logger";
+import { PilotCompanyError, singlePilotCompanyId } from "../lib/single-company-pilot-policy";
 
 const router = Router();
 const MAX_ROWS = 10_000;
@@ -125,15 +126,7 @@ function notesFromTradify(headers: string[], row: CsvRow, contactName: string): 
 
 async function pilotCompanyId(): Promise<number> {
   const companies = await pool.query<{ id: number }>("SELECT id FROM companies ORDER BY id LIMIT 2");
-  if (companies.rows.length === 0) {
-    throw new Error("Create the business profile before importing customers.");
-  }
-  if (companies.rows.length !== 1) {
-    throw new Error(
-      "Customer import is disabled when multiple businesses exist. Set up per-business authentication and access controls first. No records were changed.",
-    );
-  }
-  return companies.rows[0].id;
+  return singlePilotCompanyId(companies.rows.map((company) => company.id));
 }
 
 async function findCustomer(
@@ -295,6 +288,10 @@ router.post(
 
       res.json({ kind: "customers", totalRows: rows.length, created, updated, skipped, errors });
     } catch (error) {
+      if (error instanceof PilotCompanyError) {
+        res.status(error.statusCode).json({ error: error.message });
+        return;
+      }
       res.status(400).json({ error: error instanceof Error ? error.message : "Customer import failed." });
     }
   },
@@ -444,6 +441,10 @@ router.post(
 
       res.json({ kind: "sites", totalRows: rows.length, created, updated, skipped, errors });
     } catch (error) {
+      if (error instanceof PilotCompanyError) {
+        res.status(error.statusCode).json({ error: error.message });
+        return;
+      }
       res.status(400).json({ error: error instanceof Error ? error.message : "Site import failed." });
     }
   },
