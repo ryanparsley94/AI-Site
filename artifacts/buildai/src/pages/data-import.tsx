@@ -5,6 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 
+const CREWON_API_BASE = import.meta.env.BASE_URL.endsWith("/")
+  ? import.meta.env.BASE_URL.slice(0, -1)
+  : import.meta.env.BASE_URL;
+
 type ImportKind = "customers" | "sites";
 
 type PreviewResult = {
@@ -359,14 +363,14 @@ export default function DataImport() {
           <div className="flex flex-wrap gap-3">
             <a
               data-testid="download-crewon-customers"
-              href={import.meta.env.BASE_URL.replace(/\\/$/, "") + "/api/contacts/export/customers.csv"}
+              href={CREWON_API_BASE + "/api/contacts/export/customers.csv"}
               className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border bg-background px-4 text-sm font-semibold hover:bg-muted"
             >
               <Download size={17} /> Download customers
             </a>
             <a
               data-testid="download-crewon-sites"
-              href={import.meta.env.BASE_URL.replace(/\\/$/, "") + "/api/contacts/export/sites.csv"}
+              href={CREWON_API_BASE + "/api/contacts/export/sites.csv"}
               className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border bg-background px-4 text-sm font-semibold hover:bg-muted"
             >
               <Download size={17} /> Download job sites
